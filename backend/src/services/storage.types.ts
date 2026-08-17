@@ -109,3 +109,40 @@ export interface IVectorStore {
   deleteChunksByQuery(query: string, sessionId: string): Promise<number>;
   mergeSession(sourceId: string, targetId: string): Promise<void>;
 }
+
+export type ImportanceLevel = "critical" | "high" | "medium" | "low";
+export type MemoryCategory = "Architecture" | "Decision" | "Gotcha" | "Rule" | "Tech" | "Note";
+
+export interface Memory {
+  id: string;
+  sessionId: string;
+  title: string;
+  content: string;
+  importance: ImportanceLevel;
+  category: MemoryCategory;
+  tags: string[];
+  source?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkingMemory {
+  sessionId: string;
+  briefing: string;
+  focusAreas: string[];
+  activeDecisions: string[];
+  blockers: string[];
+  lastGeneratedAt: Date;
+  updatedAt: Date;
+}
+
+export interface IMemoryStore {
+  createMemory(memory: Omit<Memory, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Memory>;
+  getMemories(sessionId?: string, filters?: { importance?: ImportanceLevel; category?: string; query?: string }): Promise<Memory[]>;
+  getMemory(id: string): Promise<Memory | null>;
+  updateMemory(id: string, update: Partial<Memory>): Promise<Memory | null>;
+  deleteMemory(id: string): Promise<boolean>;
+
+  getWorkingMemory(sessionId: string): Promise<WorkingMemory | null>;
+  saveWorkingMemory(workingMemory: Partial<WorkingMemory> & { sessionId: string }): Promise<WorkingMemory>;
+}

@@ -1,67 +1,70 @@
 import React from "react";
 import { useLocale } from "../../context/LocaleContext";
 
+export type MainTabType = "working-memory" | "memories" | "graph" | "chat" | "search" | "settings";
+
 interface HeaderProps {
-  activeMainTab: "graph" | "search" | "settings";
-  setActiveMainTab: (tab: "graph" | "search" | "settings") => void;
-  activeSideTab: "history" | "chat" | null;
-  setActiveSideTab: (tab: "history" | "chat" | null) => void;
-  isClosed: boolean;
-  setIsClosed: (closed: boolean) => void;
+  activeMainTab: MainTabType;
+  setActiveMainTab: (tab: MainTabType) => void;
+  activeSideTab?: "history" | "chat" | null;
+  setActiveSideTab?: (tab: "history" | "chat" | null) => void;
+  isClosed?: boolean;
+  setIsClosed?: (closed: boolean) => void;
   loadedToExtension: boolean;
   loadIntoExtension: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
-  activeMainTab, setActiveMainTab, activeSideTab, setActiveSideTab, 
-  isClosed, setIsClosed, loadedToExtension, loadIntoExtension
+  activeMainTab, setActiveMainTab, loadedToExtension, loadIntoExtension
 }) => {
   const { locale, toggleLocale, t } = useLocale();
 
   return (
     <div style={{ position: "absolute", top: "16px", left: "264px", right: "24px", zIndex: 100, display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--surface)", border: "1px solid var(--border-main)", borderRadius: "12px", backdropFilter: "var(--surface-blur)", alignItems: "center" }}>
-      {/* Left Tabs */}
-      <div style={{ flex: 1, display: "flex", justifyContent: "flex-start", alignItems: "center", gap: "12px" }}>
+      {/* Left Action */}
+      <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", gap: "12px" }}>
         <button className={`tab-btn ${loadedToExtension ? "active" : ""}`} onClick={loadIntoExtension}>
           {loadedToExtension ? t.header.loadedSession : t.header.loadSession}
         </button>
       </div>
 
-      {/* Center Tabs */}
-      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+      {/* Center Tabs: Nowledge Mem 6 Core Pillars */}
+      <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap" }}>
+        <button
+          className={`tab-btn ${activeMainTab === "working-memory" ? "active" : ""}`}
+          onClick={() => setActiveMainTab("working-memory")}
+        >
+          🧠 {t.header.navWorkingMemory}
+        </button>
+        <button
+          className={`tab-btn ${activeMainTab === "memories" ? "active" : ""}`}
+          onClick={() => setActiveMainTab("memories")}
+        >
+          🗂️ {t.header.navMemories}
+        </button>
         <button
           className={`tab-btn ${activeMainTab === "graph" ? "active" : ""}`}
           onClick={() => setActiveMainTab("graph")}
         >
-          {t.header.navGraph}
+          🕸️ {t.header.navGraph}
         </button>
-        <button 
-          className={`tab-btn ${!isClosed && activeSideTab === "history" && activeMainTab === "graph" ? "active" : ""}`} 
-          onClick={() => { setActiveSideTab("history"); setIsClosed(false); setActiveMainTab("graph"); }}
-          disabled={activeMainTab !== "graph"}
-          style={activeMainTab !== "graph" ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+        <button
+          className={`tab-btn ${activeMainTab === "chat" ? "active" : ""}`}
+          onClick={() => setActiveMainTab("chat")}
         >
-          {t.header.navFacts}
-        </button>
-        <button 
-          className={`tab-btn ${!isClosed && activeSideTab === "chat" && activeMainTab === "graph" ? "active" : ""}`} 
-          onClick={() => { setActiveSideTab("chat"); setIsClosed(false); setActiveMainTab("graph"); }}
-          disabled={activeMainTab !== "graph"}
-          style={activeMainTab !== "graph" ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
-        >
-          {t.header.navChat}
+          💬 {t.header.navChat}
         </button>
         <button
           className={`tab-btn ${activeMainTab === "search" ? "active" : ""}`}
           onClick={() => setActiveMainTab("search")}
         >
-          {t.header.navSearch}
+          🔍 {t.header.navSearch}
         </button>
         <button
           className={`tab-btn ${activeMainTab === "settings" ? "active" : ""}`}
           onClick={() => setActiveMainTab("settings")}
         >
-          {t.header.navSettings}
+          ⚙️ {t.header.navSettings}
         </button>
       </div>
 

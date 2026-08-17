@@ -2,10 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import GraphView from "./components/GraphView";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
+import type { MainTabType } from "./components/Header";
 import MainLayout from "./components/Layout/MainLayout";
 import { GlobalSearchView } from "./components/GlobalSearchView";
 import FloatingPanel from "./components/Panels/FloatingPanel";
 import SettingsView from "./components/SettingsView";
+import WorkingMemoryView from "./components/WorkingMemoryView";
+import MemoriesStreamView from "./components/MemoriesStreamView";
+import ChatViewer from "./components/ChatViewer";
 
 import { apiClient, extractErrorMessage } from "./api/ArcRift";
 import type { Session } from "./types";
@@ -19,7 +23,7 @@ const AppContent: React.FC = () => {
 
   // Navigation & UI State
   const [activeSession, setActiveSession] = useState<Session | null>(null);
-  const [activeMainTab, setActiveMainTab] = useState<"graph" | "search" | "settings">("graph");
+  const [activeMainTab, setActiveMainTab] = useState<MainTabType>("working-memory");
   const [activeSideTab, setActiveSideTab] = useState<"history" | "chat" | null>("history");
   const [loadedToExtension, setLoadedToExtension] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,8 +247,29 @@ const AppContent: React.FC = () => {
         loadIntoExtension={loadIntoExtension}
       />
 
-      <main className="background-graph" style={{ zIndex: 1 }}>
-        <div style={{ position: "absolute", inset: 0, opacity: activeMainTab === "search" ? 0 : 1, pointerEvents: activeMainTab === "search" ? "none" : "auto", transition: "opacity 0.2s" }}>
+      <main className="background-graph" style={{ zIndex: 1, position: "relative", flex: 1, height: "100%", overflow: "hidden" }}>
+        {/* 1. Working Memory View */}
+        {activeMainTab === "working-memory" && (
+          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, overflowY: "auto" }}>
+            <WorkingMemoryView activeSession={activeSession} onRefreshSession={loadSessions} />
+          </div>
+        )}
+
+        {/* 2. Structured Memories Stream View */}
+        {activeMainTab === "memories" && (
+          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, overflowY: "auto" }}>
+            <MemoriesStreamView activeSession={activeSession} onRefreshSession={loadSessions} />
+          </div>
+        )}
+
+        {/* 3. Knowledge Graph View */}
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          opacity: activeMainTab === "graph" ? 1 : 0,
+          pointerEvents: activeMainTab === "graph" ? "auto" : "none",
+          transition: "opacity 0.2s"
+        }}>
           <GraphView
             nodes={nodes}
             links={links}
@@ -277,14 +302,34 @@ const AppContent: React.FC = () => {
           />
         )}
 
+        {/* 4. Chat Logs View */}
+        {activeMainTab === "chat" && (
+          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", padding: "24px 32px", overflowY: "auto" }}>
+            {chatData ? (
+              <ChatViewer
+                rawText={chatData.rawText}
+                messageCount={chatData.messageCount}
+                createdAt={chatData.createdAt}
+                platform={activeSession?.platform}
+              />
+            ) : (
+              <div style={{ color: "var(--text-secondary)", textAlign: "center", padding: "60px 0" }}>
+                {t.drawer.noChat}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 5. Global Search View */}
         {activeMainTab === "search" && (
-          <div style={{ position: "absolute", top: 0, left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
+          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
             <GlobalSearchView />
           </div>
         )}
 
+        {/* 6. Settings View */}
         {activeMainTab === "settings" && (
-          <div style={{ position: "absolute", top: 0, left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
+          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
             <SettingsView />
           </div>
         )}

@@ -62,11 +62,41 @@ import { listProjects } from "./tools/projects";
 import { getSummary } from "./tools/summary";
 import { identifyProject } from "./tools/detector";
 import { indexCodebase } from "./tools/index_codebase";
+import { getWorkingMemoryTool, updateWorkingMemoryTool } from "./tools/working_memory";
 import { initStorage, sessionStore } from "../services/storage";
 import { logger } from "../utils/logger";
 
 // ── Tool definitions ────────────────────────────────────────────────
 const TOOLS = [
+  {
+    name: "get_working_memory",
+    description:
+      "Retrieve the high-signal Working Memory briefing for a project (current focus areas, active decisions, blockers, and executive status). " +
+      "Call this at the beginning of a session to immediately understand the project context.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project: { type: "string", description: "Project ID or name (optional, defaults to active project)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_working_memory",
+    description:
+      "Update the project's Working Memory daily briefing, priorities, decisions, or blockers.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project: { type: "string", description: "Project ID or name" },
+        briefing: { type: "string", description: "Executive summary text of project state" },
+        focusAreas: { type: "array", items: { type: "string" }, description: "List of immediate priority tasks" },
+        activeDecisions: { type: "array", items: { type: "string" }, description: "List of active architecture decisions" },
+        blockers: { type: "array", items: { type: "string" }, description: "List of open issues or gotchas" },
+      },
+      required: ["project"],
+    },
+  },
   {
     name: "recall_context",
     description:
@@ -86,14 +116,25 @@ const TOOLS = [
   {
     name: "store_memory",
     description:
-      "Save text or a full conversation transcript to ArcRift long-term memory. " +
-      "This updates the Knowledge Graph and makes the chat visible in the Dashboard history. " +
-      "Use this to 'save' a coding session or a key decision.",
+      "Save text or key decisions to ArcRift long-term memory. " +
+      "Creates a structured memory card, extracts Knowledge Graph triples, and stores semantic vectors.",
     inputSchema: {
       type: "object" as const,
       properties: {
         content: { type: "string", description: "The fact, decision, or context to remember" },
         project: { type: "string", description: "Project ID or a NEW project name (auto-creates)" },
+        importance: {
+          type: "string",
+          enum: ["critical", "high", "medium", "low"],
+          description: "Importance level (default: high)",
+        },
+        category: {
+          type: "string",
+          enum: ["Architecture", "Decision", "Gotcha", "Rule", "Tech", "Note"],
+          description: "Memory category (default: Note)",
+        },
+        title: { type: "string", description: "Optional short descriptive title" },
+        tags: { type: "array", items: { type: "string" }, description: "Optional tags" },
       },
       required: ["content", "project"],
     },
@@ -225,6 +266,20 @@ server.setRequestHandler(CallToolRequestSchema, async (req): Promise<CallToolRes
 
   try {
     switch (name) {
+      case "get_working_memory": {
+        const result = await getWorkingMemoryTool(args.project as string | undefined);
+        return { content: [{ type: "text", text: result }] };
+      }
+      case "update_working_memory": {
+        const result = await updateWorkingMemoryTool(
+          args.project as string,
+          args.briefing as string | undefined,
+          args.focusAreas as string[] | undefined,
+          args.activeDecisions as string[] | undefined,
+          args.blockers as string[] | undefined
+        );
+        return { content: [{ type: "text", text: result }] };
+      }
       case "recall_context": {
         const result = await recall(
           args.prompt as string,
@@ -237,7 +292,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req): Promise<CallToolRes
       case "store_memory": {
         const result = await store(
           args.content as string,
-          args.project as string
+          args.project as string,
+          args.importance as any,
+          args.category as any,
+          args.title as string | undefined,
+          args.tags as string[] | undefined
         );
         return { content: [{ type: "text", text: result }] };
       }

@@ -205,6 +205,39 @@ function createTables() {
     )
   `);
 
+  // Nowledge Mem: Structured Memories Stream
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY,
+      sessionId TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      importance TEXT DEFAULT 'medium',
+      category TEXT DEFAULT 'Note',
+      tags TEXT,
+      source TEXT,
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(sessionId)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance)");
+
+  // Nowledge Mem: Working Memory / Daily Briefing
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS working_memory (
+      sessionId TEXT PRIMARY KEY,
+      briefing TEXT,
+      focusAreas TEXT,
+      activeDecisions TEXT,
+      blockers TEXT,
+      lastGeneratedAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+
   logger.success("All SQLite tables initialized successfully");
 }
 

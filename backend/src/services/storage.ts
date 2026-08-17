@@ -347,18 +347,23 @@ class DockerVectorStore implements IVectorStore {
   }
 }
 
+import { SqliteMemoryStore } from "./sqlite-memory";
+
 let sessionStore: ISessionStore;
 let graphStore: IGraphStore;
 let vectorStore: IVectorStore;
+let memoryStore: IMemoryStore;
 
 if (STORAGE_MODE === "sqlite") {
   sessionStore = new SqliteSessionStore();
   graphStore = new SqliteGraphStore();
   vectorStore = new SqliteVectorStore();
+  memoryStore = new SqliteMemoryStore();
 } else {
   sessionStore = new DockerSessionStore();
   graphStore = new DockerGraphStore();
   vectorStore = new DockerVectorStore();
+  memoryStore = new SqliteMemoryStore(); // Always SQLite for memories
 }
 
 /**
@@ -389,4 +394,4 @@ export async function initStorage() {
 }
 
 export * from "./storage.types";
-export { sessionStore, graphStore, vectorStore };
+export { sessionStore, graphStore, vectorStore, memoryStore };

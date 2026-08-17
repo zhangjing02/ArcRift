@@ -132,4 +132,59 @@ export async function mergeSessions(sourceId: string, targetId: string) {
   return res.data;
 }
 
+// ── Nowledge Mem API: Discrete Memories ──────────────────────────────
+export async function fetchMemories(params?: {
+  sessionId?: string;
+  importance?: string;
+  category?: string;
+  query?: string;
+}) {
+  const res = await apiClient.get("/api/memories", { params });
+  return res.data as { success: boolean; memories: import("../types").Memory[] };
+}
+
+export async function createMemory(data: {
+  sessionId: string;
+  title?: string;
+  content: string;
+  importance?: string;
+  category?: string;
+  tags?: string[];
+  source?: string;
+}) {
+  const res = await apiClient.post("/api/memories", data);
+  return res.data as { success: boolean; memory: import("../types").Memory; triplesExtracted?: number };
+}
+
+export async function updateMemory(id: string, data: Partial<import("../types").Memory>) {
+  const res = await apiClient.patch(`/api/memories/${id}`, data);
+  return res.data as { success: boolean; memory: import("../types").Memory };
+}
+
+export async function deleteMemory(id: string) {
+  const res = await apiClient.delete(`/api/memories/${id}`);
+  return res.data as { success: boolean };
+}
+
+// ── Nowledge Mem API: Working Memory Briefing ─────────────────────────
+export async function fetchWorkingMemory(sessionId: string) {
+  const res = await apiClient.get(`/api/working-memory/${sessionId}`);
+  return res.data as { success: boolean; workingMemory: import("../types").WorkingMemory };
+}
+
+export async function saveWorkingMemory(sessionId: string, data: {
+  briefing?: string;
+  focusAreas?: string[];
+  activeDecisions?: string[];
+  blockers?: string[];
+}) {
+  const res = await apiClient.put(`/api/working-memory/${sessionId}`, data);
+  return res.data as { success: boolean; workingMemory: import("../types").WorkingMemory };
+}
+
+export async function generateWorkingMemory(sessionId: string) {
+  const res = await apiClient.post("/api/working-memory/generate", { sessionId });
+  return res.data as { success: boolean; workingMemory: import("../types").WorkingMemory };
+}
+
 export { extractErrorMessage, apiClient };

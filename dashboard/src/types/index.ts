@@ -47,3 +47,29 @@ export interface JobStatus {
   processing: number;
   deadLettered: number;
 }
+
+export type ImportanceLevel = "critical" | "high" | "medium" | "low";
+export type MemoryCategory = "Architecture" | "Decision" | "Gotcha" | "Rule" | "Tech" | "Note";
+
+export interface Memory {
+  id: string;
+  sessionId: string;
+  title: string;
+  content: string;
+  importance: ImportanceLevel;
+  category: MemoryCategory;
+  tags: string[];
+  source?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkingMemory {
+  sessionId: string;
+  briefing: string;
+  focusAreas: string[];
+  activeDecisions: string[];
+  blockers: string[];
+  lastGeneratedAt: string;
+  updatedAt: string;
+}
