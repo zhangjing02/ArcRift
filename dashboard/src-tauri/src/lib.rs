@@ -47,14 +47,18 @@ pub fn run() {
                 cmd.arg(&path);
                 cmd.current_dir(backend_cwd);
 
-                // Secure AppData storage for the SQLite database
-                if let Ok(app_data_dir) = app.path().app_data_dir() {
-                    let db_path = app_data_dir.join("ArcRift.db");
-                    log::info!("Setting SQLITE_DB_PATH to: {:?}", db_path);
-                    cmd.env("SQLITE_DB_PATH", db_path.to_str().unwrap());
-                }
-
-                // Force SQLite Zero-Docker mode for standalone desktop users
+                // Local installation data storage for SQLite database (portable & disk-friendly)
+                let data_dir = if backend_cwd.ends_with("backend") {
+                    backend_cwd.parent().unwrap_or(&backend_cwd).join("data")
+                } else {
+                    exe_dir.join("data")
+                };
+                let _ = std::fs::create_dir_all(&data_dir);
+                let db_path = data_dir.join("NowledgeMem.db");
+                log::info!("Setting SQLite data directory to: {:?}", data_dir);
+                log::info!("Setting SQLITE_DB_PATH to: {:?}", db_path);
+                cmd.env("DATA_DIR", data_dir.to_str().unwrap());
+                cmd.env("SQLITE_DB_PATH", db_path.to_str().unwrap());
                 cmd.env("ARCRIFT_STORAGE_MODE", "sqlite");
 
                 // Suppress console window on Windows release builds

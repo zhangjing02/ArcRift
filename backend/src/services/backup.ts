@@ -1,24 +1,18 @@
-import fs from "fs";
+﻿import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger";
 import { getSqlite } from "./sqlite";
+import { getDbPath, getDataDir } from "../utils/paths";
 
 const BACKUP_INTERVAL_MS = 12 * 60 * 60 * 1000; // Check every 12 hours
 const BACKUP_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_BACKUPS = 4; // Keep roughly a month of backups
 
-function getDbPath() {
-  return process.env.SQLITE_DB_PATH || path.join(process.cwd(), "ArcRift.db");
-}
-
 export async function runBackupCheck() {
-  const mode = (process.env.ARCRIFT_STORAGE_MODE || "docker").toLowerCase();
-  if (mode !== "sqlite") return; // Only backup SQLite automatically
-
   const dbPath = getDbPath();
   if (dbPath === ":memory:") return; // Don't backup in-memory DBs
 
-  const backupDir = path.join(path.dirname(dbPath), "backups");
+  const backupDir = path.join(getDataDir(), "backups");
 
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
@@ -27,7 +21,7 @@ export async function runBackupCheck() {
   try {
     // Check existing backups
     const files = fs.readdirSync(backupDir)
-      .filter(f => f.startsWith("ArcRift-backup-") && f.endsWith(".sqlite"))
+      .filter(f => (f.startsWith("NowledgeMem-backup-") || f.startsWith("ArcRift-backup-")) && f.endsWith(".sqlite"))
       .map(f => path.join(backupDir, f));
 
     // Get stats to sort by modification time (newest first)
@@ -50,7 +44,7 @@ export async function runBackupCheck() {
 
     if (needsBackup) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const backupPath = path.join(backupDir, `ArcRift-backup-${timestamp}.sqlite`);
+      const backupPath = path.join(backupDir, `NowledgeMem-backup-${timestamp}.sqlite`);
       
       logger.info(`Starting automatic SQLite backup to ${backupPath}...`);
       
@@ -69,8 +63,10 @@ export async function runBackupCheck() {
     if (fileStats.length > MAX_BACKUPS) {
       const toDelete = fileStats.slice(MAX_BACKUPS);
       for (const { file } of toDelete) {
-        fs.unlinkSync(file);
-        logger.info(`Deleted old backup to save space: ${path.basename(file)}`);
+        try {
+          fs.unlinkSync(file);
+          logger.info(`Deleted old backup to save space: ${path.basename(file)}`);
+        } catch {}
       }
     }
 
@@ -81,9 +77,6 @@ export async function runBackupCheck() {
 }
 
 export function startAutoBackup() {
-  const mode = (process.env.ARCRIFT_STORAGE_MODE || "docker").toLowerCase();
-  if (mode !== "sqlite") return;
-  
   // Run an immediate check on startup
   runBackupCheck().catch(err => {
     logger.error("Initial backup check failed", err);

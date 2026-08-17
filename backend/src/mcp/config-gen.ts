@@ -8,12 +8,15 @@
 import path from "path";
 import fs from "fs";
 
+import { getDbPath, getDataDir, getAppRoot } from "../utils/paths";
+
 function generateConfig() {
-  const rootDir = path.resolve(__dirname, "../../..");
+  const rootDir = getAppRoot();
   const backendDir = path.resolve(__dirname, "../..");
   // Normalize paths to forward slashes for JSON compatibility
   const serverJs = path.join(backendDir, "dist", "mcp", "server.js").replace(/\\/g, "/");
-  const dbPath = path.join(rootDir, "ArcRift.db").replace(/\\/g, "/");
+  const dbPath = getDbPath().replace(/\\/g, "/");
+  const dataDir = getDataDir().replace(/\\/g, "/");
   const envPath = path.join(backendDir, ".env").replace(/\\/g, "/");
 
   console.log("\n=======================================================");

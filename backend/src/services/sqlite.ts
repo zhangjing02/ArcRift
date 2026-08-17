@@ -3,10 +3,7 @@ import * as sqliteVec from "sqlite-vec";
 import path from "path";
 import fs from "fs";
 import { logger } from "../utils/logger";
-
-function getDbPath() {
-  return process.env.SQLITE_DB_PATH || path.join(process.cwd(), "ArcRift.db");
-}
+import { getDbPath } from "../utils/paths";
 
 let db: Database.Database;
 

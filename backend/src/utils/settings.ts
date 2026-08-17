@@ -106,18 +106,15 @@ export interface Settings {
   ollamaExtractionModel?: string;
 }
 
+import { getDataDir } from "./paths";
+
 // Canonical settings file paths (checked in order)
 function getSettingsFilePaths(): string[] {
-  const home = os.homedir();
-  const chronosDir = path.join(home, ".chronosmind");
-  if (!fs.existsSync(chronosDir)) {
-    try { fs.mkdirSync(chronosDir, { recursive: true }); } catch {}
-  }
-
+  const dataDir = getDataDir();
   return [
-    path.join(chronosDir, "settings.json"),
+    path.join(dataDir, "settings.json"),
+    path.join(dataDir, "NowledgeMem-settings.json"),
     path.resolve(__dirname, "../../ArcRift-settings.json"),
-    path.resolve(__dirname, "../ArcRift-settings.json"),
     path.join(process.cwd(), "ArcRift-settings.json"),
   ];
 }

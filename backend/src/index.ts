@@ -25,33 +25,10 @@ import toolsRoutes from "./routes/tools";
 import modelsRoutes from "./routes/models";
 
 
-// ── #9: .env validation — fail fast with a clear message ──────────
+// ── Pure SQLite Environment Initialization ──────────
 function validateEnv() {
-  const STORAGE_MODE = (process.env.ARCRIFT_STORAGE_MODE || "sqlite").toLowerCase();
-
-  if (STORAGE_MODE === "docker") {
-    // NEO4J, MONGO are only required in Docker mode
-    const required: Record<string, string> = {
-      NEO4J_URI: "e.g. bolt://localhost:7687",
-      NEO4J_USER: "e.g. neo4j",
-      NEO4J_PASSWORD: "Set in backend/.env",
-      MONGO_URI: "e.g. mongodb://user:pass@localhost:27017/arcriftdb",
-    };
-    if (process.env.GRAPH_BACKEND === "groq") {
-      required["GROQ_API_KEY"] = "Get a free key at https://console.groq.com";
-    }
-    const missing = Object.entries(required).filter(([k]) => !process.env[k]);
-    if (missing.length > 0) {
-      logger.error("Missing required environment variables for DOCKER mode:");
-      missing.forEach(([k, hint]) => logger.error(`  ${k} — ${hint}`));
-      logger.error("Set ARCRIFT_STORAGE_MODE=sqlite to use Zero-Docker mode instead.");
-      process.exit(1);
-    }
-  } else {
-    // SQLite mode validation (minimal)
-    if (process.env.GRAPH_BACKEND === "groq" && !process.env.GROQ_API_KEY) {
-      logger.warn("[ArcRift] GRAPH_BACKEND is set to 'groq' but GROQ_API_KEY is missing. You can configure API keys in the Settings UI.");
-    }
+  if (process.env.GRAPH_BACKEND === "groq" && !process.env.GROQ_API_KEY) {
+    logger.warn("[ArcRift] GRAPH_BACKEND is set to 'groq' but GROQ_API_KEY is missing. You can configure API keys in Settings.");
   }
 }
 validateEnv();
