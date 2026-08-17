@@ -1,8 +1,8 @@
 {
-  "chatProvider": "siliconflow",
-  "apiBaseUrl": "https://api.siliconflow.cn/v1",
-  "apiKey": "sk-onulfviugmmxhrgzkmmeqbuhlmftulexibeknurubyyhsfmf",
-  "chatModel": "deepseek-ai/DeepSeek-V3",
+  "chatProvider": "deepseek",
+  "apiBaseUrl": "https://api.deepseek.com/v1",
+  "apiKey": "sk-test-deepseek",
+  "chatModel": "deepseek-chat",
   "llmMode": "cloud",
   "embeddingProvider": "openai-compatible",
   "embeddingBaseUrl": "https://api.siliconflow.cn/v1",
@@ -10,71 +10,27 @@
   "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
   "embeddingMode": "cloud",
+  "providerConfigs": {
+    "openai": {
+      "apiKey": "sk-test-openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "isConfigured": true
+    },
+    "deepseek": {
+      "apiKey": "sk-test-deepseek",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "isConfigured": true
+    },
+    "siliconflow": {
+      "apiKey": "sk-test-sf",
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "isConfigured": true
+    }
+  },
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
-  "ollamaExtractionModel": "deepseek-ai/DeepSeek-V3",
-  "ontology": [
-    {
-      "id": "arch",
-      "name": "架构组件 (Architecture)",
-      "color": "#6366f1",
-      "icon": "🏛️",
-      "description": "系统核心模块、服务、库或框架"
-    },
-    {
-      "id": "decision",
-      "name": "架构决策 (Decision)",
-      "color": "#10b981",
-      "icon": "💡",
-      "description": "技术选型、设计准则与重要结论"
-    },
-    {
-      "id": "gotcha",
-      "name": "踩坑避雷 (Gotcha/Bug)",
-      "color": "#ef4444",
-      "icon": "⚠️",
-      "description": "已知的深坑、兼容性限制与规避手段"
-    },
-    {
-      "id": "protocol",
-      "name": "协议规范 (Protocol)",
-      "color": "#f59e0b",
-      "icon": "⚡",
-      "description": "通信协议、API 格式、数据协议"
-    },
-    {
-      "id": "tech",
-      "name": "技术栈 (Technology)",
-      "color": "#06b6d4",
-      "icon": "🛠️",
-      "description": "语言、数据库、工具链与中间件"
-    },
-    {
-      "id": "person",
-      "name": "团队成员 (Person/Role)",
-      "color": "#ec4899",
-      "icon": "👤",
-      "description": "负责人、团队成员与角色职责"
-    },
-    {
-      "id": "test_robotics",
-      "name": "具身智能 (Robotics)",
-      "color": "#10b981",
-      "icon": "🤖",
-      "description": "机器人与自动化控制"
-    }
-  ],
-  "memoryPolicy": {
-    "scope": "所有空间",
-    "maxMemoriesPerSession": 5,
-    "visibility": "full",
-    "autoDistill": true,
-    "retainCategories": [
-      "Decision",
-      "Architecture",
-      "Gotcha",
-      "Rule",
-      "Procedure"
-    ]
-  }
+  "ollamaExtractionModel": "deepseek-chat"
 }

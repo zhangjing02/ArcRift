@@ -300,6 +300,15 @@ export async function saveAppSettings(data: any): Promise<any> {
   }
 }
 
+export async function fetchProviderModels(params: { baseUrl?: string; apiKey?: string; provider?: string }): Promise<{ success: boolean; models: string[] }> {
+  try {
+    const res = await apiClient.post("/api/settings/fetch-models", params);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, models: [] };
+  }
+}
+
 export async function getFullChat(sessionId: string): Promise<import("../types").FullChat | null> {
   try {
     const res = await apiClient.get(`/api/chat/${sessionId}`);

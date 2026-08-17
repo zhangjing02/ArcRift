@@ -293,4 +293,43 @@ const handleTestConnection = async (req: Request, res: Response) => {
 router.post("/test", handleTestConnection);
 router.post("/test-connection", handleTestConnection);
 
+// POST /api/settings/fetch-models
+router.post("/fetch-models", async (req: Request, res: Response) => {
+  const { baseUrl, apiKey, provider } = req.body;
+  const cleanBase = (baseUrl || "").replace(/\/+$/, "");
+
+  try {
+    if (provider === "ollama" || cleanBase.includes("11434")) {
+      const resp = await axios.get(`${cleanBase.replace(/\/v1$/, "")}/api/tags`, { timeout: 4000 });
+      if (resp.data && Array.isArray(resp.data.models)) {
+        return res.json({ success: true, models: resp.data.models.map((m: any) => m.name) });
+      }
+    }
+
+    const endpoint = cleanBase.endsWith("/models") ? cleanBase : `${cleanBase}/models`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+    const proxy = getProxyConfig(endpoint);
+
+    const resp = await axios.get(endpoint, {
+      headers,
+      timeout: 8000,
+      ...(proxy ? { proxy } : {}),
+    });
+
+    if (resp.data && Array.isArray(resp.data.data)) {
+      const models = resp.data.data.map((m: any) => m.id || m.name).filter(Boolean);
+      return res.json({ success: true, models });
+    }
+    if (resp.data && Array.isArray(resp.data.models)) {
+      const models = resp.data.models.map((m: any) => m.name || m.id).filter(Boolean);
+      return res.json({ success: true, models });
+    }
+
+    return res.json({ success: true, models: [] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch models" });
+  }
+});
+
 export default router;

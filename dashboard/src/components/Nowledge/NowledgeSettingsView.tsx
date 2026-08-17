@@ -16,6 +16,7 @@ import {
   saveMemoryPolicy,
   fetchTokenUsage,
   updateIntelligenceSettings,
+  fetchProviderModels,
 } from "../../api/ArcRift";
 
 interface ModelItem {
@@ -32,6 +33,28 @@ interface ModelItem {
   totalBytes: number;
   error?: string;
 }
+
+const ALL_PROVIDERS = [
+  { id: "openai", name: "OpenAI", icon: "🟢", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o-mini", description: "OpenAI 官方接口 (GPT-4o, GPT-4o-mini)" },
+  { id: "chatgpt", name: "ChatGPT Subscription", icon: "💬", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o", description: "ChatGPT Plus/Team 订阅通道与 Codex 服务" },
+  { id: "anthropic", name: "Anthropic", icon: "🟧", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-3-5-sonnet-20241022", description: "Anthropic 官方 Claude 3.5 Sonnet / Haiku 模型" },
+  { id: "xai", name: "xAI", icon: "✖️", defaultBaseUrl: "https://api.x.ai/v1", defaultModel: "grok-2-1212", description: "Elon Musk 旗下 xAI 平台 Grok-2 / Grok-3 大模型" },
+  { id: "supergrok", name: "SuperGrok", icon: "⚡", defaultBaseUrl: "https://api.x.ai/v1", defaultModel: "grok-beta", description: "SuperGrok 高速推理专属通道" },
+  { id: "deepseek", name: "DeepSeek", icon: "🐳", defaultBaseUrl: "https://api.deepseek.com/v1", defaultModel: "deepseek-chat", description: "DeepSeek 官方 API (DeepSeek-V3 / DeepSeek-R1)" },
+  { id: "minimax", name: "MiniMax", icon: "🟣", defaultBaseUrl: "https://api.minimax.chat/v1", defaultModel: "MiniMax-Text-01", description: "MiniMax 稀宇科技中文大模型系列 (abab6.5s)" },
+  { id: "zhipu", name: "Z.AI", icon: "⚡", defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4", defaultModel: "glm-4-flash", description: "智谱 AI (Z.AI) GLM-4-Plus / GLM-4-Flash 清言大模型" },
+  { id: "moonshot", name: "Moonshot AI", icon: "🌙", defaultBaseUrl: "https://api.moonshot.cn/v1", defaultModel: "moonshot-v1-8k", description: "月之暗面 Kimi 开放平台长上下文大模型" },
+  { id: "ollama", name: "Ollama", icon: "🦙", defaultBaseUrl: "http://localhost:11434/v1", defaultModel: "qwen2.5:3b", description: "完全本地离线运行（需启动本地 Ollama 实例）" },
+  { id: "lemonade", name: "Lemonade", icon: "🍋", defaultBaseUrl: "https://api.lemonade.io/v1", defaultModel: "lemonade-v1", description: "Lemonade AI 智能服务通道" },
+  { id: "lmstudio", name: "LM Studio", icon: "🖥️", defaultBaseUrl: "http://localhost:1234/v1", defaultModel: "local-model", description: "LM Studio 本地桌面模型运行服务" },
+  { id: "xiaomi", name: "Xiaomi MiMo", icon: "📱", defaultBaseUrl: "https://api.mimo.xiaomi.com/v1", defaultModel: "mimo-v1", description: "小米 MiMo / 小爱大模型开发者平台" },
+  { id: "poe", name: "Poe", icon: "🦅", defaultBaseUrl: "https://api.poe.com/v1", defaultModel: "Claude-3.5-Sonnet", description: "Quora Poe 聚合 AI 模型 API 服务" },
+  { id: "jina", name: "Jina AI", icon: "🔍", defaultBaseUrl: "https://api.jina.ai/v1", defaultModel: "jina-embeddings-v3", description: "Jina AI 多语言高性能 Embedding 引擎" },
+  { id: "siliconflow", name: "SiliconFlow", icon: "🌊", defaultBaseUrl: "https://api.siliconflow.cn/v1", defaultModel: "deepseek-ai/DeepSeek-V3", description: "国内超高性价比/含免费额度 (DeepSeek-V3/R1)" },
+  { id: "gemini", name: "Google Gemini", icon: "✨", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", defaultModel: "gemini-1.5-flash", description: "Google Gemini 原生 API（超快响应与长上下文）" },
+  { id: "groq", name: "Groq Cloud", icon: "⚡", defaultBaseUrl: "https://api.groq.com/openai/v1", defaultModel: "llama-3.3-70b-versatile", description: "LPU 超低延迟推理服务（免费 Llama-3.3-70b）" },
+  { id: "custom", name: "自定义 (OpenAI 兼容)", icon: "⚙️", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "custom-model", description: "支持任意兼容 OpenAI /chat/completions 规范的网关" },
+];
 
 export const NowledgeSettingsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<
@@ -60,6 +83,22 @@ export const NowledgeSettingsView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [bgSmartActive, setBgSmartActive] = useState(true);
+
+  // ── Provider Master-Detail State ────────────────────────────────
+  const [selectedProviderId, setSelectedProviderId] = useState<string>("openai");
+  const [providerSearch, setProviderSearch] = useState<string>("");
+  const [providerConfigs, setProviderConfigs] = useState<Record<string, any>>({});
+  const [showApiKeyMask, setShowApiKeyMask] = useState<boolean>(false);
+  const [isFetchingModels, setIsFetchingModels] = useState<boolean>(false);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [providerTestResult, setProviderTestResult] = useState<{ success: boolean; message: string; error?: string } | null>(null);
+  const [isTestingProvider, setIsTestingProvider] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [currentProviderApiKey, setCurrentProviderApiKey] = useState<string>("");
+  const [currentProviderBaseUrl, setCurrentProviderBaseUrl] = useState<string>("https://api.openai.com/v1");
+  const [currentProviderModel, setCurrentProviderModel] = useState<string>("gpt-4o-mini");
+  const [currentProviderReasoning, setCurrentProviderReasoning] = useState<boolean>(false);
+  const [currentProviderTimeout, setCurrentProviderTimeout] = useState<number>(30000);
 
   // ── Intelligence (智能处理) State ────────────────────────────────
   const [intelStats, setIntelStats] = useState<any>({
@@ -235,15 +274,142 @@ export const NowledgeSettingsView: React.FC = () => {
     try {
       const data = await fetchAppSettings();
       if (data) {
-        if (data.chatProvider) setProvider(data.chatProvider);
+        if (data.chatProvider) {
+          setProvider(data.chatProvider);
+          setSelectedProviderId(data.chatProvider);
+        }
         if (data.apiBaseUrl) setApiBaseUrl(data.apiBaseUrl);
         if (data.apiKey) setApiKey(data.apiKey);
         if (data.chatModel) setChatModel(data.chatModel);
         if (data.embeddingMode) setEmbeddingMode(data.embeddingMode);
         if (data.llmMode) setLlmMode(data.llmMode);
+        if (data.providerConfigs) {
+          setProviderConfigs(data.providerConfigs);
+          const cur = data.providerConfigs[data.chatProvider || "openai"];
+          if (cur) {
+            setCurrentProviderApiKey(cur.apiKey || data.apiKey || "");
+            setCurrentProviderBaseUrl(cur.baseUrl || data.apiBaseUrl || "https://api.openai.com/v1");
+            setCurrentProviderModel(cur.model || data.chatModel || "gpt-4o-mini");
+            setCurrentProviderReasoning(cur.reasoning || false);
+          } else {
+            setCurrentProviderApiKey(data.apiKey || "");
+            setCurrentProviderBaseUrl(data.apiBaseUrl || "https://api.openai.com/v1");
+            setCurrentProviderModel(data.chatModel || "gpt-4o-mini");
+          }
+        } else {
+          setCurrentProviderApiKey(data.apiKey || "");
+          setCurrentProviderBaseUrl(data.apiBaseUrl || "https://api.openai.com/v1");
+          setCurrentProviderModel(data.chatModel || "gpt-4o-mini");
+        }
       }
     } catch (err) {
       console.error("Failed to load settings", err);
+    }
+  };
+
+  const handleSelectProvider = (pId: string) => {
+    setSelectedProviderId(pId);
+    setProviderTestResult(null);
+    setFetchedModels([]);
+    const pMeta = ALL_PROVIDERS.find((p) => p.id === pId);
+    const existing = providerConfigs[pId];
+    if (existing) {
+      setCurrentProviderApiKey(existing.apiKey || "");
+      setCurrentProviderBaseUrl(existing.baseUrl || pMeta?.defaultBaseUrl || "");
+      setCurrentProviderModel(existing.model || pMeta?.defaultModel || "");
+      setCurrentProviderReasoning(existing.reasoning || false);
+    } else {
+      if (pId === provider) {
+        setCurrentProviderApiKey(apiKey);
+        setCurrentProviderBaseUrl(apiBaseUrl);
+        setCurrentProviderModel(chatModel);
+      } else {
+        setCurrentProviderApiKey("");
+        setCurrentProviderBaseUrl(pMeta?.defaultBaseUrl || "");
+        setCurrentProviderModel(pMeta?.defaultModel || "");
+        setCurrentProviderReasoning(false);
+      }
+    }
+  };
+
+  const handleSaveSelectedProvider = async () => {
+    setIsSaving(true);
+    try {
+      const updatedConfigs = {
+        ...providerConfigs,
+        [selectedProviderId]: {
+          apiKey: currentProviderApiKey,
+          baseUrl: currentProviderBaseUrl,
+          model: currentProviderModel,
+          isConfigured: !!currentProviderApiKey.trim(),
+          reasoning: currentProviderReasoning,
+          timeout: currentProviderTimeout,
+        },
+      };
+      setProviderConfigs(updatedConfigs);
+      setProvider(selectedProviderId);
+      setApiKey(currentProviderApiKey);
+      setApiBaseUrl(currentProviderBaseUrl);
+      setChatModel(currentProviderModel);
+
+      await saveAppSettings({
+        chatProvider: selectedProviderId,
+        apiBaseUrl: currentProviderBaseUrl,
+        apiKey: currentProviderApiKey,
+        chatModel: currentProviderModel,
+        providerConfigs: updatedConfigs,
+        llmMode,
+        embeddingMode,
+      });
+
+      const pName = ALL_PROVIDERS.find((p) => p.id === selectedProviderId)?.name || selectedProviderId;
+      setSaveToast(`✓ ${pName} 服务商配置已永久保存，并已设为当前激活的云端 AI 模型！`);
+      setTimeout(() => setSaveToast(null), 4000);
+    } catch (err: any) {
+      alert("保存失败: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTestSelectedProvider = async () => {
+    setIsTestingProvider(true);
+    setProviderTestResult(null);
+    try {
+      const res = await testSettingsConnection({
+        provider: selectedProviderId,
+        baseUrl: currentProviderBaseUrl,
+        apiKey: currentProviderApiKey,
+        model: currentProviderModel,
+      });
+      setProviderTestResult(res);
+    } catch (err: any) {
+      setProviderTestResult({ success: false, message: err.message || "连接测试失败" });
+    } finally {
+      setIsTestingProvider(false);
+    }
+  };
+
+  const handleFetchModelsForProvider = async () => {
+    setIsFetchingModels(true);
+    try {
+      const res = await fetchProviderModels({
+        baseUrl: currentProviderBaseUrl,
+        apiKey: currentProviderApiKey,
+        provider: selectedProviderId,
+      });
+      if (res?.success && res.models && res.models.length > 0) {
+        setFetchedModels(res.models);
+        if (!currentProviderModel || currentProviderModel === "custom-model") {
+          setCurrentProviderModel(res.models[0]);
+        }
+      } else {
+        alert("未获取到模型列表，请确认 API Key 与 Base URL 是否正确。");
+      }
+    } catch (err: any) {
+      alert("获取模型失败: " + err.message);
+    } finally {
+      setIsFetchingModels(false);
     }
   };
 
@@ -321,28 +487,6 @@ export const NowledgeSettingsView: React.FC = () => {
       setTestResult({ success: false, message: err.message || "连接失败" });
     } finally {
       setIsTesting(false);
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    setIsSaving(true);
-    try {
-      await saveAppSettings({
-        chatProvider: provider,
-        apiBaseUrl,
-        apiKey,
-        chatModel,
-        llmMode,
-        embeddingMode,
-        embeddingProvider: embeddingMode === "cloud" ? "openai-compatible" : "ollama",
-      });
-      setSaveToast("✓ API Key 与配置已永久保存！重启软件将自动加载生效。");
-      setTimeout(() => setSaveToast(null), 4000);
-      await loadSettings();
-    } catch (err: any) {
-      alert("保存失败: " + err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -1003,105 +1147,286 @@ export const NowledgeSettingsView: React.FC = () => {
 
         {/* 3. 服务商 (Providers) Tab */}
         {activeSubTab === "providers" && (
-          <div className="nl-set-panel">
-            <h2>AI 服务商与 API 秘钥配置</h2>
-            <p className="nl-set-desc">配置云端兼容 API（如硅基流动、DeepSeek、OpenAI、Gemini 等）。输入并保存后将永久保存在软件中，无需每次重复输入。</p>
-
-            <div className="nl-card" style={{ marginTop: 16 }}>
-              <div className="nl-form-group" style={{ marginBottom: 14 }}>
-                <label>预设服务商</label>
-                <select
-                  value={provider}
-                  onChange={(e) => {
-                    const p = e.target.value;
-                    setProvider(p);
-                    if (p === "siliconflow") {
-                      setApiBaseUrl("https://api.siliconflow.cn/v1");
-                      setChatModel("deepseek-ai/DeepSeek-V3");
-                    } else if (p === "deepseek") {
-                      setApiBaseUrl("https://api.deepseek.com/v1");
-                      setChatModel("deepseek-chat");
-                    } else if (p === "openai") {
-                      setApiBaseUrl("https://api.openai.com/v1");
-                      setChatModel("gpt-4o-mini");
-                    } else if (p === "gemini") {
-                      setApiBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai");
-                      setChatModel("gemini-1.5-flash");
-                    } else if (p === "groq") {
-                      setApiBaseUrl("https://api.groq.com/openai/v1");
-                      setChatModel("llama-3.3-70b-versatile");
-                    } else if (p === "ollama") {
-                      setApiBaseUrl("http://localhost:11434/v1");
-                      setChatModel("qwen2.5:3b");
-                    }
-                  }}
-                  className="nl-input"
-                >
-                  <option value="siliconflow">SiliconFlow (硅基流动 - 推荐/含免费额度)</option>
-                  <option value="deepseek">DeepSeek 官方 API</option>
-                  <option value="openai">OpenAI 官方 (GPT-4o-mini)</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="groq">Groq Cloud (超快推理)</option>
-                  <option value="ollama">Ollama (本地离线)</option>
-                </select>
+          <div className="nl-set-panel" style={{ maxWidth: 960, animation: "fadeIn 0.2s ease" }}>
+            {/* 顶栏 Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>服务商</h2>
+                <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
+                  连接你日常的 AI 服务商。
+                </p>
               </div>
-
-              <div className="nl-form-group" style={{ marginBottom: 14 }}>
-                <label>API Key / 秘钥 (填写后永久保存在本地)</label>
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="nl-input"
-                />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#10b981" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", display: "inline-block" }}></span>
+                <span>Nowledge AI 正常</span>
+                <span style={{ color: "#64748b", margin: "0 4px" }}>·</span>
+                <span style={{ color: "#94a3b8", cursor: "pointer" }}>查看状态 ↗</span>
               </div>
+            </div>
 
-              <div className="nl-form-group" style={{ marginBottom: 14 }}>
-                <label>API Base URL</label>
-                <input
-                  type="text"
-                  value={apiBaseUrl}
-                  onChange={(e) => setApiBaseUrl(e.target.value)}
-                  className="nl-input"
-                />
-              </div>
-
-              <div className="nl-form-group" style={{ marginBottom: 20 }}>
-                <label>模型名称 (Chat Model)</label>
-                <input
-                  type="text"
-                  value={chatModel}
-                  onChange={(e) => setChatModel(e.target.value)}
-                  className="nl-input"
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  className="nl-btn-secondary"
-                  onClick={handleTestConnection}
-                  disabled={isTesting}
-                >
-                  {isTesting ? "测试中..." : "测试连接"}
-                </button>
-                <button
-                  className="nl-btn-primary"
-                  onClick={handleSaveSettings}
-                  disabled={isSaving}
-                >
-                  {isSaving ? "保存中..." : "保存设置 (永久持久化)"}
-                </button>
-              </div>
-
-              {testResult && (
-                <div
-                  className={`nl-test-banner ${testResult.success ? "success" : "error"}`}
-                  style={{ marginTop: 14 }}
-                >
-                  {testResult.success ? "✓ " : "✕ "} {testResult.message}
+            {/* 顶部 LLM 服务商模式切换 Banner */}
+            <div className="nl-card" style={{ marginBottom: 16, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>⚡</span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>LLM 服务商</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                    时间线、AI Now 和后台智能需要远程服务商
+                  </p>
                 </div>
-              )}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div className="nl-mode-switch">
+                  <button
+                    className={`nl-mode-btn ${llmMode === "local" ? "active" : ""}`}
+                    onClick={() => handleSwitchLlmMode("local")}
+                  >
+                    本地
+                  </button>
+                  <button
+                    className={`nl-mode-btn ${llmMode === "cloud" ? "active" : ""}`}
+                    onClick={() => handleSwitchLlmMode("cloud")}
+                  >
+                    云端
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 12, color: llmMode === "local" ? "#10b981" : "#818cf8", display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: llmMode === "local" ? "#10b981" : "#818cf8" }}></span>
+                  {llmMode === "local" ? "正在使用本地模型" : `正在使用云端 (${ALL_PROVIDERS.find(p => p.id === provider)?.name || provider})`}
+                </div>
+              </div>
+            </div>
+
+            {/* 主体 Master-Detail 左右双栏结构 */}
+            <div className="nl-providers-master-detail">
+              {/* 左侧栏：服务商筛选与列表 */}
+              <div className="nl-providers-sidebar-col">
+                <div className="nl-provider-search-box">
+                  <input
+                    type="text"
+                    placeholder="🔍 筛选..."
+                    value={providerSearch}
+                    onChange={(e) => setProviderSearch(e.target.value)}
+                    className="nl-provider-search-input"
+                  />
+                </div>
+                <div className="nl-providers-scroll-list">
+                  {ALL_PROVIDERS.filter((p) =>
+                    p.name.toLowerCase().includes(providerSearch.toLowerCase()) ||
+                    p.id.toLowerCase().includes(providerSearch.toLowerCase())
+                  ).map((p) => {
+                    const isConfigured = !!(providerConfigs[p.id]?.apiKey || (p.id === provider && apiKey));
+                    const isCurrentActive = provider === p.id && llmMode === "cloud";
+                    const isSelected = selectedProviderId === p.id;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className={`nl-provider-list-item ${isSelected ? "active" : ""}`}
+                        onClick={() => handleSelectProvider(p.id)}
+                      >
+                        <div className="nl-provider-item-left">
+                          <span className="nl-provider-item-icon">{p.icon}</span>
+                          <span className="nl-provider-item-name">{p.name}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {isCurrentActive && (
+                            <span style={{ fontSize: 9, background: "rgba(99,102,241,0.2)", color: "#818cf8", padding: "1px 5px", borderRadius: 4 }}>
+                              当前
+                            </span>
+                          )}
+                          <span className={`nl-provider-status-badge ${isConfigured ? "configured" : ""}`}>
+                            {isConfigured ? "已配置" : "未配置"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 右侧栏：所选服务商详细配置面板 */}
+              {(() => {
+                const curMeta = ALL_PROVIDERS.find((p) => p.id === selectedProviderId) || ALL_PROVIDERS[0];
+                const isCurConfigured = !!(providerConfigs[curMeta.id]?.apiKey || (curMeta.id === provider && apiKey));
+
+                return (
+                  <div className="nl-provider-detail-card">
+                    {/* Header */}
+                    <div className="nl-provider-detail-header">
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 22 }}>{curMeta.icon}</span>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>{curMeta.name}</h3>
+                            <span style={{ fontSize: 11, color: isCurConfigured ? "#10b981" : "#64748b", background: isCurConfigured ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 4 }}>
+                              {isCurConfigured ? "已配置 ●" : "未配置"}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>{curMeta.description}</p>
+                        </div>
+                      </div>
+
+                      <button
+                        className="nl-btn-primary"
+                        style={{ fontSize: 12, padding: "5px 16px" }}
+                        onClick={handleSaveSelectedProvider}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "保存中..." : "保存"}
+                      </button>
+                    </div>
+
+                    {/* Form Fields */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      {/* API 密钥 */}
+                      <div className="nl-form-group">
+                        <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>API 密钥 <span style={{ color: "#ef4444" }}>*</span></span>
+                          <button
+                            type="button"
+                            className="nl-btn-link"
+                            style={{ fontSize: 11, color: "#818cf8" }}
+                            onClick={() => setShowApiKeyMask(!showApiKeyMask)}
+                          >
+                            {showApiKeyMask ? "隐藏" : "显示"}
+                          </button>
+                        </label>
+                        <input
+                          type={showApiKeyMask ? "text" : "password"}
+                          placeholder="sk-..."
+                          value={currentProviderApiKey}
+                          onChange={(e) => setCurrentProviderApiKey(e.target.value)}
+                          className="nl-input"
+                          style={{ fontFamily: showApiKeyMask ? "monospace" : "inherit" }}
+                        />
+                      </div>
+
+                      {/* 访问地址 */}
+                      <div className="nl-form-group">
+                        <label>访问地址 (可选)</label>
+                        <input
+                          type="text"
+                          placeholder={curMeta.defaultBaseUrl}
+                          value={currentProviderBaseUrl}
+                          onChange={(e) => setCurrentProviderBaseUrl(e.target.value)}
+                          className="nl-input"
+                        />
+                      </div>
+
+                      {/* 验证与获取模型按钮组 */}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          type="button"
+                          className="nl-btn-secondary"
+                          style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 4 }}
+                          onClick={handleTestSelectedProvider}
+                          disabled={isTestingProvider}
+                        >
+                          {isTestingProvider ? "验证中..." : "验证"}
+                        </button>
+                        <button
+                          type="button"
+                          className="nl-btn-secondary"
+                          style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 4 }}
+                          onClick={handleFetchModelsForProvider}
+                          disabled={isFetchingModels}
+                        >
+                          {isFetchingModels ? "获取中..." : "获取模型"}
+                        </button>
+                      </div>
+
+                      {/* 测试反馈 Banner */}
+                      {providerTestResult && (
+                        <div
+                          className={`nl-test-banner ${providerTestResult.success ? "success" : "error"}`}
+                          style={{ margin: "4px 0", fontSize: 12 }}
+                        >
+                          {providerTestResult.success ? "✓ " : "✕ "} {providerTestResult.message || providerTestResult.error}
+                        </div>
+                      )}
+
+                      {/* 模型选择 */}
+                      <div className="nl-form-group">
+                        <label>模型 <span style={{ color: "#ef4444" }}>*</span></label>
+                        {fetchedModels.length > 0 ? (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <select
+                              value={currentProviderModel}
+                              onChange={(e) => setCurrentProviderModel(e.target.value)}
+                              className="nl-input"
+                              style={{ flex: 1 }}
+                            >
+                              {fetchedModels.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="nl-btn-secondary"
+                              style={{ fontSize: 11, padding: "0 8px" }}
+                              onClick={() => setFetchedModels([])}
+                            >
+                              手动输入
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="输入模型名称 (如: gpt-4o, deepseek-chat)"
+                            value={currentProviderModel}
+                            onChange={(e) => setCurrentProviderModel(e.target.value)}
+                            className="nl-input"
+                          />
+                        )}
+                        <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 6, lineHeight: 1.4 }}>
+                          尚未加载模型，可先获取模型，或手动输入模型名称。检查对话模型可用：如果该模型或服务不支持思考参数，请在高级选项中关闭思考开关。
+                        </p>
+                      </div>
+
+                      {/* 高级选项折叠 */}
+                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12 }}>
+                        <details
+                          open={showAdvanced}
+                          onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <summary style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
+                            {showAdvanced ? "▼" : "▶"} 高级选项
+                          </summary>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12, paddingLeft: 8 }}>
+                            <div className="nl-form-group">
+                              <label style={{ fontSize: 12 }}>超时时间 (毫秒)</label>
+                              <input
+                                type="number"
+                                value={currentProviderTimeout}
+                                onChange={(e) => setCurrentProviderTimeout(parseInt(e.target.value, 10) || 30000)}
+                                className="nl-input"
+                                style={{ fontSize: 12, padding: "4px 8px" }}
+                              />
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0,0,0,0.2)", padding: "8px 12px", borderRadius: 6 }}>
+                              <div>
+                                <span style={{ fontSize: 12, color: "#f1f5f9" }}>开启深度思考 / 推理 (Reasoning)</span>
+                                <p style={{ fontSize: 11, color: "var(--nl-text-muted)" }}>适用于 DeepSeek-R1、o1、o3-mini 等支持思考链的模型</p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={currentProviderReasoning}
+                                onChange={(e) => setCurrentProviderReasoning(e.target.checked)}
+                                className="nl-checkbox-toggle"
+                              />
+                            </div>
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

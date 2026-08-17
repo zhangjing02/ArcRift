@@ -20,65 +20,198 @@ export type EmbeddingProvider =
   | "custom";
 
 export interface ProviderPreset {
+  id: string;
   name: string;
   label: string;
-  chatBaseUrl?: string;
+  icon: string;
+  chatBaseUrl: string;
   embeddingBaseUrl?: string;
-  defaultChatModel?: string;
+  defaultChatModel: string;
   defaultEmbeddingModel?: string;
-  description?: string;
+  description: string;
 }
 
 export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
-  siliconflow: {
-    name: "siliconflow",
-    label: "SiliconFlow (硅基流动)",
-    chatBaseUrl: "https://api.siliconflow.cn/v1",
-    embeddingBaseUrl: "https://api.siliconflow.cn/v1",
-    defaultChatModel: "deepseek-ai/DeepSeek-V3",
-    defaultEmbeddingModel: "BAAI/bge-large-zh-v1.5",
-    description: "国内超高性价比/支持免费额度，支持 DeepSeek-V3/R1 及 BAAI Embedding 系列",
-  },
-  deepseek: {
-    name: "deepseek",
-    label: "DeepSeek 官方",
-    chatBaseUrl: "https://api.deepseek.com/v1",
-    defaultChatModel: "deepseek-chat",
-    description: "DeepSeek 官方 API（支持 DeepSeek-V3 与 DeepSeek-R1）",
-  },
   openai: {
-    name: "openai-compatible",
-    label: "OpenAI 官方",
+    id: "openai",
+    name: "openai",
+    label: "OpenAI",
+    icon: "🟢",
     chatBaseUrl: "https://api.openai.com/v1",
     embeddingBaseUrl: "https://api.openai.com/v1",
     defaultChatModel: "gpt-4o-mini",
     defaultEmbeddingModel: "text-embedding-3-small",
-    description: "OpenAI 官方接口（支持 GPT-4o-mini 及 text-embedding-3）",
+    description: "OpenAI 官方接口（支持 GPT-4o, GPT-4o-mini 及 text-embedding-3）",
   },
-  gemini: {
-    name: "gemini",
-    label: "Google Gemini",
-    chatBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    embeddingBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    defaultChatModel: "gemini-1.5-flash",
-    defaultEmbeddingModel: "text-embedding-004",
-    description: "Google Gemini API（速度极快、免费额度充足）",
+  chatgpt: {
+    id: "chatgpt",
+    name: "chatgpt",
+    label: "ChatGPT Subscription",
+    icon: "💬",
+    chatBaseUrl: "https://api.openai.com/v1",
+    defaultChatModel: "gpt-4o",
+    description: "ChatGPT Plus/Team 订阅通道与 Codex 服务",
   },
-  groq: {
-    name: "groq",
-    label: "Groq Cloud",
-    chatBaseUrl: "https://api.groq.com/openai/v1",
-    defaultChatModel: "llama-3.3-70b-versatile",
-    description: "超低延迟推理（免费 Llama-3.3-70b）",
+  anthropic: {
+    id: "anthropic",
+    name: "anthropic",
+    label: "Anthropic",
+    icon: "🟧",
+    chatBaseUrl: "https://api.anthropic.com/v1",
+    defaultChatModel: "claude-3-5-sonnet-20241022",
+    description: "Anthropic 官方 Claude 3.5 Sonnet / Haiku 顶尖模型",
+  },
+  xai: {
+    id: "xai",
+    name: "xai",
+    label: "xAI",
+    icon: "✖️",
+    chatBaseUrl: "https://api.x.ai/v1",
+    defaultChatModel: "grok-2-1212",
+    description: "Elon Musk 旗下 xAI 平台 Grok-2 / Grok-3 大模型",
+  },
+  supergrok: {
+    id: "supergrok",
+    name: "supergrok",
+    label: "SuperGrok",
+    icon: "⚡",
+    chatBaseUrl: "https://api.x.ai/v1",
+    defaultChatModel: "grok-beta",
+    description: "SuperGrok 高速推理专属通道",
+  },
+  deepseek: {
+    id: "deepseek",
+    name: "deepseek",
+    label: "DeepSeek",
+    icon: "🐳",
+    chatBaseUrl: "https://api.deepseek.com/v1",
+    defaultChatModel: "deepseek-chat",
+    description: "DeepSeek 官方 API（支持 DeepSeek-V3 与 DeepSeek-R1 深度思考）",
+  },
+  minimax: {
+    id: "minimax",
+    name: "minimax",
+    label: "MiniMax",
+    icon: "🟣",
+    chatBaseUrl: "https://api.minimax.chat/v1",
+    defaultChatModel: "MiniMax-Text-01",
+    description: "MiniMax 稀宇科技中文大模型系列（abab6.5s / Text-01）",
+  },
+  zhipu: {
+    id: "zhipu",
+    name: "zhipu",
+    label: "Z.AI",
+    icon: "⚡",
+    chatBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    defaultChatModel: "glm-4-flash",
+    description: "智谱 AI (Z.AI) GLM-4-Plus / GLM-4-Flash 清言大模型",
+  },
+  moonshot: {
+    id: "moonshot",
+    name: "moonshot",
+    label: "Moonshot AI",
+    icon: "🌙",
+    chatBaseUrl: "https://api.moonshot.cn/v1",
+    defaultChatModel: "moonshot-v1-8k",
+    description: "月之暗面 Kimi 开放平台长上下文大模型",
   },
   ollama: {
+    id: "ollama",
     name: "ollama",
-    label: "Ollama (本地离线)",
+    label: "Ollama",
+    icon: "🦙",
     chatBaseUrl: "http://localhost:11434/v1",
     embeddingBaseUrl: "http://localhost:11434",
     defaultChatModel: "qwen2.5:3b",
     defaultEmbeddingModel: "nomic-embed-text",
-    description: "完全本地离线运行（需安装并启动 Ollama）",
+    description: "完全本地离线运行（需安装并启动本地 Ollama 实例）",
+  },
+  lemonade: {
+    id: "lemonade",
+    name: "lemonade",
+    label: "Lemonade",
+    icon: "🍋",
+    chatBaseUrl: "https://api.lemonade.io/v1",
+    defaultChatModel: "lemonade-v1",
+    description: "Lemonade AI 智能服务通道",
+  },
+  lmstudio: {
+    id: "lmstudio",
+    name: "lmstudio",
+    label: "LM Studio",
+    icon: "🖥️",
+    chatBaseUrl: "http://localhost:1234/v1",
+    defaultChatModel: "local-model",
+    description: "LM Studio 本地桌面模型运行服务（端口 1234）",
+  },
+  xiaomi: {
+    id: "xiaomi",
+    name: "xiaomi",
+    label: "Xiaomi MiMo",
+    icon: "📱",
+    chatBaseUrl: "https://api.mimo.xiaomi.com/v1",
+    defaultChatModel: "mimo-v1",
+    description: "小米 MiMo / 小爱大模型开发者平台",
+  },
+  poe: {
+    id: "poe",
+    name: "poe",
+    label: "Poe",
+    icon: "🦅",
+    chatBaseUrl: "https://api.poe.com/v1",
+    defaultChatModel: "Claude-3.5-Sonnet",
+    description: "Quora Poe 聚合 AI 模型 API 服务",
+  },
+  jina: {
+    id: "jina",
+    name: "jina",
+    label: "Jina AI",
+    icon: "🔍",
+    chatBaseUrl: "https://api.jina.ai/v1",
+    embeddingBaseUrl: "https://api.jina.ai/v1",
+    defaultChatModel: "jina-embeddings-v3",
+    defaultEmbeddingModel: "jina-embeddings-v3",
+    description: "Jina AI 多语言高性能 Embedding 与 Rerank 引擎",
+  },
+  siliconflow: {
+    id: "siliconflow",
+    name: "siliconflow",
+    label: "SiliconFlow",
+    icon: "🌊",
+    chatBaseUrl: "https://api.siliconflow.cn/v1",
+    embeddingBaseUrl: "https://api.siliconflow.cn/v1",
+    defaultChatModel: "deepseek-ai/DeepSeek-V3",
+    defaultEmbeddingModel: "BAAI/bge-large-zh-v1.5",
+    description: "国内超高性价比/含免费额度，支持 DeepSeek-V3/R1 及 BAAI Embedding 系列",
+  },
+  gemini: {
+    id: "gemini",
+    name: "gemini",
+    label: "Google Gemini",
+    icon: "✨",
+    chatBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    embeddingBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    defaultChatModel: "gemini-1.5-flash",
+    defaultEmbeddingModel: "text-embedding-004",
+    description: "Google Gemini 原生 API（超快响应速度与超长上下文）",
+  },
+  groq: {
+    id: "groq",
+    name: "groq",
+    label: "Groq Cloud",
+    icon: "⚡",
+    chatBaseUrl: "https://api.groq.com/openai/v1",
+    defaultChatModel: "llama-3.3-70b-versatile",
+    description: "LPU 超低延迟推理服务（免费 Llama-3.3-70b）",
+  },
+  custom: {
+    id: "custom",
+    name: "custom",
+    label: "自定义 (OpenAI 兼容)",
+    icon: "⚙️",
+    chatBaseUrl: "https://api.openai.com/v1",
+    defaultChatModel: "custom-model",
+    description: "支持任意兼容 OpenAI /chat/completions 规范的第三方中转或自建网关",
   },
 };
 
@@ -97,6 +230,20 @@ export interface Settings {
   embeddingModel?: string;
   embeddingDimension?: number;
   embeddingMode?: "local" | "cloud";
+
+  // Provider-specific saved configs (key is provider ID)
+  providerConfigs?: Record<
+    string,
+    {
+      apiKey?: string;
+      baseUrl?: string;
+      model?: string;
+      isConfigured?: boolean;
+      reasoning?: boolean;
+      headers?: Record<string, string>;
+      timeout?: number;
+    }
+  >;
 
   // Context retrieval mode
   contextMode?: "raw" | "summarized";
@@ -241,6 +388,7 @@ export function getSettings(): Settings {
     embeddingModel,
     embeddingDimension: fileSettings.embeddingDimension || (embeddingModel.includes("bge-m3") ? 1024 : 768),
     embeddingMode: fileSettings.embeddingMode || "cloud",
+    providerConfigs: fileSettings.providerConfigs || {},
     contextMode,
     ollamaEmbeddingModel: fileSettings.ollamaEmbeddingModel || process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text",
     ollamaExtractionModel: fileSettings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "qwen2.5:3b",
