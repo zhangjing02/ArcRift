@@ -1,23 +1,29 @@
 import pino from "pino";
 
-/**
- * v1.4.7: Structured logging with pino
- * Supports JSON output in production and pretty-printing in development.
- */
-const isMcp = process.env.ARCRIFT_MCP_MODE === "true";
+function isMcpMode(): boolean {
+  return (
+    process.env.ARCRIFT_MCP_MODE === "true" ||
+    process.argv.some((a) => a.includes("mcp") || a.includes("server.js"))
+  );
+}
 
-const pinoLogger = pino({
+const stderrLogger = pino({ level: process.env.LOG_LEVEL || "info" }, pino.destination(2));
+const stdoutLogger = pino({
   level: process.env.LOG_LEVEL || "info",
-  transport: process.env.NODE_ENV !== "production"
-    ? { target: "pino-pretty", options: { colorize: true, destination: isMcp ? 2 : undefined } }
-    : (isMcp ? { target: "pino/file", options: { destination: 2 } } : undefined),
+  transport:
+    process.env.NODE_ENV !== "production"
+      ? { target: "pino-pretty", options: { colorize: true } }
+      : undefined,
 });
 
+function getActiveLogger() {
+  return isMcpMode() ? stderrLogger : stdoutLogger;
+}
+
 export const logger = {
-  info: (msg: string, ...args: any[]) => pinoLogger.info(msg, ...args),
-  warn: (msg: string, ...args: any[]) => pinoLogger.warn(msg, ...args),
-  error: (msg: string, ...args: any[]) => pinoLogger.error(msg, ...args),
-  debug: (msg: string, ...args: any[]) => pinoLogger.debug(msg, ...args),
-  // success is mapped to info in pino
-  success: (msg: string, ...args: any[]) => pinoLogger.info({ success: true }, msg, ...args),
+  info: (msg: string, ...args: any[]) => getActiveLogger().info(msg, ...args),
+  warn: (msg: string, ...args: any[]) => getActiveLogger().warn(msg, ...args),
+  error: (msg: string, ...args: any[]) => getActiveLogger().error(msg, ...args),
+  debug: (msg: string, ...args: any[]) => getActiveLogger().debug(msg, ...args),
+  success: (msg: string, ...args: any[]) => getActiveLogger().info({ success: true }, msg, ...args),
 };

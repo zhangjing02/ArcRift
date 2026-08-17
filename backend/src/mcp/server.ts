@@ -14,6 +14,8 @@
  * Updated: v1.6.3
  */
 process.env.ARCRIFT_MCP_MODE = "true";
+process.env.DOTENV_QUIET = "true";
+process.env.DOTENV_CONFIG_QUIET = "true";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -22,13 +24,35 @@ import {
   CallToolRequestSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
+function loadEnvFile(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
+  try {
+    const lines = fs.readFileSync(filePath, "utf-8").split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim().replace(/^["'](.*)["']$/, "$1");
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  } catch {}
+}
 
-// Load env — try common locations relative to dist/src/mcp
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-dotenv.config({ path: path.resolve(__dirname, "../../../../backend/.env") });
+const envPaths = [
+  path.resolve(__dirname, "../../../.env"),
+  path.resolve(__dirname, "../../.env"),
+  path.resolve(__dirname, "../../../../backend/.env"),
+];
+
+for (const p of envPaths) {
+  loadEnvFile(p);
+}
 
 import { recall } from "./tools/recall";
 import { store } from "./tools/store";
