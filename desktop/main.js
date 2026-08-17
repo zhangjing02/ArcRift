@@ -1,7 +1,17 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const http = require("http");
+
+const logFile = path.resolve(__dirname, "desktop.log");
+function log(msg) {
+  try {
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch {}
+}
+
+log("Starting Electron main.js...");
 
 let mainWindow = null;
 let tray = null;
@@ -13,8 +23,22 @@ const BACKEND_SCRIPT = path.resolve(BACKEND_DIR, "dist/index.js");
 const DB_PATH = path.resolve(BACKEND_DIR, "ArcRift.db");
 const PORT = 3001;
 
+function getNodePath() {
+  const candidates = [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "C:\\Program Files (x86)\\nodejs\\node.exe",
+    path.resolve(process.env.APPDATA || "", "npm/node.exe"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return "node";
+}
+
 function startBackend() {
   if (backendProcess) return;
+  const nodeBin = getNodePath();
+  log("Spawning backend with node: " + nodeBin + " -> " + BACKEND_SCRIPT);
 
   const env = {
     ...process.env,
@@ -24,36 +48,45 @@ function startBackend() {
     NODE_ENV: "production",
   };
 
-  backendProcess = spawn("node", [BACKEND_SCRIPT], {
-    cwd: BACKEND_DIR,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
+  try {
+    backendProcess = spawn(nodeBin, [BACKEND_SCRIPT], {
+      cwd: BACKEND_DIR,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
 
-  backendProcess.stdout?.on("data", (data) => {
-    console.log(`[Backend] ${data.toString().trim()}`);
-  });
+    backendProcess.on("error", (err) => {
+      log(`[Backend Spawn ERR] ${err?.message || String(err)}`);
+    });
 
-  backendProcess.stderr?.on("data", (data) => {
-    console.error(`[Backend ERR] ${data.toString().trim()}`);
-  });
+    backendProcess.stdout?.on("data", (data) => {
+      log(`[Backend] ${data.toString().trim()}`);
+    });
 
-  backendProcess.on("exit", (code) => {
-    console.log(`[Backend] Exited with code ${code}`);
-    backendProcess = null;
-  });
+    backendProcess.stderr?.on("data", (data) => {
+      log(`[Backend ERR] ${data.toString().trim()}`);
+    });
+
+    backendProcess.on("exit", (code) => {
+      log(`[Backend] Exited with code ${code}`);
+      backendProcess = null;
+    });
+  } catch (err) {
+    log(`[Backend Spawn Catch] ${err?.message || String(err)}`);
+  }
 }
 
 function stopBackend() {
   if (backendProcess) {
+    log("Stopping backend...");
     backendProcess.kill();
     backendProcess = null;
   }
 }
 
 function checkServerReady(callback) {
-  const req = http.get(`http://localhost:${PORT}/health`, (res) => {
+  const req = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
     if (res.statusCode === 200) {
       callback(true);
     } else {
@@ -72,16 +105,19 @@ function waitForServer(maxAttempts, interval, onReady) {
     checkServerReady((ready) => {
       if (ready) {
         clearInterval(timer);
+        log(`Server became ready after ${attempts} attempts`);
         onReady();
       } else if (attempts >= maxAttempts) {
         clearInterval(timer);
-        onReady(); // Try loading anyway
+        log(`Server wait timed out after ${attempts} attempts, loading window anyway`);
+        onReady();
       }
     });
   }, interval);
 }
 
 function createWindow() {
+  log("Creating BrowserWindow immediately...");
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -90,17 +126,30 @@ function createWindow() {
     title: "Nowledge Mem",
     backgroundColor: "#0d0e12",
     autoHideMenuBar: true,
-    show: false,
+    show: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
 
-  mainWindow.loadURL(`http://localhost:${PORT}`);
+  const targetUrl = `http://127.0.0.1:${PORT}`;
+  log("Loading URL: " + targetUrl);
+  mainWindow.loadURL(targetUrl).catch(() => {
+    log("Initial loadURL failed, retrying in 1s...");
+    setTimeout(() => {
+      mainWindow?.loadURL(targetUrl).catch(() => {});
+    }, 1500);
+  });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
+  // Handle load failure (e.g. backend still booting up)
+  mainWindow.webContents.on("did-fail-load", () => {
+    log("did-fail-load, retrying in 1.5s...");
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(targetUrl).catch(() => {});
+      }
+    }, 1500);
   });
 
   mainWindow.on("close", (event) => {
@@ -166,24 +215,31 @@ function createTray() {
   });
 }
 
-const gotTheLock = app.requestSingleInstanceLock();
+log("Registering app lifecycle events...");
 
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on("second-instance", () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-
-  app.whenReady().then(() => {
+app.whenReady().then(() => {
+  log("app.whenReady fired!");
+  try {
     startBackend();
-    createTray();
+  } catch (e) {
+    log("startBackend error: " + e.message);
+  }
 
-    // Register Alt+M global shortcut to toggle app window
+  try {
+    createTray();
+    log("createTray done");
+  } catch (e) {
+    log("createTray error: " + e.message);
+  }
+
+  try {
+    createWindow();
+    log("createWindow done");
+  } catch (e) {
+    log("createWindow error: " + e.message);
+  }
+
+  try {
     globalShortcut.register("Alt+M", () => {
       if (mainWindow) {
         if (mainWindow.isVisible() && mainWindow.isFocused()) {
@@ -194,19 +250,27 @@ if (!gotTheLock) {
         }
       }
     });
+  } catch (e) {
+    log("globalShortcut error: " + e.message);
+  }
+}).catch((err) => {
+  log("app.whenReady catch error: " + err);
+});
 
-    waitForServer(20, 200, () => {
-      createWindow();
-    });
-  });
+process.on("uncaughtException", (err) => {
+  log("process uncaughtException: " + (err?.stack || err?.message || String(err)));
+});
 
-  app.on("before-quit", () => {
-    isQuitting = true;
-    stopBackend();
-  });
+process.on("unhandledRejection", (reason) => {
+  log("process unhandledRejection: " + reason);
+});
 
-  app.on("window-all-closed", (event) => {
-    // Keep app running in tray on Windows/macOS
-    event.preventDefault();
-  });
-}
+app.on("before-quit", () => {
+  isQuitting = true;
+  stopBackend();
+});
+
+app.on("window-all-closed", () => {
+  log("window-all-closed event (kept alive in tray)");
+  // Don't call app.quit(), keep alive in tray
+});

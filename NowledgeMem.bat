@@ -1,4 +1,3 @@
 @echo off
-title Nowledge Mem Desktop
 cd /d "%~dp0desktop"
-npx electron .
+start "" "node_modules\electron\dist\electron.exe" "main.js"
