@@ -1,12 +1,13 @@
 $WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut('C:\Users\user002\Desktop\ChronosMind.lnk')
+$desktopPath = [System.Environment]::GetFolderPath('Desktop')
+$shortcutPath = Join-Path $desktopPath 'ChronosMind.lnk'
+
+$Shortcut = $WshShell.CreateShortcut($shortcutPath)
 $Shortcut.TargetPath = 'wscript.exe'
 $Shortcut.Arguments = 'd:\Devs\ArcRift\ChronosMind.vbs'
 $Shortcut.WorkingDirectory = 'd:\Devs\ArcRift'
+$Shortcut.IconLocation = 'd:\Devs\ArcRift\desktop\icon.ico,0'
 $Shortcut.Description = 'ChronosMind - Local AI Memory & Knowledge Graph'
 $Shortcut.Save()
 
-if (Test-Path 'C:\Users\user002\Desktop\Nowledge Mem.lnk') {
-    Remove-Item 'C:\Users\user002\Desktop\Nowledge Mem.lnk' -Force
-}
-Write-Output "ChronosMind shortcut created successfully!"
+Write-Output "Successfully updated ChronosMind desktop shortcut with custom monochrome icon!"

@@ -118,12 +118,14 @@ function waitForServer(maxAttempts, interval, onReady) {
 
 function createWindow() {
   log("Creating BrowserWindow immediately...");
+  const iconPath = path.resolve(__dirname, "icon.ico");
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
     minWidth: 960,
     minHeight: 640,
     title: "ChronosMind",
+    icon: iconPath,
     backgroundColor: "#0d0e12",
     autoHideMenuBar: true,
     show: true,
