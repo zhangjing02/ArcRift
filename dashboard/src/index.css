@@ -75,6 +75,40 @@ body {
   z-index: 20;
 }
 
+.nl-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 14px 6px;
+}
+
+.nl-brand-logo {
+  width: 24px;
+  height: 24px;
+}
+
+.nl-brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.nl-brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.nl-brand-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--nl-accent-blue);
+  background: rgba(56, 189, 248, 0.12);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
 .nl-search-container {
   margin-bottom: 12px;
 }

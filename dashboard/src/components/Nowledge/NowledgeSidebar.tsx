@@ -39,6 +39,15 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className="nl-sidebar">
+      {/* Brand Header */}
+      <div className="nl-brand-header">
+        <img src="/logo.svg" alt="ChronosMind" className="nl-brand-logo" />
+        <div className="nl-brand-text">
+          <span className="nl-brand-name">ChronosMind</span>
+          <span className="nl-brand-tag">AI MEMORY</span>
+        </div>
+      </div>
+
       {/* Top Search Pill */}
       <div className="nl-search-container">
         <div className="nl-search-box">

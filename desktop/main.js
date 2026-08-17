@@ -123,7 +123,7 @@ function createWindow() {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "Nowledge Mem",
+    title: "ChronosMind",
     backgroundColor: "#0d0e12",
     autoHideMenuBar: true,
     show: true,
@@ -161,7 +161,7 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.resolve(__dirname, "../dashboard/public/favicon.png");
+  const iconPath = path.resolve(__dirname, "icon.png");
   let icon;
   try {
     icon = nativeImage.createFromPath(iconPath);
@@ -170,11 +170,11 @@ function createTray() {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip("Nowledge Mem - AI Working Memory Engine");
+  tray.setToolTip("ChronosMind - AI Memory & Knowledge Graph Engine");
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "显示主界面 (Show)",
+      label: "显示 ChronosMind (Show)",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
