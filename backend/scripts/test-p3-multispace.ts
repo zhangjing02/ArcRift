@@ -10,6 +10,16 @@ async function runP3Tests() {
   const spaceA_id = "space-alpha-web";
   const spaceB_id = "space-beta-mobile";
 
+  // Clean test fixtures if existing from previous runs
+  try {
+    const { getSqlite } = await import("../src/services/sqlite");
+    const db = getSqlite();
+    db.prepare("DELETE FROM memories WHERE sessionId IN (?, ?) OR title LIKE '%React Router%' OR title LIKE '%Jetpack Compose%'").run(spaceA_id, spaceB_id);
+    db.prepare("DELETE FROM sources WHERE sessionId IN (?, ?) OR name LIKE '%Android Architecture%'").run(spaceA_id, spaceB_id);
+    db.prepare("DELETE FROM working_memory WHERE sessionId IN (?, ?)").run(spaceA_id, spaceB_id);
+    db.prepare("DELETE FROM sessions WHERE id IN (?, ?) OR projectName IN ('Alpha Web Portal', 'Beta Mobile App')").run(spaceA_id, spaceB_id);
+  } catch {}
+
   // Create two spaces
   await sessionStore.createSession("Alpha Web Portal", "web", undefined, spaceA_id);
   await sessionStore.createSession("Beta Mobile App", "mobile", undefined, spaceB_id);

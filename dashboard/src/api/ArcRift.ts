@@ -430,5 +430,26 @@ export async function updateIntelligenceSettings(data: { searchRamLimit?: string
   return res.data;
 }
 
+// ── Migration (数据迁移) APIs ──────────────────────────────────────
+export async function exportSettingsBackup(): Promise<any> {
+  const res = await apiClient.get("/api/migration/export/settings");
+  return res.data;
+}
+
+export async function exportKnowledgeBackup(): Promise<any> {
+  const res = await apiClient.get("/api/migration/export/knowledge");
+  return res.data;
+}
+
+export async function importSettingsBackup(data: any): Promise<{ success: boolean; message: string }> {
+  const res = await apiClient.post("/api/migration/import/settings", data);
+  return res.data;
+}
+
+export async function importKnowledgeBackup(data: any, mode: "merge" | "skip" | "replace" = "merge"): Promise<{ success: boolean; message: string; result: any }> {
+  const res = await apiClient.post("/api/migration/import/knowledge", { data, mode });
+  return res.data;
+}
+
 export { extractErrorMessage, apiClient };
 

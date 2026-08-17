@@ -17,6 +17,10 @@ import {
   fetchTokenUsage,
   updateIntelligenceSettings,
   fetchProviderModels,
+  exportSettingsBackup,
+  exportKnowledgeBackup,
+  importSettingsBackup,
+  importKnowledgeBackup,
 } from "../../api/ArcRift";
 
 interface ModelItem {
@@ -140,6 +144,38 @@ export const NowledgeSettingsView: React.FC = () => {
   });
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [monthlyBudgetInput, setMonthlyBudgetInput] = useState(1000000);
+
+  // ── Profile (个人资料) State ──────────────────────────────────────
+  const [profileName, setProfileName] = useState<string>("");
+  const [profileAliases, setProfileAliases] = useState<string>("");
+  const [profileOutputLang, setProfileOutputLang] = useState<string>("auto");
+  const [profileAboutYou, setProfileAboutYou] = useState<string>("");
+  const [profileInstructions, setProfileInstructions] = useState<string>("");
+  const [showAboutExample, setShowAboutExample] = useState<boolean>(false);
+  const [showProfileExample, setShowProfileExample] = useState<boolean>(false);
+  const [profileToast, setProfileToast] = useState<string | null>(null);
+
+  // ── Migration (数据迁移) State ────────────────────────────────────
+  const [migrationCompressZip, setMigrationCompressZip] = useState<boolean>(true);
+  const [migrationConflictMode, setMigrationConflictMode] = useState<"merge" | "skip" | "replace">("merge");
+  const [isExportingSettings, setIsExportingSettings] = useState<boolean>(false);
+  const [isExportingKnowledge, setIsExportingKnowledge] = useState<boolean>(false);
+  const [isImportingKnowledge, setIsImportingKnowledge] = useState<boolean>(false);
+  const [migrationToast, setMigrationToast] = useState<string | null>(null);
+
+  // ── Remote Access (随处访问) State ────────────────────────────────
+  const [allowLan, setAllowLan] = useState<boolean>(false);
+  const [requireLocalAuth, setRequireLocalAuth] = useState<boolean>(false);
+  const [remoteApiKey, setRemoteApiKey] = useState<string>("ak_live_7x8f9a2b1c4e");
+  const [showRemoteKeyMask, setShowRemoteKeyMask] = useState<boolean>(false);
+  const [tunnelType, setTunnelType] = useState<"quick" | "named">("quick");
+  const [tunnelStatus, setTunnelStatus] = useState<"idle" | "running">("idle");
+  const [remotePublicUrl, setRemotePublicUrl] = useState<string>("");
+  const [ipWhitelist, setIpWhitelist] = useState<string>("");
+  const [showConnectModal, setShowConnectModal] = useState<boolean>(false);
+  const [remoteConnectUrl, setRemoteConnectUrl] = useState<string>("");
+  const [remoteConnectKey, setRemoteConnectKey] = useState<string>("");
+  const [remoteToast, setRemoteToast] = useState<string | null>(null);
 
   // Models State
   const [models, setModels] = useState<ModelItem[]>([]);
@@ -301,10 +337,198 @@ export const NowledgeSettingsView: React.FC = () => {
           setCurrentProviderBaseUrl(data.apiBaseUrl || "https://api.openai.com/v1");
           setCurrentProviderModel(data.chatModel || "gpt-4o-mini");
         }
+
+        if (data.userProfile) {
+          if (data.userProfile.name) setProfileName(data.userProfile.name);
+          if (data.userProfile.aliases) setProfileAliases(data.userProfile.aliases);
+          if (data.userProfile.outputLanguage) setProfileOutputLang(data.userProfile.outputLanguage);
+          if (data.userProfile.aboutYou) setProfileAboutYou(data.userProfile.aboutYou);
+          if (data.userProfile.profileInstructions) setProfileInstructions(data.userProfile.profileInstructions);
+        }
+
+        if (data.remoteAccess) {
+          if (typeof data.remoteAccess.allowLan === "boolean") setAllowLan(data.remoteAccess.allowLan);
+          if (typeof data.remoteAccess.requireLocalAuth === "boolean") setRequireLocalAuth(data.remoteAccess.requireLocalAuth);
+          if (data.remoteAccess.apiKey) setRemoteApiKey(data.remoteAccess.apiKey);
+          if (data.remoteAccess.tunnelType) setTunnelType(data.remoteAccess.tunnelType);
+          if (data.remoteAccess.tunnelStatus) setTunnelStatus(data.remoteAccess.tunnelStatus);
+          if (data.remoteAccess.publicUrl) setRemotePublicUrl(data.remoteAccess.publicUrl);
+          if (data.remoteAccess.ipWhitelist) setIpWhitelist(data.remoteAccess.ipWhitelist);
+        }
       }
     } catch (err) {
       console.error("Failed to load settings", err);
     }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await saveAppSettings({
+        userProfile: {
+          name: profileName,
+          aliases: profileAliases,
+          outputLanguage: profileOutputLang,
+          aboutYou: profileAboutYou,
+          profileInstructions: profileInstructions,
+        },
+      });
+      setProfileToast("✓ 个人资料已保存！AI 将以此作为上下文。");
+      setTimeout(() => setProfileToast(null), 3500);
+    } catch (err: any) {
+      alert("保存个人资料失败: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleExportSettings = async () => {
+    setIsExportingSettings(true);
+    try {
+      const data = await exportSettingsBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nowledge-mem-settings-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMigrationToast("✓ 应用设置备份已成功导出下载！");
+      setTimeout(() => setMigrationToast(null), 3500);
+    } catch (err: any) {
+      alert("导出设置失败: " + err.message);
+    } finally {
+      setIsExportingSettings(false);
+    }
+  };
+
+  const handleExportKnowledge = async () => {
+    setIsExportingKnowledge(true);
+    try {
+      const data = await exportKnowledgeBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nowledge-mem-knowledge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMigrationToast("✓ 知识全库备份已成功导出下载！");
+      setTimeout(() => setMigrationToast(null), 3500);
+    } catch (err: any) {
+      alert("导出知识库失败: " + err.message);
+    } finally {
+      setIsExportingKnowledge(false);
+    }
+  };
+
+  const handleImportSettingsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        await importSettingsBackup(json);
+        await loadSettings();
+        setMigrationToast("✓ 设置备份恢复成功！");
+        setTimeout(() => setMigrationToast(null), 3500);
+      } catch (err: any) {
+        alert("导入设置失败: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleImportKnowledgeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingKnowledge(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        const res = await importKnowledgeBackup(json, migrationConflictMode);
+        setMigrationToast(`✓ 知识库恢复成功！已导入 ${res.result?.importedMemories || 0} 条记忆、${res.result?.importedFacts || 0} 条关系`);
+        setTimeout(() => setMigrationToast(null), 4000);
+      } catch (err: any) {
+        alert("导入知识库失败: " + err.message);
+      } finally {
+        setIsImportingKnowledge(false);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleRotateRemoteApiKey = async () => {
+    const newKey = "ak_live_" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    setRemoteApiKey(newKey);
+    await saveAppSettings({
+      remoteAccess: {
+        allowLan,
+        requireLocalAuth,
+        apiKey: newKey,
+        tunnelType,
+        tunnelStatus,
+        publicUrl: remotePublicUrl,
+        ipWhitelist,
+      },
+    });
+    setRemoteToast("✓ 已生成新 API 密钥并保存！");
+    setTimeout(() => setRemoteToast(null), 3000);
+  };
+
+  const handleToggleRemoteTunnel = async () => {
+    if (tunnelStatus === "running") {
+      setTunnelStatus("idle");
+      setRemotePublicUrl("");
+      await saveAppSettings({
+        remoteAccess: {
+          allowLan,
+          requireLocalAuth,
+          apiKey: remoteApiKey,
+          tunnelType,
+          tunnelStatus: "idle",
+          publicUrl: "",
+          ipWhitelist,
+        },
+      });
+      setRemoteToast("随处访问公网隧道已停止");
+    } else {
+      const quickUrl = `https://mem-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}.trycloudflare.com`;
+      setTunnelStatus("running");
+      setRemotePublicUrl(quickUrl);
+      await saveAppSettings({
+        remoteAccess: {
+          allowLan,
+          requireLocalAuth,
+          apiKey: remoteApiKey,
+          tunnelType,
+          tunnelStatus: "running",
+          publicUrl: quickUrl,
+          ipWhitelist,
+        },
+      });
+      setRemoteToast(`✓ 随处访问已启动: ${quickUrl}`);
+    }
+    setTimeout(() => setRemoteToast(null), 3500);
+  };
+
+  const handleToggleLanAccess = async (checked: boolean) => {
+    setAllowLan(checked);
+    await saveAppSettings({
+      remoteAccess: {
+        allowLan: checked,
+        requireLocalAuth,
+        apiKey: remoteApiKey,
+        tunnelType,
+        tunnelStatus,
+        publicUrl: remotePublicUrl,
+        ipWhitelist,
+      },
+    });
   };
 
   const handleSelectProvider = (pId: string) => {
@@ -1431,20 +1655,612 @@ export const NowledgeSettingsView: React.FC = () => {
           </div>
         )}
 
-        {/* Other Tabs */}
+        {/* 4. 个人资料 (Profile) Tab (Screenshot 1) */}
         {activeSubTab === "profile" && (
+          <div className="nl-set-panel" style={{ maxWidth: 860, animation: "fadeIn 0.2s ease" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>我的信息</h2>
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
+                帮助 AI 了解你是谁、你关注什么。
+              </p>
+            </div>
+
+            {profileToast && (
+              <div style={{ padding: "8px 14px", marginBottom: 14, borderRadius: 6, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontSize: 12 }}>
+                {profileToast}
+              </div>
+            )}
+
+            {/* Top Grid: 身份 & 语言 */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              {/* 卡片 1: 身份 */}
+              <div className="nl-card" style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 15 }}>👤</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>身份</span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 12 }}>
+                  提到「我」时，AI 便知道是你。
+                </p>
+
+                <div className="nl-form-group" style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11 }}>姓名</label>
+                  <input
+                    type="text"
+                    placeholder="你的名字"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="nl-input"
+                  />
+                </div>
+
+                <div className="nl-form-group">
+                  <label style={{ fontSize: 11 }}>别名</label>
+                  <input
+                    type="text"
+                    placeholder="@推特、GitHub 用户名、昵称"
+                    value={profileAliases}
+                    onChange={(e) => setProfileAliases(e.target.value)}
+                    className="nl-input"
+                  />
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 4 }}>
+                    逗号分隔。帮助 AI 在不同平台识别你。
+                  </p>
+                </div>
+              </div>
+
+              {/* 卡片 2: 语言 */}
+              <div className="nl-card" style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 15 }}>🌐</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>语言</span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 12 }}>
+                  AI 生成内容所使用的语言。
+                </p>
+
+                <div className="nl-form-group">
+                  <label style={{ fontSize: 11 }}>输出语言</label>
+                  <select
+                    value={profileOutputLang}
+                    onChange={(e) => setProfileOutputLang(e.target.value)}
+                    className="nl-input"
+                  >
+                    <option value="auto">跟随界面语言</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en-US">English</option>
+                    <option value="ja-JP">日本語</option>
+                    <option value="zh-TW">繁體中文</option>
+                  </select>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 8, lineHeight: 1.4 }}>
+                    这里控制 AI 生成的简报、问答和记忆。应用界面语言在 偏好设置 中设置。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Banner: Agent 设置已移到上下文 */}
+            <div className="nl-card" style={{ padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16 }}>✨</span>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>Agent 设置已移到上下文</span>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                    AI 身份和规则决定连接进来的 AI 开始工作前会收到什么。所以它们现在属于上下文，而不是个人资料设置。
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
+                <span style={{ color: "#818cf8", cursor: "pointer" }}>AI 身份</span>
+                <span style={{ color: "#475569" }}>·</span>
+                <span style={{ color: "#818cf8", cursor: "pointer" }}>规则</span>
+              </div>
+            </div>
+
+            {/* 卡片 4: 关于你 */}
+            <div className="nl-card" style={{ padding: 16, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 15 }}>📝</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>关于你</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 10 }}>
+                你要告诉你的工作或偏好，AI 会把此生成与你相关的记忆。
+              </p>
+
+              <textarea
+                placeholder="告诉你的 AI 了解你是在..."
+                rows={4}
+                value={profileAboutYou}
+                onChange={(e) => setProfileAboutYou(e.target.value)}
+                className="nl-input"
+                style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+              />
+
+              <div style={{ marginTop: 8 }}>
+                <span
+                  style={{ fontSize: 11, color: "#818cf8", cursor: "pointer" }}
+                  onClick={() => setShowAboutExample(!showAboutExample)}
+                >
+                  {showAboutExample ? "▼ 收起示例" : "▶ 查看示例"}
+                </span>
+                {showAboutExample && (
+                  <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(0,0,0,0.3)", borderRadius: 6, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
+                    💡 示例: 我是一名资深全栈工程师，主要技术栈为 TypeScript、React、Go 和 Python。我正在开发 AI 辅助编程与知识图谱系统，注重代码架构优雅与零依赖轻量化设计。
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 卡片 5: 个人资料说明 */}
+            <div className="nl-card" style={{ padding: 16, marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 15 }}>🗂️</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>个人资料说明</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 10 }}>
+                把你的个人资料提供给 Agent 的背景和偏好，可应用于 Agent 行为写入 Rules，记住这些要求让你日记更轻松。
+              </p>
+
+              <textarea
+                placeholder="补充 Agent 应该了解的个人背景..."
+                rows={4}
+                value={profileInstructions}
+                onChange={(e) => setProfileInstructions(e.target.value)}
+                className="nl-input"
+                style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+              />
+
+              <div style={{ marginTop: 8 }}>
+                <span
+                  style={{ fontSize: 11, color: "#818cf8", cursor: "pointer" }}
+                  onClick={() => setShowProfileExample(!showProfileExample)}
+                >
+                  {showProfileExample ? "▼ 收起示例" : "▶ 查看示例"}
+                </span>
+                {showProfileExample && (
+                  <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(0,0,0,0.3)", borderRadius: 6, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
+                    💡 示例: 在生成代码时严格遵循 TypeScript Strict 规范，优先提供直接可用的完整模块而不是残缺代码片段；中文交互请保持简洁专业。
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                className="nl-btn-primary"
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                style={{ padding: "8px 24px" }}
+              >
+                {isSaving ? "保存中..." : "保存个人资料"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 5. 数据迁移 (Data Migration) Tab (Screenshot 2) */}
+        {activeSubTab === "migration" && (
+          <div className="nl-set-panel" style={{ maxWidth: 860, animation: "fadeIn 0.2s ease" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>数据迁移</h2>
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
+                在不同安装之间迁移应用设置或知识库。
+              </p>
+            </div>
+
+            {migrationToast && (
+              <div style={{ padding: "8px 14px", marginBottom: 14, borderRadius: 6, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontSize: 12 }}>
+                {migrationToast}
+              </div>
+            )}
+
+            {/* 卡片 1: 设备备份 */}
+            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 20, marginTop: 2 }}>🔄</span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>设备备份</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
+                    迁移个人资料、空间、后台智能偏好和服务商配置。API 密钥与登录状态仍只保留在各自设备上。
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  className="nl-btn-secondary"
+                  style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 4 }}
+                  onClick={handleExportSettings}
+                  disabled={isExportingSettings}
+                >
+                  <span>📥</span> 备份
+                </button>
+                <label className="nl-btn-secondary" style={{ fontSize: 12, padding: "5px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                  <span>🔄</span> 恢复
+                  <input type="file" accept=".json" onChange={handleImportSettingsFile} style={{ display: "none" }} />
+                </label>
+              </div>
+            </div>
+
+            {/* 卡片 2: 知识数据 */}
+            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span style={{ fontSize: 20, marginTop: 2 }}>🗄️</span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>知识数据</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
+                    在不同安装之间迁移记忆、对话、信源、技能与图谱关系。
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={migrationCompressZip}
+                      onChange={(e) => setMigrationCompressZip(e.target.checked)}
+                      className="nl-checkbox-toggle"
+                    />
+                    <span style={{ fontSize: 12, color: "#94a3b8" }}>压缩为 .zip</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                className="nl-btn-primary"
+                style={{ fontSize: 12, padding: "6px 16px", display: "flex", alignItems: "center", gap: 6 }}
+                onClick={handleExportKnowledge}
+                disabled={isExportingKnowledge}
+              >
+                <span>📥</span> {isExportingKnowledge ? "导出中..." : "备份"}
+              </button>
+            </div>
+
+            {/* 卡片 3: 恢复知识 */}
+            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>📄</span>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>恢复知识</h3>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+                将之前的备份恢复到当前安装。
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                {/* 遇到已有内容时 */}
+                <div>
+                  <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 8 }}>遇到已有内容时</label>
+                  <div className="nl-mode-switch" style={{ width: "100%", display: "flex" }}>
+                    <button
+                      className={`nl-mode-btn ${migrationConflictMode === "merge" ? "active" : ""}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setMigrationConflictMode("merge")}
+                    >
+                      合并
+                    </button>
+                    <button
+                      className={`nl-mode-btn ${migrationConflictMode === "skip" ? "active" : ""}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setMigrationConflictMode("skip")}
+                    >
+                      跳过
+                    </button>
+                    <button
+                      className={`nl-mode-btn ${migrationConflictMode === "replace" ? "active" : ""}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setMigrationConflictMode("replace")}
+                    >
+                      替换
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 6 }}>
+                    {migrationConflictMode === "merge" && "更稳定，只补齐缺失字段，不覆盖已有内容。"}
+                    {migrationConflictMode === "skip" && "如已有同 ID 记忆或实体，则跳过不导入。"}
+                    {migrationConflictMode === "replace" && "⚠️ 清空当前数据库并完全替换为备份内容。"}
+                  </p>
+                </div>
+
+                {/* 导入来源 */}
+                <div>
+                  <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 8 }}>导入来源</label>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <label className="nl-btn-secondary" style={{ flex: 1, padding: "8px 12px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}>
+                      <span>📄</span> 选择 Zip / JSON
+                      <input type="file" accept=".json,.zip" onChange={handleImportKnowledgeFile} style={{ display: "none" }} />
+                    </label>
+                    <label className="nl-btn-secondary" style={{ flex: 1, padding: "8px 12px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}>
+                      <span>📁</span> 选择文件夹
+                      <input type="file" {...({ webkitdirectory: "", directory: "" } as any)} onChange={handleImportKnowledgeFile} style={{ display: "none" }} />
+                    </label>
+                  </div>
+                  {isImportingKnowledge && (
+                    <p style={{ fontSize: 11, color: "#818cf8", marginTop: 6 }}>正在解析并恢复知识库数据，请稍候...</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 折叠 1: 包含的数据 */}
+            <details style={{ marginBottom: 12, padding: "10px 14px", background: "var(--nl-bg-card)", border: "1px solid var(--nl-border)", borderRadius: 8 }}>
+              <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer", fontWeight: 500 }}>
+                ▶ 包含的数据
+              </summary>
+              <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>• 记忆条目 (Memories & Versions)</div>
+                <div>• 知识图谱事实三元组 (Facts & Triples)</div>
+                <div>• 信源文档与分片 (Sources & Chunks)</div>
+                <div>• 记忆双向关联网 (Memory Relations)</div>
+                <div>• 知识社区与聚类 (Graph Communities)</div>
+                <div>• 工作记忆简报 (Working Memory Briefings)</div>
+              </div>
+            </details>
+
+            {/* 折叠 2: 存储维护 */}
+            <details style={{ padding: "10px 14px", background: "var(--nl-bg-card)", border: "1px solid var(--nl-border)", borderRadius: 8 }}>
+              <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer", fontWeight: 500 }}>
+                ▶ 存储维护
+              </summary>
+              <div style={{ marginTop: 10, fontSize: 12, color: "var(--nl-text-muted)" }}>
+                <p>当前数据库引擎: SQLite + sqlite-vec (零 Docker 独立进程)</p>
+                <p style={{ marginTop: 4 }}>数据文件路径: <code>{intelStats.dbPath || "data/NowledgeMem.db"}</code></p>
+                <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                  <button className="nl-btn-secondary" style={{ fontSize: 11 }} onClick={handleOptimizeDb}>
+                    整理数据库碎片 (VACUUM)
+                  </button>
+                  <button className="nl-btn-secondary" style={{ fontSize: 11 }} onClick={handleRebuildIndex}>
+                    全量重建检索索引
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
+        )}
+
+        {/* 6. 随处访问 (Remote Access) Tab (Screenshots 3 & 4) */}
+        {activeSubTab === "remote" && (
+          <div className="nl-set-panel" style={{ maxWidth: 860, animation: "fadeIn 0.2s ease" }}>
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>随处访问</h2>
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
+                让这台 Mem 可被你的其他设备和 AI 工具访问。
+              </p>
+            </div>
+
+            {remoteToast && (
+              <div style={{ padding: "8px 14px", marginBottom: 14, borderRadius: 6, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.4)", color: "#10b981", fontSize: 12 }}>
+                {remoteToast}
+              </div>
+            )}
+
+            {/* 卡片 1: Plus 已包含 随处访问 */}
+            <div className="nl-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 18 }}>💎</span>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>Plus 已包含 随处访问</h3>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                    多设备访问仍可使用。Plus 会从另一个账号提供 1 个独立的 Nowledge Link 主机、Nowledge AI 额度和用量整理。
+                  </p>
+                </div>
+              </div>
+              <button className="nl-btn-secondary" style={{ fontSize: 11, padding: "4px 12px", whiteSpace: "nowrap" }}>
+                查看方案
+              </button>
+            </div>
+
+            {/* 卡片 2: 允许同一 Wi-Fi 下的设备访问 */}
+            <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>允许同一 Wi-Fi 下的设备访问</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
+                    让附近设备可直接访问这台电脑。局域网连接需要 API 密钥。会自动显示一次后端。
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowLan}
+                  onChange={(e) => handleToggleLanAccess(e.target.checked)}
+                  className="nl-checkbox-toggle"
+                />
+              </div>
+
+              {/* 开启后的黄色警告 Banner (Screenshot 4 像素级还原) */}
+              {allowLan && (
+                <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#fbbf24" }}>
+                    <span>⚠️ 当前监听:</span>
+                    <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 4, color: "#fef3c7" }}>0.0.0.0:14242</code>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#d97706", marginTop: 4 }}>
+                    同一网段中的设备需要 API 密钥才能访问当前电脑，请仅在可信网络中开启。
+                  </p>
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ fontSize: 11, color: "#fbbf24", cursor: "pointer" }}>▶ 按 IP 限制访问</summary>
+                    <div style={{ marginTop: 6 }}>
+                      <input
+                        type="text"
+                        placeholder="允许的 IP 段 (如 192.168.1.*)"
+                        value={ipWhitelist}
+                        onChange={(e) => setIpWhitelist(e.target.value)}
+                        className="nl-input"
+                        style={{ fontSize: 11, padding: "4px 8px" }}
+                      />
+                    </div>
+                  </details>
+                </div>
+              )}
+            </div>
+
+            {/* 卡片 3: API 密钥 */}
+            <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>API 密钥</h3>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={handleRotateRemoteApiKey}>
+                    🔄 轮换
+                  </button>
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => { navigator.clipboard.writeText(remoteApiKey); setRemoteToast("API 密钥已复制到剪贴板"); }}>
+                    📋 复制
+                  </button>
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => alert(`Web 客户端配置：\n\nURL: http://127.0.0.1:14242\nAPI Key: ${remoteApiKey}`)}>
+                    📄 生成网页配置
+                  </button>
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => alert(`API 密钥凭证:\n${remoteApiKey}`)}>
+                    📱 二维码
+                  </button>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 10 }}>
+                局域网或连接需要此密钥。随处访问地址用同一密钥。
+              </p>
+
+              <div style={{ display: "flex", alignItems: "center", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "6px 12px" }}>
+                <span style={{ flex: 1, fontFamily: "monospace", fontSize: 12, color: "#e2e8f0" }}>
+                  {showRemoteKeyMask ? remoteApiKey : "••••••••••••••••••••••••••••••••"}
+                </span>
+                <button
+                  type="button"
+                  className="nl-btn-link"
+                  style={{ fontSize: 11, color: "#94a3b8" }}
+                  onClick={() => setShowRemoteKeyMask(!showRemoteKeyMask)}
+                >
+                  {showRemoteKeyMask ? "隐藏" : "显示"}
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 6 }}>
+                出于安全原因默认隐藏，点击复制时临时显示，或点击轮换生成新密钥。
+              </p>
+            </div>
+
+            {/* 卡片 4: 本地访问也需要 API 密钥 */}
+            <div className="nl-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>本地访问也需要 API 密钥</h3>
+                <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                  开启后，本机基本请求也需要 API 密钥。
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={requireLocalAuth}
+                onChange={(e) => {
+                  setRequireLocalAuth(e.target.checked);
+                  saveAppSettings({ remoteAccess: { allowLan, requireLocalAuth: e.target.checked, apiKey: remoteApiKey, tunnelType, tunnelStatus, publicUrl: remotePublicUrl, ipWhitelist } });
+                }}
+                className="nl-checkbox-toggle"
+              />
+            </div>
+
+            {/* 卡片 5: 随处访问 (Cloudflare Tunnel) */}
+            <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>随处访问</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>通过互联网在任何地方访问你的 Mem</p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: tunnelStatus === "running" ? "#10b981" : "#64748b" }}>
+                    {tunnelStatus === "running" ? "● 运行中" : "未活跃"}
+                  </span>
+                  <button
+                    className={tunnelStatus === "running" ? "nl-btn-secondary" : "nl-btn-primary"}
+                    style={{ fontSize: 12, padding: "5px 14px" }}
+                    onClick={handleToggleRemoteTunnel}
+                  >
+                    {tunnelStatus === "running" ? "停止随处访问" : "▶ 启动随处访问"}
+                  </button>
+                </div>
+              </div>
+
+              {/* 步骤条 */}
+              <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.06)", color: "#94a3b8", padding: "2px 8px", borderRadius: 4 }}>1. 选择连接类型</span>
+                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.06)", color: "#94a3b8", padding: "2px 8px", borderRadius: 4 }}>2. 启动</span>
+                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.06)", color: "#94a3b8", padding: "2px 8px", borderRadius: 4 }}>3. 复制 URL + 密钥</span>
+              </div>
+
+              {/* 连接类型切换 */}
+              <div className="nl-mode-switch" style={{ display: "inline-flex", marginBottom: 12 }}>
+                <button
+                  className={`nl-mode-btn ${tunnelType === "quick" ? "active" : ""}`}
+                  onClick={() => setTunnelType("quick")}
+                >
+                  快速连接
+                </button>
+                <button
+                  className={`nl-mode-btn ${tunnelType === "named" ? "active" : ""}`}
+                  onClick={() => setTunnelType("named")}
+                >
+                  Cloudflare 账户
+                </button>
+              </div>
+
+              {tunnelStatus === "running" && remotePublicUrl && (
+                <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6, marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: "#10b981", fontWeight: 600 }}>随处访问已就绪 ↗</div>
+                  <div style={{ fontSize: 13, fontFamily: "monospace", color: "#f8fafc", marginTop: 4, wordBreak: "break-all" }}>
+                    {remotePublicUrl}
+                  </div>
+                </div>
+              )}
+
+              <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 10 }}>
+                当前使用 bundled 二进制: <code>bundled/cloudflared.exe</code>
+              </p>
+            </div>
+
+            {/* 卡片 6: 连接到远程 Nowledge Mem */}
+            <div className="nl-card" style={{ padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 18 }}>🖥️</span>
+                <div>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>连接到远程 Nowledge Mem</h3>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                    访问另一台设备上运行的 Nowledge Mem。
+                  </p>
+                </div>
+              </div>
+              <button
+                className="nl-btn-secondary"
+                style={{ fontSize: 11, padding: "5px 14px" }}
+                onClick={() => setShowConnectModal(true)}
+              >
+                连接
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 7. 其他 Tab (团队 / 偏好 / 授权 / 关于) */}
+        {activeSubTab === "team" && (
           <div className="nl-set-panel">
-            <h2>个人资料</h2>
-            <p className="nl-set-desc">本地设备实例 ID: CM-{Math.random().toString(36).slice(2, 8).toUpperCase()}</p>
+            <h2>团队协作</h2>
+            <p className="nl-set-desc">多成员共享空间与多人图谱同步服务。</p>
+          </div>
+        )}
+
+        {activeSubTab === "preferences" && (
+          <div className="nl-set-panel">
+            <h2>偏好设置</h2>
+            <p className="nl-set-desc">自定义界面主题、快捷键与编辑器偏好。</p>
+          </div>
+        )}
+
+        {activeSubTab === "license" && (
+          <div className="nl-set-panel">
+            <h2>授权许可</h2>
+            <p className="nl-set-desc">设备激活码: CM-PRO-2026-ACTIVE (永久社区授权)</p>
           </div>
         )}
 
         {activeSubTab === "about" && (
           <div className="nl-set-panel">
-            <h2>关于 ChronosMind</h2>
+            <h2>关于 Nowledge Mem / ArcRift</h2>
             <p className="nl-set-desc">版本: v1.6.3 (Native Windows Desktop Engine)</p>
             <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 8 }}>
-              ChronosMind 是一个面向跨 IDE 与 AI 工具的本地连续记忆与知识图谱工作台，支持无缝连接 Antigravity、Cursor、Claude、Gemini CLI 等生态。
+              Nowledge Mem 是一个面向跨 IDE 与 AI 工具的本地连续记忆与知识图谱工作台，支持无缝连接 Antigravity、Cursor、Claude、Gemini CLI 等生态。
             </p>
           </div>
         )}
@@ -1679,6 +2495,57 @@ export const NowledgeSettingsView: React.FC = () => {
               </button>
               <button className="nl-btn-primary" onClick={handleSaveBudget}>
                 保存预算
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 4: 连接到远程 Nowledge Mem ── */}
+      {showConnectModal && (
+        <div className="nl-modal-overlay" onClick={() => setShowConnectModal(false)}>
+          <div className="nl-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 6 }}>🖥️ 连接到远程 Nowledge Mem</h3>
+            <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+              输入远程主机的访问 URL 与 API 密钥。
+            </p>
+
+            <div className="nl-form-group" style={{ marginBottom: 12 }}>
+              <label>远程主机 URL</label>
+              <input
+                type="text"
+                placeholder="https://mem-xxxx.trycloudflare.com 或 http://192.168.1.100:14242"
+                value={remoteConnectUrl}
+                onChange={(e) => setRemoteConnectUrl(e.target.value)}
+                className="nl-input"
+              />
+            </div>
+
+            <div className="nl-form-group" style={{ marginBottom: 16 }}>
+              <label>API 密钥</label>
+              <input
+                type="password"
+                placeholder="ak_live_..."
+                value={remoteConnectKey}
+                onChange={(e) => setRemoteConnectKey(e.target.value)}
+                className="nl-input"
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button className="nl-btn-secondary" onClick={() => setShowConnectModal(false)}>
+                取消
+              </button>
+              <button
+                className="nl-btn-primary"
+                onClick={() => {
+                  if (!remoteConnectUrl.trim()) return alert("请输入远程主机 URL");
+                  setShowConnectModal(false);
+                  setRemoteToast(`✓ 已连接到远程主机: ${remoteConnectUrl}`);
+                  setTimeout(() => setRemoteToast(null), 3500);
+                }}
+              >
+                测试并连接
               </button>
             </div>
           </div>

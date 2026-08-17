@@ -183,7 +183,7 @@ export class SqliteMemoryStore implements IMemoryStore {
     const params: any[] = [];
 
     if (sessionId && sessionId !== "all") {
-      sql += " AND (sessionId = ? OR sessionId = 'default')";
+      sql += " AND sessionId = ?";
       params.push(sessionId);
     }
 

@@ -245,8 +245,26 @@ export interface Settings {
     }
   >;
 
-  // Context retrieval mode
-  contextMode?: "raw" | "summarized";
+  // 个人资料 (User Profile)
+  userProfile?: {
+    name?: string;
+    aliases?: string;
+    outputLanguage?: string;
+    aboutYou?: string;
+    profileInstructions?: string;
+  };
+
+  // 随处访问 (Remote & LAN Access)
+  remoteAccess?: {
+    allowLan?: boolean;
+    lanPort?: number;
+    requireLocalAuth?: boolean;
+    apiKey?: string;
+    tunnelType?: "quick" | "named";
+    tunnelStatus?: "idle" | "running" | "stopped";
+    publicUrl?: string;
+    ipWhitelist?: string;
+  };
 
   // Legacy / Ollama-specific backwards compatibility
   ollamaEmbeddingModel?: string;
