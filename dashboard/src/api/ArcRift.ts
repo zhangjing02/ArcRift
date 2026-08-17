@@ -187,4 +187,32 @@ export async function generateWorkingMemory(sessionId: string) {
   return res.data as { success: boolean; workingMemory: import("../types").WorkingMemory };
 }
 
+export const getMemories = fetchMemories;
+export const getWorkingMemory = fetchWorkingMemory;
+
+export async function getGraphData(sessionId?: string): Promise<{ nodes: any[]; links: any[] }> {
+  if (!sessionId) return { nodes: [], links: [] };
+  try {
+    return await fetchGraphBySession(sessionId);
+  } catch {
+    return { nodes: [], links: [] };
+  }
+}
+
+export async function getFullChat(sessionId: string): Promise<import("../types").FullChat | null> {
+  try {
+    const res = await apiClient.get(`/api/chat/${sessionId}`);
+    if (res.data?.found) {
+      return {
+        rawText: res.data.rawText,
+        messageCount: res.data.messageCount,
+        createdAt: res.data.createdAt,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export { extractErrorMessage, apiClient };

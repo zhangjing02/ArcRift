@@ -1,104 +1,47 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import GraphView from "./components/GraphView";
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
-import type { MainTabType } from "./components/Header";
-import MainLayout from "./components/Layout/MainLayout";
-import { GlobalSearchView } from "./components/GlobalSearchView";
-import FloatingPanel from "./components/Panels/FloatingPanel";
+import React, { useState, useEffect } from "react";
+import { NowledgeSidebar } from "./components/Nowledge/NowledgeSidebar";
+import type { NavTab } from "./components/Nowledge/NowledgeSidebar";
+import { TimelineView } from "./components/Nowledge/TimelineView";
+import { MemoriesView } from "./components/Nowledge/MemoriesView";
+import { ThreadsView } from "./components/Nowledge/ThreadsView";
+import { NowledgeGraphView } from "./components/Nowledge/NowledgeGraphView";
+import { AiNowView } from "./components/Nowledge/AiNowView";
+import {
+  LibraryView,
+  KnowledgeTreeView,
+  SkillsView,
+  ContextView,
+  StatsView,
+} from "./components/Nowledge/OtherViews";
 import SettingsView from "./components/SettingsView";
-import WorkingMemoryView from "./components/WorkingMemoryView";
-import MemoriesStreamView from "./components/MemoriesStreamView";
-import ChatViewer from "./components/ChatViewer";
 
-import { apiClient, extractErrorMessage } from "./api/ArcRift";
 import type { Session } from "./types";
 import { useSessions } from "./hooks/useSessions";
-import { useGraphData } from "./hooks/useGraphData";
-import { PAGE_SIZE } from "./constants";
-import { LocaleProvider, useLocale } from "./context/LocaleContext";
+import { apiClient, extractErrorMessage } from "./api/ArcRift";
+import { LocaleProvider } from "./context/LocaleContext";
 
 const AppContent: React.FC = () => {
-  const { t } = useLocale();
-
-  // Navigation & UI State
+  const [currentTab, setCurrentTab] = useState<NavTab>("timeline");
   const [activeSession, setActiveSession] = useState<Session | null>(null);
-  const [activeMainTab, setActiveMainTab] = useState<MainTabType>("working-memory");
-  const [activeSideTab, setActiveSideTab] = useState<"history" | "chat" | null>("history");
-  const [loadedToExtension, setLoadedToExtension] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isClosed, setIsClosed] = useState(true);
 
-  const loadIntoExtension = async () => {
-    if (!activeSession) return;
-    try {
-      const resp = await apiClient.post("/api/context/active", { sessionId: activeSession._id });
-      if (resp.data.success) {
-        setLoadedToExtension(true);
-        setTimeout(() => setLoadedToExtension(false), 3000);
-      }
-    } catch (err) {
-      setError(`${t.header.syncFailed}: ${extractErrorMessage(err)}`);
-    }
-  };
-
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [graphTypeFilter, setGraphTypeFilter] = useState<string | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<"projects" | "legend">("projects");
-  const [factsPage, setFactsPage] = useState(0);
-  const [factSearch, setFactSearch] = useState("");
-  const [minDegree, setMinDegree] = useState(0);
-
-  // Hooks
   const {
     sessions,
     filteredSessions,
-    error: sessionError,
-    setError: setSessionError,
-    deletingId,
-    jobStatus,
-    setJobStatus,
-    sessionSearch,
-    setSessionSearch,
     loadSessions,
     handleDeleteSession,
-    handleClearJobs,
   } = useSessions((deletedId) => {
     if (activeSession?._id === deletedId) {
-      setActiveSession(null);
-      resetData();
+      setActiveSession(sessions.find((s) => s._id !== deletedId) || null);
     }
   });
 
-  const {
-    nodes,
-    links,
-    triples,
-    chatData,
-    loadingSession,
-    isLoadingSession,
-    loadSessionData,
-    resetData,
-  } = useGraphData();
-
-  // Combine errors
-  const currentError = error || sessionError;
-
-  const handleLoadSession = useCallback(async (session: Session) => {
-    const isNewSession = activeSession?._id !== session._id;
-    setActiveSession(session);
-    
-    await loadSessionData(session, activeSession?._id);
-
-    if (isNewSession) {
-      setSelectedNodeId(null);
-      setGraphTypeFilter(null);
-      setFactsPage(0);
-      setFactSearch("");
-      setJobStatus({ pending: 0, processing: 0, deadLettered: 0 });
+  useEffect(() => {
+    if (!activeSession && sessions.length > 0) {
+      setActiveSession(sessions[0]);
     }
-  }, [activeSession, loadSessionData, setJobStatus]);
+  }, [sessions, activeSession]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,258 +53,113 @@ const AppContent: React.FC = () => {
         await apiClient.post("/api/session/import", data);
         await loadSessions();
       } catch (err) {
-        setError(`${t.sidebar.importFailed || "Import failed"}: ${extractErrorMessage(err)}`);
+        setError(`导入失败: ${extractErrorMessage(err)}`);
       }
     };
     reader.readAsText(file);
   };
 
-  // Initial load and sync
-  useEffect(() => {
-    if (isLoadingSession) return;
-    if (activeSession) {
-      const stillExists = sessions.find(s => s._id === activeSession._id);
-      if (!stillExists && sessions.length > 0) handleLoadSession(sessions[0]);
-    } else if (sessions.length > 0) {
-      handleLoadSession(sessions[0]);
-    }
-  }, [sessions.length, handleLoadSession, activeSession?._id, isLoadingSession]);
-
-  // Polling for processing graph
-  useEffect(() => {
-    let timer: any;
-    if (activeSession) {
-      const poll = async () => {
-        try {
-          const { data: status } = await apiClient.get(`/api/jobs/status/${activeSession._id}`);
-          setJobStatus(status);
-          
-          if (activeSession.isProcessingGraph && status.pending === 0 && status.processing === 0) {
-            const freshSessions = await loadSessions();
-            const updatedSession = freshSessions?.find((s: any) => s._id === activeSession._id);
-            if (updatedSession) {
-              handleLoadSession(updatedSession);
-            } else {
-              handleLoadSession({ ...activeSession, isProcessingGraph: false });
-            }
-          }
-        } catch (err) { 
-          // Silently fail polling
-        }
-      };
-      poll();
-      timer = setInterval(poll, 3000);
-    }
-    return () => clearInterval(timer);
-  }, [activeSession, loadSessions, handleLoadSession, setJobStatus]);
-
-  const degreeMap = useMemo(() => {
-    const map = new Map<string, number>();
-    nodes.forEach(node => map.set(node.id, 0));
-    links.forEach(link => {
-      const s = typeof link.source === "string" ? link.source : (link.source as any).id;
-      const t = typeof link.target === "string" ? link.target : (link.target as any).id;
-      map.set(s, (map.get(s) || 0) + 1);
-      map.set(t, (map.get(t) || 0) + 1);
-    });
-    return map;
-  }, [nodes, links]);
-
-  const pagedTriples = useMemo(() => {
-    let list = triples;
-    if (minDegree > 0) {
-      list = list.filter(tItem => {
-        const sDegree = degreeMap.get(tItem.subject) || 0;
-        const oDegree = degreeMap.get(tItem.object) || 0;
-        return sDegree >= minDegree && oDegree >= minDegree;
-      });
-    }
-    if (selectedNodeId) {
-      list = list.filter(tItem => tItem.subject === selectedNodeId || tItem.object === selectedNodeId);
-    }
-    if (factSearch) {
-      const q = factSearch.toLowerCase();
-      list = list.filter(tItem => 
-        tItem.subject.toLowerCase().includes(q) || 
-        tItem.object.toLowerCase().includes(q) || 
-        tItem.relation.toLowerCase().includes(q)
-      );
-    }
-    const start = factsPage * PAGE_SIZE;
-    return list.slice(start, start + PAGE_SIZE);
-  }, [triples, selectedNodeId, factsPage, factSearch, minDegree, degreeMap]);
-
-  const filteredTripleCount = useMemo(() => {
-    let list = triples;
-    if (minDegree > 0) {
-      list = list.filter(tItem => {
-        const sDegree = degreeMap.get(tItem.subject) || 0;
-        const oDegree = degreeMap.get(tItem.object) || 0;
-        return sDegree >= minDegree && oDegree >= minDegree;
-      });
-    }
-    if (selectedNodeId) {
-      list = list.filter(tItem => tItem.subject === selectedNodeId || tItem.object === selectedNodeId);
-    }
-    if (factSearch) {
-      const q = factSearch.toLowerCase();
-      list = list.filter(tItem => 
-        tItem.subject.toLowerCase().includes(q) || 
-        tItem.object.toLowerCase().includes(q) || 
-        tItem.relation.toLowerCase().includes(q)
-      );
-    }
-    return list.length;
-  }, [triples, selectedNodeId, factSearch, minDegree, degreeMap]);
-
-  const totalPages = Math.ceil(filteredTripleCount / PAGE_SIZE);
-
-  const nodeTypes = useMemo(() => [...new Set(nodes.map(n => n.type))], [nodes]);
-
   return (
-    <MainLayout>
-      <Sidebar
-        sessions={filteredSessions}
+    <div className="nl-app-layout">
+      {/* 1. Global Left Sidebar */}
+      <NowledgeSidebar
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        sessions={sessions}
         activeSessionId={activeSession?._id}
-        deletingId={deletingId}
-        sessionSearch={sessionSearch}
-        setSessionSearch={setSessionSearch}
-        sidebarTab={sidebarTab}
-        setSidebarTab={setSidebarTab}
-        onSessionSelect={handleLoadSession}
-        onDeleteSession={handleDeleteSession}
-        onImport={handleImport}
-        nodeTypes={nodeTypes}
-        graphTypeFilter={graphTypeFilter}
-        onFilterToggle={(type) => setGraphTypeFilter(graphTypeFilter === type ? null : type)}
+        onSessionSelect={setActiveSession}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
-      <Header
-        activeMainTab={activeMainTab as any}
-        setActiveMainTab={setActiveMainTab as any}
-        activeSideTab={activeSideTab}
-        setActiveSideTab={setActiveSideTab}
-        isClosed={isClosed}
-        setIsClosed={setIsClosed}
-        loadedToExtension={loadedToExtension}
-        loadIntoExtension={loadIntoExtension}
-      />
-
-      <main className="background-graph" style={{ zIndex: 1, position: "relative", flex: 1, height: "100%", overflow: "hidden" }}>
-        {/* 1. Working Memory View */}
-        {activeMainTab === "working-memory" && (
-          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, overflowY: "auto" }}>
-            <WorkingMemoryView activeSession={activeSession} onRefreshSession={loadSessions} />
-          </div>
+      {/* 2. Main Workspace */}
+      <main className="nl-main-workspace">
+        {currentTab === "timeline" && (
+          <TimelineView
+            activeSession={activeSession || undefined}
+            onNavigateTab={(tab) => setCurrentTab(tab as NavTab)}
+          />
         )}
 
-        {/* 2. Structured Memories Stream View */}
-        {activeMainTab === "memories" && (
-          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, overflowY: "auto" }}>
-            <MemoriesStreamView activeSession={activeSession} onRefreshSession={loadSessions} />
-          </div>
+        {currentTab === "memories" && (
+          <MemoriesView
+            activeSession={activeSession || undefined}
+            onNavigateTab={(tab) => setCurrentTab(tab as NavTab)}
+          />
         )}
 
-        {/* 3. Knowledge Graph View */}
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          opacity: activeMainTab === "graph" ? 1 : 0,
-          pointerEvents: activeMainTab === "graph" ? "auto" : "none",
-          transition: "opacity 0.2s"
-        }}>
-          <GraphView
-            nodes={nodes}
-            links={links}
-            onNodeClick={setSelectedNodeId}
-            selectedNodeId={selectedNodeId}
-            filterType={graphTypeFilter}
-            setFilterType={setGraphTypeFilter}
-            minDegree={minDegree}
-            setMinDegree={setMinDegree}
+        {currentTab === "threads" && (
+          <ThreadsView
+            sessions={filteredSessions}
             activeSessionId={activeSession?._id}
-          />
-        </div>
-        
-        {activeMainTab === "graph" && (
-          <FloatingPanel
-            isClosed={isClosed}
-            setIsClosed={setIsClosed}
-            isExpanded={isExpanded}
-            setIsExpanded={setIsExpanded}
-            activeTab={activeSideTab || "history"}
-            loadingSession={loadingSession}
-            pagedTriples={pagedTriples}
-            factsPage={factsPage}
-            setFactsPage={setFactsPage}
-            factSearch={factSearch}
-            setFactSearch={setFactSearch}
-            totalPages={totalPages}
-            chatData={chatData}
-            activeSession={activeSession}
+            onSessionSelect={setActiveSession}
+            onDeleteSession={handleDeleteSession}
+            onImport={handleImport}
           />
         )}
 
-        {/* 4. Chat Logs View */}
-        {activeMainTab === "chat" && (
-          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", padding: "24px 32px", overflowY: "auto" }}>
-            {chatData ? (
-              <ChatViewer
-                rawText={chatData.rawText}
-                messageCount={chatData.messageCount}
-                createdAt={chatData.createdAt}
-                platform={activeSession?.platform}
-              />
-            ) : (
-              <div style={{ color: "var(--text-secondary)", textAlign: "center", padding: "60px 0" }}>
-                {t.drawer.noChat}
-              </div>
-            )}
-          </div>
+        {currentTab === "ai-now" && (
+          <AiNowView activeSession={activeSession || undefined} />
         )}
 
-        {/* 5. Global Search View */}
-        {activeMainTab === "search" && (
-          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
-            <GlobalSearchView />
-          </div>
+        {currentTab === "graph" && (
+          <NowledgeGraphView sessionId={activeSession?._id} />
         )}
 
-        {/* 6. Settings View */}
-        {activeMainTab === "settings" && (
-          <div style={{ position: "absolute", top: "68px", left: 240, right: 0, bottom: 0, zIndex: 10, background: "var(--bg-deep)", overflowY: "auto" }}>
-            <SettingsView />
-          </div>
+        {currentTab === "library" && (
+          <LibraryView activeSession={activeSession || undefined} />
         )}
 
-        {activeMainTab === "graph" && (activeSession?.isProcessingGraph || jobStatus.pending > 0 || jobStatus.processing > 0) && (
-          <div className="job-status-bar centered-progress">
-            <div className="status-header">
-              <div className="processing-dot" />
-              <span className="status-title">
-                {jobStatus.processing > 0 ? t.drawer.jobExtracting : t.drawer.jobQueued}
-              </span>
-            </div>
-            <div className="status-meta">
-              {(Number(jobStatus?.pending) || 0) + (Number(jobStatus?.processing) || 0)} {t.drawer.jobActiveCount}
-            </div>
-            {jobStatus.deadLettered > 0 && (
-              <div className="status-error">
-                <span>{jobStatus.deadLettered} {t.drawer.jobFailedCount}</span>
-                <button onClick={handleClearJobs} className="clear-btn">{t.drawer.clearJobs}</button>
-              </div>
-            )}
-          </div>
+        {currentTab === "tree" && (
+          <KnowledgeTreeView activeSession={activeSession || undefined} />
         )}
+
+        {currentTab === "skills" && <SkillsView />}
+
+        {currentTab === "context" && (
+          <ContextView activeSession={activeSession || undefined} />
+        )}
+
+        {currentTab === "stats" && <StatsView sessions={sessions} />}
+
+        {currentTab === "connect" && <SkillsView />}
+
+        {currentTab === "feedback" && <StatsView sessions={sessions} />}
+
+        {currentTab === "settings" && <SettingsView />}
       </main>
 
-      {currentError && (
-        <div className="error-banner">
-          <span>{currentError}</span>
-          <button onClick={() => { setError(null); setSessionError(null); }} style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px" }}>×</button>
+      {error && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            background: "#ef4444",
+            color: "#ffffff",
+            padding: "10px 16px",
+            borderRadius: 8,
+            zIndex: 999,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#ffffff",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
-    </MainLayout>
+    </div>
   );
 };
 

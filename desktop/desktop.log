@@ -72,3 +72,61 @@
 {"level":30,"time":1786948520505,"pid":48808,"hostname":"het-user002","msg":"[Job Queue] Background worker started."}
 {"level":30,"time":1786948520507,"pid":48808,"hostname":"het-user002","success":true,"msg":"ArcRift backend running on port \u001b[1;96m3001\u001b[0m"}
 [2026-08-17T06:35:55.555Z] [Backend] {"level":30,"time":1786948555555,"pid":50884,"hostname":"het-user002","success":true,"msg":"[ArcRift] Settings updated at d:\\Devs\\ArcRift\\backend\\ArcRift-settings.json"}
+[2026-08-17T06:42:10.665Z] [Backend] {"level":40,"time":1786948930664,"pid":50884,"hostname":"het-user002","msg":"[Job Queue] Cancel session jobs requested for BeBeBus"}
+[2026-08-17T06:42:10.681Z] [Backend] {"level":40,"time":1786948930681,"pid":50884,"hostname":"het-user002","msg":"[STORAGE] Session ID \"BeBeBus\" NOT FOUND in database"}
+[2026-08-17T06:51:01.482Z] [Backend] {"level":30,"time":1786949461478,"pid":50884,"hostname":"het-user002","msg":"Processing 1 chunk(s) for triple extraction..."}
+{"level":30,"time":1786949461478,"pid":50884,"hostname":"het-user002","msg":"  chunk 1/1 — summarizing..."}
+[2026-08-17T06:51:25.887Z] [Backend ERR] SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at parse (d:\Devs\ArcRift\backend\node_modules\body-parser\lib\types\json.js:72:19)
+    at d:\Devs\ArcRift\backend\node_modules\body-parser\lib\read.js:162:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:227:14)
+    at invokeCallback (d:\Devs\ArcRift\backend\node_modules\raw-body\index.js:238:16)
+    at done (d:\Devs\ArcRift\backend\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (d:\Devs\ArcRift\backend\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1729:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+[2026-08-17T06:51:53.485Z] [Backend] {"level":30,"time":1786949513485,"pid":50884,"hostname":"het-user002","msg":"  chunk 1 → 21 triples"}
+[2026-08-17T06:51:53.492Z] [Backend] {"level":30,"time":1786949513485,"pid":50884,"hostname":"het-user002","success":true,"msg":"Extracted 21 unique triples from 1 chunks"}
+[2026-08-17T06:51:53.748Z] [Backend] {"level":50,"time":1786949513748,"pid":50884,"hostname":"het-user002","msg":"[ArcRift] Batch embedding failed at index 0: Request failed with status code 401"}
+[2026-08-17T06:51:53.750Z] [Backend] {"level":40,"time":1786949513748,"pid":50884,"hostname":"het-user002","msg":"[ArcRift Vector] Embedding unavailable (Ollama offline/busy), indexing in FTS only: Request failed with status code 401"}
+{"level":30,"time":1786949513749,"pid":50884,"hostname":"het-user002","success":true,"msg":"Stored 1 chunks into database (FTS mode)"}
+[2026-08-17T06:52:58.626Z] Starting Electron main.js...
+[2026-08-17T06:52:58.630Z] Registering app lifecycle events...
+[2026-08-17T06:52:58.874Z] app.whenReady fired!
+[2026-08-17T06:52:58.876Z] Spawning backend with node: C:\Program Files\nodejs\node.exe -> d:\Devs\ArcRift\backend\dist\index.js
+[2026-08-17T06:52:58.915Z] createTray done
+[2026-08-17T06:52:58.916Z] Creating BrowserWindow immediately...
+[2026-08-17T06:52:59.166Z] Loading URL: http://127.0.0.1:3001
+[2026-08-17T07:00:27.595Z] Starting Electron main.js...
+[2026-08-17T07:00:27.605Z] Registering app lifecycle events...
+[2026-08-17T07:00:29.916Z] app.whenReady fired!
+[2026-08-17T07:00:29.918Z] Spawning backend with node: C:\Program Files\nodejs\node.exe -> d:\Devs\ArcRift\backend\dist\index.js
+[2026-08-17T07:00:30.064Z] createTray done
+[2026-08-17T07:00:30.066Z] Creating BrowserWindow immediately...
+[2026-08-17T07:00:30.874Z] Loading URL: http://127.0.0.1:3001
+[2026-08-17T07:00:30.980Z] createWindow done
+[2026-08-17T07:00:34.165Z] [Backend] {"level":30,"time":1786950034162,"pid":34300,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+[2026-08-17T07:00:34.173Z] [Backend] ◇ injected env (10) from .env // tip: ⌘ override existing { override: true }
+[2026-08-17T07:00:34.196Z] [Backend] {"level":30,"time":1786950034163,"pid":34300,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786950034164,"pid":34300,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786950034183,"pid":34300,"hostname":"het-user002","success":true,"msg":"[ArcRift] Dashboard served from production build: \u001b[1;96mhttp://localhost:3001\u001b[0m"}
+{"level":30,"time":1786950034183,"pid":34300,"hostname":"het-user002","msg":"Initializing ArcRift in SQLITE mode (Zero-Docker)"}
+{"level":30,"time":1786950034185,"pid":34300,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+{"level":30,"time":1786950034185,"pid":34300,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786950034185,"pid":34300,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786950034186,"pid":34300,"hostname":"het-user002","msg":"Auto-backup service started (checks every 12h)"}
+{"level":30,"time":1786950034187,"pid":34300,"hostname":"het-user002","msg":"[Job Queue] Cleaning up ghost jobs from previous run..."}
+{"level":30,"time":1786950034187,"pid":34300,"hostname":"het-user002","msg":"[Job Queue] Background worker started."}
+{"level":30,"time":1786950034190,"pid":34300,"hostname":"het-user002","success":true,"msg":"ArcRift backend running on port \u001b[1;96m3001\u001b[0m"}
+[2026-08-17T07:00:42.281Z] [Backend] {"level":30,"time":1786950042275,"pid":34300,"hostname":"het-user002","msg":"[ArcRift] Settings loaded from d:\\Devs\\ArcRift\\backend\\ArcRift-settings.json"}
+[2026-08-17T07:01:18.530Z] [Backend] {"level":30,"time":1786950078529,"pid":34300,"hostname":"het-user002","success":true,"msg":"[ArcRift] Settings updated at d:\\Devs\\ArcRift\\backend\\ArcRift-settings.json"}
+[2026-08-17T07:44:04.817Z] Starting Electron main.js...
+[2026-08-17T07:44:04.819Z] Registering app lifecycle events...
+[2026-08-17T07:44:04.891Z] app.whenReady fired!
+[2026-08-17T07:44:04.892Z] Spawning backend with node: C:\Program Files\nodejs\node.exe -> d:\Devs\ArcRift\backend\dist\index.js
+[2026-08-17T07:44:04.908Z] createTray done
+[2026-08-17T07:44:04.909Z] Creating BrowserWindow immediately...
+[2026-08-17T07:44:04.978Z] Loading URL: http://127.0.0.1:3001
+[2026-08-17T07:44:04.996Z] createWindow done

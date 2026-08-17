@@ -4,9 +4,12 @@ export interface Session {
   _id: string;
   projectName: string;
   platform: string;
+  summary?: string;
   tripleCount: number;
   topicCount?: number;
+  hasFullChat?: boolean;
   isProcessingGraph?: boolean;
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -28,6 +31,8 @@ export interface Node extends d3.SimulationNodeDatum {
   hidden?: boolean;
 }
 
+export type GraphNode = Node;
+
 export interface Link extends d3.SimulationLinkDatum<Node> {
   source: string | Node;
   target: string | Node;
@@ -36,11 +41,20 @@ export interface Link extends d3.SimulationLinkDatum<Node> {
   hidden?: boolean;
 }
 
+export type GraphLink = Link;
+
+export interface GraphData {
+  nodes: Node[];
+  links: Link[];
+}
+
 export interface ChatData {
   rawText: string;
   messageCount: number;
   createdAt: string;
 }
+
+export type FullChat = ChatData;
 
 export interface JobStatus {
   pending: number;
