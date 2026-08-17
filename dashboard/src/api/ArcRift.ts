@@ -354,5 +354,72 @@ export async function deleteMemoryRelation(relationId: string): Promise<{ succes
   return res.data;
 }
 
+// ── Intelligence / Smart Processing APIs ────────────────────────────
+export async function fetchIntelligenceStats(): Promise<{ success: boolean; stats?: any }> {
+  try {
+    const res = await apiClient.get("/api/intelligence/stats");
+    return res.data;
+  } catch {
+    return { success: false };
+  }
+}
+
+export async function optimizeDatabase(): Promise<{ success: boolean; freedBytes: number; message: string }> {
+  const res = await apiClient.post("/api/intelligence/optimize");
+  return res.data;
+}
+
+export async function rebuildSearchIndex(): Promise<{ success: boolean; indexedCount: number; message: string }> {
+  const res = await apiClient.post("/api/intelligence/rebuild-index");
+  return res.data;
+}
+
+export async function cleanSessions(): Promise<{ success: boolean; cleanedEmptySessions: number; repairedOrphans: number; message: string }> {
+  const res = await apiClient.post("/api/intelligence/clean-sessions");
+  return res.data;
+}
+
+export async function fetchOntology(): Promise<{ success: boolean; ontology: any[] }> {
+  try {
+    const res = await apiClient.get("/api/intelligence/ontology");
+    return res.data;
+  } catch {
+    return { success: false, ontology: [] };
+  }
+}
+
+export async function saveOntology(ontology: any[]): Promise<{ success: boolean; message: string }> {
+  const res = await apiClient.post("/api/intelligence/ontology", { ontology });
+  return res.data;
+}
+
+export async function fetchMemoryPolicy(): Promise<{ success: boolean; policy?: any }> {
+  try {
+    const res = await apiClient.get("/api/intelligence/policy");
+    return res.data;
+  } catch {
+    return { success: false };
+  }
+}
+
+export async function saveMemoryPolicy(policy: any): Promise<{ success: boolean; policy?: any }> {
+  const res = await apiClient.post("/api/intelligence/policy", policy);
+  return res.data;
+}
+
+export async function fetchTokenUsage(): Promise<{ success: boolean; usage?: any }> {
+  try {
+    const res = await apiClient.get("/api/intelligence/token-usage");
+    return res.data;
+  } catch {
+    return { success: false };
+  }
+}
+
+export async function updateIntelligenceSettings(data: { searchRamLimit?: string; bgSmartActive?: boolean; monthlyTokenBudget?: number }): Promise<{ success: boolean }> {
+  const res = await apiClient.post("/api/intelligence/settings", data);
+  return res.data;
+}
+
 export { extractErrorMessage, apiClient };
 

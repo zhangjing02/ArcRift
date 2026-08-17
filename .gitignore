@@ -17,11 +17,13 @@ extension/popup/popup.js
 # npm logs
 npm-debug.log*
 
-# SQLite
+# SQLite & Storage
 *.db
 *.db-shm
 *.db-wal
 *.db-journal
+data/
+models/
 
 # CI artifacts (generated at runtime, never committed)
 selector-failures.json

@@ -25,6 +25,7 @@ import toolsRoutes from "./routes/tools";
 import modelsRoutes from "./routes/models";
 import sourcesRoutes from "./routes/sources";
 import communitiesRoutes from "./routes/communities";
+import intelligenceRoutes from "./routes/intelligence";
 
 
 // ── Pure SQLite Environment Initialization ──────────
@@ -110,6 +111,7 @@ app.use("/api/tools", toolsRoutes);
 app.use("/api/models", modelsRoutes);
 app.use("/api/sources", sourcesRoutes);
 app.use("/api/communities", communitiesRoutes);
+app.use("/api/intelligence", intelligenceRoutes);
 
 // Health check — includes service status
 app.get("/health", (_req, res) => {

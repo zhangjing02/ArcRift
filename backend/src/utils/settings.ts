@@ -278,6 +278,8 @@ export function updateSettings(settings: Partial<Settings>): Settings {
   return updated;
 }
 
+export const saveSettings = updateSettings;
+
 export function resetSettingsCache(): void {
   cachedSettings = null;
 }

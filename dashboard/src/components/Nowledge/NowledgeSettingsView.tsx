@@ -6,6 +6,16 @@ import {
   getModelStatuses,
   downloadModel,
   deleteModelById,
+  fetchIntelligenceStats,
+  optimizeDatabase,
+  rebuildSearchIndex,
+  cleanSessions,
+  fetchOntology,
+  saveOntology,
+  fetchMemoryPolicy,
+  saveMemoryPolicy,
+  fetchTokenUsage,
+  updateIntelligenceSettings,
 } from "../../api/ArcRift";
 
 interface ModelItem {
@@ -51,6 +61,47 @@ export const NowledgeSettingsView: React.FC = () => {
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [bgSmartActive, setBgSmartActive] = useState(true);
 
+  // ── Intelligence (智能处理) State ────────────────────────────────
+  const [intelStats, setIntelStats] = useState<any>({
+    dbSizeText: "10.2 MB",
+    infoSizeText: "233 KB",
+    indexSizeText: "499 KB",
+    ramUsageMB: 512,
+    ramAllocation: "自动 (默认 512 MB)",
+  });
+  const [ramSetting, setRamSetting] = useState("auto");
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [intelToast, setIntelToast] = useState<string | null>(null);
+
+  // Memory Policy State & Modal
+  const [memoryPolicy, setMemoryPolicy] = useState<any>({
+    scope: "所有空间",
+    maxMemoriesPerSession: 3,
+    visibility: "full",
+    retainCategories: ["Decision", "Architecture", "Gotcha", "Rule"],
+  });
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+
+  // Ontology State & Modal
+  const [ontologyList, setOntologyList] = useState<any[]>([]);
+  const [showOntologyModal, setShowOntologyModal] = useState(false);
+  const [newOntoName, setNewOntoName] = useState("");
+  const [newOntoColor, setNewOntoColor] = useState("#6366f1");
+  const [newOntoIcon, setNewOntoIcon] = useState("🏛️");
+  const [newOntoDesc, setNewOntoDesc] = useState("");
+
+  // Token Budget & Usage State
+  const [tokenUsage, setTokenUsage] = useState<any>({
+    tokensMonth: 0,
+    tokens24h: 0,
+    tokens1h: 0,
+    monthlyBudget: 1000000,
+  });
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [monthlyBudgetInput, setMonthlyBudgetInput] = useState(1000000);
+
   // Models State
   const [models, setModels] = useState<ModelItem[]>([]);
   const pollTimerRef = useRef<any>(null);
@@ -58,11 +109,127 @@ export const NowledgeSettingsView: React.FC = () => {
   useEffect(() => {
     loadSettings();
     loadModels();
+    loadIntelligenceData();
 
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
+
+  const loadIntelligenceData = async () => {
+    try {
+      const [sRes, oRes, pRes, tRes] = await Promise.all([
+        fetchIntelligenceStats(),
+        fetchOntology(),
+        fetchMemoryPolicy(),
+        fetchTokenUsage(),
+      ]);
+      if (sRes?.success && sRes.stats) setIntelStats(sRes.stats);
+      if (oRes?.success && oRes.ontology) setOntologyList(oRes.ontology);
+      if (pRes?.success && pRes.policy) setMemoryPolicy(pRes.policy);
+      if (tRes?.success && tRes.usage) {
+        setTokenUsage(tRes.usage);
+        setMonthlyBudgetInput(tRes.usage.monthlyBudget || 1000000);
+        setBgSmartActive(tRes.usage.bgActive !== false);
+      }
+    } catch (e) {
+      console.error("Failed to load intelligence data", e);
+    }
+  };
+
+  const handleOptimizeDb = async () => {
+    setIsOptimizing(true);
+    try {
+      const res = await optimizeDatabase();
+      setIntelToast(res.message);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      setIntelToast("优化失败: " + (err.message || String(err)));
+    } finally {
+      setIsOptimizing(false);
+      setTimeout(() => setIntelToast(null), 4000);
+    }
+  };
+
+  const handleRebuildIndex = async () => {
+    setIsReindexing(true);
+    try {
+      const res = await rebuildSearchIndex();
+      setIntelToast(res.message);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      setIntelToast("重建索引失败: " + (err.message || String(err)));
+    } finally {
+      setIsReindexing(false);
+      setTimeout(() => setIntelToast(null), 4000);
+    }
+  };
+
+  const handleCleanSessions = async () => {
+    setIsCleaning(true);
+    try {
+      const res = await cleanSessions();
+      setIntelToast(res.message);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      setIntelToast("检查清理失败: " + (err.message || String(err)));
+    } finally {
+      setIsCleaning(false);
+      setTimeout(() => setIntelToast(null), 4000);
+    }
+  };
+
+  const handleSavePolicy = async () => {
+    try {
+      await saveMemoryPolicy(memoryPolicy);
+      setShowPolicyModal(false);
+      setIntelToast("记忆策略已更新");
+      setTimeout(() => setIntelToast(null), 3000);
+    } catch (err: any) {
+      alert("保存策略失败: " + err.message);
+    }
+  };
+
+  const handleAddOntology = async () => {
+    if (!newOntoName.trim()) return;
+    const updated = [
+      ...ontologyList,
+      {
+        id: `onto_${Date.now()}`,
+        name: newOntoName.trim(),
+        color: newOntoColor,
+        icon: newOntoIcon,
+        description: newOntoDesc.trim() || "自定义实体概念",
+      },
+    ];
+    setOntologyList(updated);
+    setNewOntoName("");
+    setNewOntoDesc("");
+    await saveOntology(updated);
+  };
+
+  const handleDeleteOntology = async (id: string) => {
+    const updated = ontologyList.filter((o) => o.id !== id);
+    setOntologyList(updated);
+    await saveOntology(updated);
+  };
+
+  const handleSaveBudget = async () => {
+    try {
+      await updateIntelligenceSettings({ monthlyTokenBudget: monthlyBudgetInput });
+      setTokenUsage((prev: any) => ({ ...prev, monthlyBudget: monthlyBudgetInput }));
+      setShowBudgetModal(false);
+      setIntelToast("AI 预算额度已保存");
+      setTimeout(() => setIntelToast(null), 3000);
+    } catch (e: any) {
+      alert("保存预算失败: " + e.message);
+    }
+  };
+
+  const handleToggleBgSmart = async (checked: boolean) => {
+    setBgSmartActive(checked);
+    await updateIntelligenceSettings({ bgSmartActive: checked });
+  };
 
   const loadSettings = async () => {
     try {
@@ -586,36 +753,250 @@ export const NowledgeSettingsView: React.FC = () => {
 
         {/* 2. 智能处理 (Smart Processing) Tab */}
         {activeSubTab === "smart-processing" && (
-          <div className="nl-set-panel">
-            <div className="nl-smart-header-card">
-              <div className="nl-smart-title-wrap">
-                <span style={{ fontSize: 20 }}>❇️</span>
-                <div>
-                  <h2>后台智能</h2>
-                  <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
-                    允许 Mem 自动运行简报、洞察、结晶、技能建议和记忆维护等 AI 任务
-                  </p>
+          <div className="nl-set-panel" style={{ animation: "fadeIn 0.2s ease" }}>
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>记忆处理</h2>
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 4 }}>
+                选择 Mem 在你保存、同步或导入知识后，哪些事情可以自动完成。
+              </p>
+            </div>
+
+            {intelToast && (
+              <div style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+                ℹ️ {intelToast}
+              </div>
+            )}
+
+            {/* 1. 搜索与索引健康 */}
+            <div className="nl-card" style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>🔍</span>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>搜索</h3>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>让每一条记忆都能被找到</p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 12, color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", display: "inline-block" }}></span>
+                    就绪
+                  </span>
+                  <button
+                    className="nl-btn-secondary"
+                    style={{ fontSize: 12, padding: "4px 10px", display: "flex", alignItems: "center", gap: 4 }}
+                    onClick={handleRebuildIndex}
+                    disabled={isReindexing}
+                  >
+                    <span>🔄</span> {isReindexing ? "正在重建..." : "重建索引"}
+                  </button>
                 </div>
               </div>
-              <div className="nl-switch-wrap">
-                <span className="nl-switch-label">● {bgSmartActive ? "就绪" : "已暂停"}</span>
-                <input
-                  type="checkbox"
-                  checked={bgSmartActive}
-                  onChange={(e) => setBgSmartActive(e.target.checked)}
-                  className="nl-checkbox-toggle"
-                />
+
+              {/* 容量统计指标条 */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "10px 14px", borderRadius: 6, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                  动态档案 <strong style={{ color: "#f8fafc" }}>{intelStats.dbSizeText}</strong> · 信息 <strong style={{ color: "#f8fafc" }}>{intelStats.infoSizeText}</strong> · 搜索索引 <strong style={{ color: "#f8fafc" }}>{intelStats.indexSizeText}</strong>
+                </div>
+                <button
+                  className="nl-btn-secondary"
+                  style={{ fontSize: 12, padding: "3px 8px" }}
+                  onClick={handleOptimizeDb}
+                  disabled={isOptimizing}
+                >
+                  ⚡ {isOptimizing ? "优化中..." : "优化"}
+                </button>
+              </div>
+
+              {/* 会话存储子项 */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <div>
+                  <h4 style={{ fontSize: 13, color: "#f1f5f9", marginBottom: 2 }}>会话存储</h4>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
+                    检查且整理入库下的空白/重复记录，有会话内容或记忆遗漏的记录不会被丢弃。
+                  </p>
+                </div>
+                <button
+                  className="nl-btn-secondary"
+                  style={{ fontSize: 12, padding: "4px 10px" }}
+                  onClick={handleCleanSessions}
+                  disabled={isCleaning}
+                >
+                  🔍 {isCleaning ? "检查中..." : "检查"}
+                </button>
+              </div>
+
+              {/* 搜索与回溯 RAM 子项 */}
+              <div style={{ marginTop: 12, borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 12 }}>
+                <details style={{ cursor: "pointer" }}>
+                  <summary style={{ fontSize: 13, color: "#94a3b8", display: "flex", justifyContent: "space-between" }}>
+                    <span>▼ 搜索与回溯 RAM</span>
+                    <span style={{ fontSize: 12, color: "#64748b" }}>自动 · 最低 512 MB</span>
+                  </summary>
+                  <div style={{ marginTop: 10, fontSize: 12, color: "var(--nl-text-muted)" }}>
+                    <p style={{ marginBottom: 8 }}>
+                      只影响大型数据集合，收集的是全部历史，以及重要证据。除非 Mem 提示 RAM 不够，否则建议保持自动。
+                    </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <span style={{ color: "#f1f5f9" }}>预留多少 RAM:</span>
+                      <select
+                        value={ramSetting}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          setRamSetting(val);
+                          await updateIntelligenceSettings({ searchRamLimit: val });
+                          setIntelStats((prev: any) => ({ ...prev, ramAllocation: val }));
+                        }}
+                        className="nl-input"
+                        style={{ padding: "3px 8px", fontSize: 12, width: 140 }}
+                      >
+                        <option value="auto">自动 (默认 512MB)</option>
+                        <option value="1024MB">1024 MB</option>
+                        <option value="2048MB">2048 MB</option>
+                        <option value="4096MB">4096 MB</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, background: "rgba(0,0,0,0.2)", padding: 10, borderRadius: 6 }}>
+                      <div>当前使用: <strong style={{ color: "#10b981" }}>{intelStats.ramUsageMB} MB</strong></div>
+                      <div>下次启动: <strong style={{ color: "#f1f5f9" }}>{intelStats.ramAllocation || "512 MB"}</strong></div>
+                      <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 6 }}>
+                        <span>自动模式允许的最低值: <strong>512 MB</strong></span>
+                        <button
+                          className="nl-btn-secondary"
+                          style={{ fontSize: 11, padding: "2px 6px" }}
+                          onClick={() => {
+                            setRamSetting("auto");
+                            setIntelToast("已重置自动最低值");
+                            setTimeout(() => setIntelToast(null), 3000);
+                          }}
+                        >
+                          忘记自动最低值
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
 
-            <div className="nl-card" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <h3 style={{ fontSize: 14 }}>后台工作</h3>
-                <span style={{ fontSize: 12, color: "#10b981" }}>空闲</span>
+            {/* 2. 记忆策略 */}
+            <div className="nl-card" style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", marginBottom: 2 }}>⚙️ 记忆策略</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>决定 Mem 何时对选定内容长久记住，应该留什么。</p>
+                  <div style={{ fontSize: 12, color: "#818cf8", marginTop: 6 }}>
+                    {memoryPolicy.scope || "所有空间"} · 最多 {memoryPolicy.maxMemoriesPerSession || 3} 条记忆 · {memoryPolicy.visibility === "full" ? "可见细节" : "极简摘要"}
+                  </div>
+                </div>
+                <button
+                  className="nl-btn-secondary"
+                  style={{ fontSize: 12, padding: "5px 12px" }}
+                  onClick={() => setShowPolicyModal(true)}
+                >
+                  自定义
+                </button>
               </div>
-              <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
-                当前没有任务在运行。新记忆、同步对话或定时计划需要处理时，会自动开始后台工作。
-              </p>
+            </div>
+
+            {/* 3. 本体 (Ontology) */}
+            <div className="nl-card" style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", marginBottom: 2 }}>🧩 本体 (Ontology)</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
+                    告诉 Mem 你世界里有哪些公理——组织架构、实体、客户——让知识按你的话归类，而不是通用模型。
+                  </p>
+                  <div style={{ fontSize: 12, color: "#10b981", marginTop: 6 }}>
+                    ● 已配置 ({ontologyList.length} 种领域概念本体)
+                  </div>
+                </div>
+                <button
+                  className="nl-btn-primary"
+                  style={{ fontSize: 12, padding: "5px 12px" }}
+                  onClick={() => setShowOntologyModal(true)}
+                >
+                  去本体库打开 →
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 8 }}>
+                💡 关联长在顶层上，你能亲眼看到它们对应的节点颜色。AI 发现新概念/实体类型时：按需归入本体，这与模型配置一致。
+              </div>
+            </div>
+
+            {/* 4. 后台任务 */}
+            <div className="nl-card" style={{ marginBottom: 16 }}>
+              <div className="nl-smart-header-card" style={{ background: "transparent", padding: 0, marginBottom: 12 }}>
+                <div className="nl-smart-title-wrap">
+                  <span style={{ fontSize: 20 }}>⚡</span>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>后台任务</h3>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                      允许 Mem 自动进行简报、分类、去重、联想建议和记忆演化等 AI 任务
+                    </p>
+                  </div>
+                </div>
+                <div className="nl-switch-wrap">
+                  <span className="nl-switch-label" style={{ fontSize: 12 }}>● {bgSmartActive ? "就绪" : "已暂停"}</span>
+                  <input
+                    type="checkbox"
+                    checked={bgSmartActive}
+                    onChange={(e) => handleToggleBgSmart(e.target.checked)}
+                    className="nl-checkbox-toggle"
+                  />
+                </div>
+              </div>
+
+              {/* 后台工作状态 */}
+              <div style={{ background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 6, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 500 }}>后台工作</span>
+                  <span style={{ fontSize: 12, color: "#10b981", background: "rgba(16,185,129,0.1)", padding: "1px 8px", borderRadius: 4 }}>
+                    空闲
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
+                  当前没有任务在运行。新笔记、同步对话或定时计划需要处理时，会自动开始后台工作。
+                </p>
+              </div>
+
+              {/* AI 用量与预算 */}
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 500 }}>AI 用量总览</span>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                      统计这台设备上的 Mem 实际调用的模型 Token，并区分自动任务与你主动打开的 AI，限制以避免透支自动任务。
+                    </p>
+                  </div>
+                  <button
+                    className="nl-btn-secondary"
+                    style={{ fontSize: 12, padding: "4px 10px" }}
+                    onClick={() => setShowBudgetModal(true)}
+                  >
+                    预算额度
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 10 }}>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: 10, borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>本月</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", marginTop: 4 }}>{tokenUsage.tokensMonth} tokens</div>
+                  </div>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: 10, borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>过去 24 小时</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", marginTop: 4 }}>{tokenUsage.tokens24h} tokens</div>
+                  </div>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: 10, borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>过去 1 小时</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", marginTop: 4 }}>{tokenUsage.tokens1h} tokens</div>
+                  </div>
+                  <div style={{ background: "rgba(0,0,0,0.3)", padding: 10, borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>正在进行的任务</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>还没有记录到模型调用</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -743,6 +1124,241 @@ export const NowledgeSettingsView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* ── Modal 1: 记忆策略 (Memory Policy) ── */}
+      {showPolicyModal && (
+        <div className="nl-modal-overlay" onClick={() => setShowPolicyModal(false)}>
+          <div className="nl-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 6 }}>⚙️ 自定义记忆策略</h3>
+            <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+              设定系统自动从会话或信源中沉淀记忆的阈值与规则。
+            </p>
+
+            <div className="nl-form-group" style={{ marginBottom: 14 }}>
+              <label>生效空间范围</label>
+              <select
+                value={memoryPolicy.scope || "所有空间"}
+                onChange={(e) => setMemoryPolicy({ ...memoryPolicy, scope: e.target.value })}
+                className="nl-input"
+              >
+                <option value="所有空间">所有空间 (全局通用)</option>
+                <option value="当前空间">当前激活空间</option>
+              </select>
+            </div>
+
+            <div className="nl-form-group" style={{ marginBottom: 14 }}>
+              <label>单次会话最多沉淀记忆条数: <strong style={{ color: "#818cf8" }}>{memoryPolicy.maxMemoriesPerSession || 3} 条</strong></label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={memoryPolicy.maxMemoriesPerSession || 3}
+                onChange={(e) => setMemoryPolicy({ ...memoryPolicy, maxMemoriesPerSession: parseInt(e.target.value, 10) })}
+                style={{ width: "100%", accentColor: "var(--nl-accent)" }}
+              />
+            </div>
+
+            <div className="nl-form-group" style={{ marginBottom: 14 }}>
+              <label>内容细节级别</label>
+              <select
+                value={memoryPolicy.visibility || "full"}
+                onChange={(e) => setMemoryPolicy({ ...memoryPolicy, visibility: e.target.value })}
+                className="nl-input"
+              >
+                <option value="full">可见细节 (完整背景与上下文)</option>
+                <option value="concise">极简摘要 (仅提炼结论)</option>
+              </select>
+            </div>
+
+            <div className="nl-form-group" style={{ marginBottom: 20 }}>
+              <label>优先保留的认知类别</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                {["Decision (决策)", "Architecture (架构)", "Gotcha (踩坑)", "Rule (规则)", "Tech (技术栈)"].map((cat) => {
+                  const key = cat.split(" ")[0];
+                  const selected = (memoryPolicy.retainCategories || []).includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        const current = memoryPolicy.retainCategories || [];
+                        const updated = selected ? current.filter((c: string) => c !== key) : [...current, key];
+                        setMemoryPolicy({ ...memoryPolicy, retainCategories: updated });
+                      }}
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: selected ? "1px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: selected ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        color: selected ? "#818cf8" : "#94a3b8",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {selected ? "✓ " : "+ "}{cat}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button className="nl-btn-secondary" onClick={() => setShowPolicyModal(false)}>
+                取消
+              </button>
+              <button className="nl-btn-primary" onClick={handleSavePolicy}>
+                保存策略
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 2: 本体库管理 (Ontology Studio) ── */}
+      {showOntologyModal && (
+        <div className="nl-modal-overlay" onClick={() => setShowOntologyModal(false)}>
+          <div className="nl-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 580, maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 6 }}>🧩 本体库管理 (Ontology Studio)</h3>
+            <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+              自定义你个人或团队知识世界的实体概念与图谱颜色，使 AI 按照你的话归类实体。
+            </p>
+
+            {/* 已有本体列表 */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 500 }}>已配置的实体本体 ({ontologyList.length})</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                {ontologyList.map((o) => (
+                  <div
+                    key={o.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 16 }}>{o.icon || "📌"}</span>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: o.color, display: "inline-block" }}></span>
+                          <strong style={{ fontSize: 13, color: "#f8fafc" }}>{o.name}</strong>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>{o.description}</div>
+                      </div>
+                    </div>
+                    <button
+                      className="nl-btn-secondary"
+                      style={{ fontSize: 11, padding: "2px 6px", color: "#ef4444" }}
+                      onClick={() => handleDeleteOntology(o.id)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 新增本体 */}
+            <div style={{ background: "rgba(0,0,0,0.25)", padding: 12, borderRadius: 8, marginBottom: 16 }}>
+              <label style={{ fontSize: 12, color: "#818cf8", fontWeight: 500, marginBottom: 8, display: "block" }}>+ 添加新实体本体</label>
+              <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 50px", gap: 8, marginBottom: 8 }}>
+                <input
+                  type="text"
+                  placeholder="图标"
+                  value={newOntoIcon}
+                  onChange={(e) => setNewOntoIcon(e.target.value)}
+                  className="nl-input"
+                  style={{ textAlign: "center" }}
+                />
+                <input
+                  type="text"
+                  placeholder="本体名称 (如: 客户、模块、协议)"
+                  value={newOntoName}
+                  onChange={(e) => setNewOntoName(e.target.value)}
+                  className="nl-input"
+                />
+                <input
+                  type="color"
+                  value={newOntoColor}
+                  onChange={(e) => setNewOntoColor(e.target.value)}
+                  style={{ width: "100%", height: 34, padding: 0, border: "none", borderRadius: 4, cursor: "pointer", background: "transparent" }}
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="简短描述 (选填)"
+                value={newOntoDesc}
+                onChange={(e) => setNewOntoDesc(e.target.value)}
+                className="nl-input"
+                style={{ marginBottom: 8 }}
+              />
+              <button
+                className="nl-btn-primary"
+                style={{ width: "100%", fontSize: 12, padding: "6px 0" }}
+                onClick={handleAddOntology}
+                disabled={!newOntoName.trim()}
+              >
+                添加本体概念
+              </button>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button className="nl-btn-secondary" onClick={() => setShowOntologyModal(false)}>
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 3: AI 预算额度 (Token Budget) ── */}
+      {showBudgetModal && (
+        <div className="nl-modal-overlay" onClick={() => setShowBudgetModal(false)}>
+          <div className="nl-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 6 }}>💰 设置 AI 月度预算额度</h3>
+            <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+              限制本地设备上自动化后台任务的最大 Token 消耗，防止后台任务无节制调用云端 API。
+            </p>
+
+            <div className="nl-form-group" style={{ marginBottom: 14 }}>
+              <label>月度 Token 预算上限</label>
+              <input
+                type="number"
+                value={monthlyBudgetInput}
+                onChange={(e) => setMonthlyBudgetInput(parseInt(e.target.value, 10) || 0)}
+                className="nl-input"
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+              {[500000, 1000000, 5000000, 10000000].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  className="nl-btn-secondary"
+                  style={{ fontSize: 11, padding: "3px 8px" }}
+                  onClick={() => setMonthlyBudgetInput(amt)}
+                >
+                  {(amt / 1000000).toFixed(1)}M
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button className="nl-btn-secondary" onClick={() => setShowBudgetModal(false)}>
+                取消
+              </button>
+              <button className="nl-btn-primary" onClick={handleSaveBudget}>
+                保存预算
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
