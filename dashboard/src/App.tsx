@@ -6,6 +6,8 @@ import { MemoriesView } from "./components/Nowledge/MemoriesView";
 import { ThreadsView } from "./components/Nowledge/ThreadsView";
 import { NowledgeGraphView } from "./components/Nowledge/NowledgeGraphView";
 import { AiNowView } from "./components/Nowledge/AiNowView";
+import { ConnectView } from "./components/Nowledge/ConnectView";
+import { NowledgeSettingsView } from "./components/Nowledge/NowledgeSettingsView";
 import {
   LibraryView,
   KnowledgeTreeView,
@@ -13,7 +15,6 @@ import {
   ContextView,
   StatsView,
 } from "./components/Nowledge/OtherViews";
-import SettingsView from "./components/SettingsView";
 
 import type { Session } from "./types";
 import { useSessions } from "./hooks/useSessions";
@@ -122,11 +123,11 @@ const AppContent: React.FC = () => {
 
         {currentTab === "stats" && <StatsView sessions={sessions} />}
 
-        {currentTab === "connect" && <SkillsView />}
+        {currentTab === "connect" && <ConnectView />}
 
         {currentTab === "feedback" && <StatsView sessions={sessions} />}
 
-        {currentTab === "settings" && <SettingsView />}
+        {currentTab === "settings" && <NowledgeSettingsView />}
       </main>
 
       {error && (
