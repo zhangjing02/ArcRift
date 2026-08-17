@@ -27,3 +27,4 @@ models/
 
 # CI artifacts (generated at runtime, never committed)
 selector-failures.json
+release-build/

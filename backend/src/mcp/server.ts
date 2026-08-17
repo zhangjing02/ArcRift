@@ -416,6 +416,7 @@ const TOOLS = [
       properties: {},
       required: [],
     },
+  },
   // 21. Nowledge Mem Standard: mem_fs
   {
     name: "mem_fs",
