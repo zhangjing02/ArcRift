@@ -2321,3 +2321,385 @@ body {
   color: #38bdf8;
   font-family: monospace;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   11. SKILLS VIEW (技能 - 1:1 with Screenshot)
+───────────────────────────────────────────────────────────── */
+.nl-skills-page-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 24px 32px;
+  position: relative;
+}
+
+.nl-skills-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 12px;
+}
+
+.nl-skills-hero {
+  margin-bottom: 28px;
+}
+
+.nl-hero-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.nl-hero-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--nl-text-secondary);
+  max-width: 780px;
+  margin-bottom: 20px;
+}
+
+.nl-hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.nl-hero-sublink {
+  font-size: 12px;
+  color: var(--nl-text-muted);
+}
+
+.nl-inline-link {
+  background: transparent;
+  border: none;
+  color: var(--nl-accent-blue);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* Active Skills List */
+.nl-active-skills-section {
+  margin-bottom: 24px;
+}
+
+.nl-skills-section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nl-text-muted);
+  margin-bottom: 12px;
+}
+
+.nl-skills-cards-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 14px;
+}
+
+.nl-skill-item-card {
+  background-color: var(--nl-bg-card);
+  border: 1px solid var(--nl-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.nl-skill-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.nl-skill-card-icon {
+  color: var(--nl-accent-blue);
+  font-size: 14px;
+}
+
+.nl-skill-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  flex: 1;
+}
+
+.nl-skill-active-badge {
+  font-size: 11px;
+  color: var(--nl-accent-green);
+  font-weight: 500;
+}
+
+.nl-skill-card-desc {
+  font-size: 12px;
+  color: var(--nl-text-secondary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.nl-skill-card-trigger {
+  font-size: 11px;
+  color: var(--nl-text-muted);
+  margin-bottom: 10px;
+}
+
+.nl-trigger-label {
+  color: #fbbf24;
+}
+
+.nl-skill-card-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.nl-tool-pill {
+  font-size: 10px;
+  background-color: #1e2129;
+  color: #94a3b8;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Tool Ecosystem Card (1:1 with Screenshot) */
+.nl-tool-ecosystem-card {
+  background-color: #121419;
+  border: 1px solid var(--nl-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 40px;
+}
+
+.nl-eco-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.nl-eco-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.nl-eco-icon {
+  color: #94a3b8;
+}
+
+.nl-eco-sub {
+  font-size: 12px;
+  color: var(--nl-text-muted);
+}
+
+.nl-eco-status-badge {
+  font-size: 12px;
+  color: var(--nl-accent-green);
+  font-weight: 500;
+  background-color: rgba(16, 185, 129, 0.1);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.nl-eco-waiting-tip {
+  font-size: 12px;
+  color: var(--nl-accent-green);
+  margin-bottom: 16px;
+}
+
+.nl-eco-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.nl-eco-tool-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #171920;
+  border: 1px solid var(--nl-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.nl-eco-tool-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nl-eco-tool-avatar {
+  font-size: 16px;
+}
+
+.nl-eco-tool-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.nl-eco-tool-desc {
+  font-size: 11px;
+  color: var(--nl-text-muted);
+}
+
+.nl-eco-dropdown-toggle {
+  border-top: 1px solid var(--nl-border-subtle);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.nl-dropdown-btn {
+  background: transparent;
+  border: none;
+  color: var(--nl-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nl-dropdown-btn:hover {
+  color: var(--nl-text);
+}
+
+.nl-dropdown-content {
+  margin-top: 8px;
+}
+
+.nl-other-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.nl-other-tool-chip {
+  background-color: #171920;
+  border: 1px solid var(--nl-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--nl-text-secondary);
+}
+
+/* Floating Skill Assistant Widget (1:1 with Screenshot Bottom Right) */
+.nl-floating-assistant-widget {
+  position: absolute;
+  bottom: 24px;
+  right: 32px;
+  width: 320px;
+  background-color: #15171d;
+  border: 1px solid var(--nl-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 50;
+}
+
+.nl-floating-assistant-widget.minimized {
+  width: 160px;
+}
+
+.nl-assistant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1a1d24;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--nl-border);
+}
+
+.nl-assistant-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.nl-assistant-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--nl-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.nl-assistant-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 280px;
+}
+
+.nl-assistant-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.nl-assistant-msg-bubble {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nl-assistant-msg-bubble.ai-msg {
+  background-color: #1c1f28;
+  color: #e2e8f0;
+  border: 1px solid var(--nl-border-subtle);
+}
+
+.nl-assistant-msg-bubble.user-msg {
+  background-color: #1e3a8a;
+  color: #ffffff;
+  align-self: flex-end;
+}
+
+.nl-assistant-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #0f1014;
+  border: 1px solid var(--nl-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.nl-assistant-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--nl-text);
+  font-size: 11px;
+  outline: none;
+}
+
+.nl-assistant-send-btn {
+  background-color: #2b2f3a;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+}
+
