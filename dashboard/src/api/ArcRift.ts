@@ -191,9 +191,13 @@ export const getMemories = fetchMemories;
 export const getWorkingMemory = fetchWorkingMemory;
 
 export async function getGraphData(sessionId?: string): Promise<{ nodes: any[]; links: any[] }> {
-  if (!sessionId) return { nodes: [], links: [] };
   try {
-    return await fetchGraphBySession(sessionId);
+    if (sessionId) {
+      const data = await fetchGraphBySession(sessionId);
+      if (data && data.nodes && data.nodes.length > 0) return data;
+    }
+    const res = await apiClient.get("/api/graph/all");
+    return res.data || { nodes: [], links: [] };
   } catch {
     return { nodes: [], links: [] };
   }

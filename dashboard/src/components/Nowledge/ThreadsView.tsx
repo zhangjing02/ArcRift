@@ -25,6 +25,18 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
   const [filterMode, setFilterMode] = useState<"all" | "agent">("all");
   const [isDistilling, setIsDistilling] = useState(false);
 
+  // Accordion toggle states
+  const [expandedSections, setExpandedSections] = useState({
+    summary: true,
+    info: true,
+    memory: true,
+    entities: true,
+  });
+
+  const toggleSection = (sec: "summary" | "info" | "memory" | "entities") => {
+    setExpandedSections((prev) => ({ ...prev, [sec]: !prev[sec] }));
+  };
+
   const filteredSessions = sessions.filter((s) => {
     if (!searchQuery.trim()) return true;
     return (
@@ -77,7 +89,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           });
         }
       }
-      alert(`已成功为《${activeThreadSession.projectName}》提炼沉淀了结构化长期记忆！`);
+      alert(`已成功为《${activeThreadSession.projectName}》提炼沉淀了 ${sections.length} 条结构化长期记忆！`);
     } catch (err) {
       console.error("Failed to distill memories", err);
     } finally {
@@ -116,7 +128,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           {
             role: "User",
             avatar: "👤",
-            text: activeThreadSession.summary?.slice(0, 120) || "项目上下文",
+            text: `把刚才关于【${activeThreadSession.projectName}】的讨论总结存入记忆库`,
           },
           {
             role: "Assistant",
@@ -126,101 +138,166 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
         ];
 
     return (
-      <div className="nl-thread-detail-layout">
-        {/* Left / Center Chat Stream Column */}
-        <div className="nl-thread-chat-pane">
-          {/* Header Bar with Back Button */}
-          <div className="nl-thread-chat-header">
-            <button className="nl-back-btn" onClick={handleBackToList}>
-              ◀ 返回所有会话
-            </button>
-            <div className="nl-thread-header-badge">
-              <span>{getPlatformIcon(activeThreadSession.platform)}</span>
-              <span>{activeThreadSession.platform?.toUpperCase() || "ANTIGRAVITY"}</span>
-            </div>
-          </div>
-
-          {/* Chat Messages Stream */}
-          <div className="nl-chat-messages-stream">
-            {isLoadingChat ? (
-              <div className="nl-loading-box">正在加载对话上下文...</div>
-            ) : (
-              messageBlocks.map((msg, idx) => (
-                <div key={idx} className={`nl-chat-bubble-card ${msg.role === "User" ? "user-bubble" : "ai-bubble"}`}>
-                  <div className="nl-bubble-header">
-                    <span className="nl-bubble-avatar">{msg.avatar}</span>
-                    <span className="nl-bubble-role">{msg.role}</span>
-                  </div>
-                  <pre className="nl-bubble-text">{msg.text}</pre>
-                </div>
-              ))
-            )}
+      <div className="nl-threads-container">
+        {/* Top Header Breadcrumb Bar */}
+        <div className="nl-thread-top-bar">
+          <div className="nl-thread-top-info">
+            <span className="nl-thread-top-icon">💬</span>
+            <span className="nl-thread-top-title">会话记录</span>
+            <span className="nl-thread-top-meta">
+              {activeThreadSession.projectName} · {activeThreadSession.topicCount || 2} 条消息 · {activeThreadSession.platform || "Antigravity"} · {new Date(activeThreadSession.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </span>
           </div>
         </div>
 
-        {/* Right Inspector Column (Matching Screenshot 2 Right Side) */}
-        <div className="nl-thread-inspector-pane">
-          {/* Top Distill Action */}
-          <div className="nl-thread-distill-card">
-            <button
-              className="nl-primary-action-btn"
-              onClick={handleDistillMemories}
-              disabled={isDistilling}
-            >
-              {isDistilling ? "正在提炼..." : "✨ 提炼 (Distill Memory)"}
-            </button>
-          </div>
-
-          {/* AI Summary Accordion */}
-          <div className="nl-inspector-accordion">
-            <div className="nl-accordion-header">
-              <span>✨ AI 摘要</span>
-            </div>
-            <div className="nl-accordion-body">
-              <pre className="nl-summary-accordion-text">
-                {activeThreadSession.summary || "已就绪"}
-              </pre>
-            </div>
-          </div>
-
-          {/* Session Metadata Accordion */}
-          <div className="nl-inspector-accordion">
-            <div className="nl-accordion-header">
-              <span>💬 会话信息</span>
-            </div>
-            <div className="nl-accordion-body">
-              <div className="nl-meta-row">
-                <span className="nl-meta-key">来源平台</span>
-                <span className="nl-meta-val">{activeThreadSession.platform || "antigravity"}</span>
-              </div>
-              <div className="nl-meta-row">
-                <span className="nl-meta-key">切片 / 消息</span>
-                <span className="nl-meta-val">{activeThreadSession.topicCount || 2} 条</span>
-              </div>
-              <div className="nl-meta-row">
-                <span className="nl-meta-key">捕获时间</span>
-                <span className="nl-meta-val">
-                  {new Date(activeThreadSession.updatedAt).toLocaleString()}
-                </span>
+        {/* 2-Column Detail Layout */}
+        <div className="nl-thread-detail-layout">
+          {/* Left Chat Stream Column */}
+          <div className="nl-thread-chat-pane">
+            {/* Header with Back Button */}
+            <div className="nl-thread-chat-header">
+              <button className="nl-back-btn" onClick={handleBackToList}>
+                ◀ 返回所有会话
+              </button>
+              <div className="nl-thread-platform-badge">
+                <span className="nl-platform-icon">{getPlatformIcon(activeThreadSession.platform)}</span>
+                <span className="nl-platform-name">{activeThreadSession.platform?.toUpperCase() || "ANTIGRAVITY"}</span>
               </div>
             </div>
-          </div>
 
-          {/* Extracted Graph Entities Accordion */}
-          <div className="nl-inspector-accordion">
-            <div className="nl-accordion-header">
-              <span>🕸️ 关联的实体 ({sessionGraph.nodes.length})</span>
-            </div>
-            <div className="nl-accordion-body">
-              {sessionGraph.nodes.length === 0 ? (
-                <div className="nl-empty-sub" style={{ fontSize: "11px" }}>尚未关联实体</div>
+            {/* Chat Messages Stream */}
+            <div className="nl-chat-messages-stream">
+              {isLoadingChat ? (
+                <div className="nl-loading-box">正在加载对话上下文...</div>
               ) : (
-                <div className="nl-entity-chips-wrap">
-                  {sessionGraph.nodes.map((node: any) => (
-                    <span key={node.id} className="nl-entity-chip">
-                      ● {node.id}
+                messageBlocks.map((msg, idx) => (
+                  <div key={idx} className={`nl-chat-message-row ${msg.role === "User" ? "user-row" : "ai-row"}`}>
+                    <div className="nl-chat-avatar-wrap">
+                      <div className="nl-msg-avatar">{msg.avatar}</div>
+                    </div>
+                    <div className="nl-chat-msg-body">
+                      <div className="nl-msg-author-row">
+                        <span className="nl-msg-author">{msg.role}</span>
+                      </div>
+                      <div className="nl-msg-bubble">
+                        <pre className="nl-msg-text">{msg.text}</pre>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Floating Bottom Navigator Pill (Matching Screenshot 2 [▲ 1/2 ▼]) */}
+            <div className="nl-floating-msg-nav">
+              <button className="nl-msg-nav-btn">▲</button>
+              <span>1 / {messageBlocks.length}</span>
+              <button className="nl-msg-nav-btn">▼</button>
+            </div>
+          </div>
+
+          {/* Right Inspector Column (Matching Screenshot 2 Right Side) */}
+          <div className="nl-thread-inspector-pane">
+            {/* Top Distill Pill Button */}
+            <div className="nl-thread-distill-card">
+              <button
+                className="nl-distill-pill-btn"
+                onClick={handleDistillMemories}
+                disabled={isDistilling}
+              >
+                <span className="nl-sparkle-icon">✨</span>
+                <span className="nl-distill-title">{isDistilling ? "正在提炼..." : "提炼"}</span>
+                <span className="nl-distill-badge">0/4 Covered</span>
+              </button>
+            </div>
+
+            {/* Accordion 1: AI 摘要 */}
+            <div className="nl-inspector-accordion">
+              <div
+                className="nl-accordion-header"
+                onClick={() => toggleSection("summary")}
+              >
+                <span>✨ AI 摘要</span>
+                <span className="nl-chevron">{expandedSections.summary ? "∧" : "∨"}</span>
+              </div>
+              {expandedSections.summary && (
+                <div className="nl-accordion-body">
+                  <pre className="nl-summary-accordion-text">
+                    {activeThreadSession.summary || "已就绪"}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion 2: 会话信息 */}
+            <div className="nl-inspector-accordion">
+              <div
+                className="nl-accordion-header"
+                onClick={() => toggleSection("info")}
+              >
+                <span>💬 会话信息</span>
+                <span className="nl-chevron">{expandedSections.info ? "∧" : "∨"}</span>
+              </div>
+              {expandedSections.info && (
+                <div className="nl-accordion-body">
+                  <div className="nl-meta-row">
+                    <span className="nl-meta-key">来源平台</span>
+                    <span className="nl-meta-val">{activeThreadSession.platform || "Antigravity"}</span>
+                  </div>
+                  <div className="nl-meta-row">
+                    <span className="nl-meta-key">切片 / 消息</span>
+                    <span className="nl-meta-val">{activeThreadSession.topicCount || 2} 条</span>
+                  </div>
+                  <div className="nl-meta-row">
+                    <span className="nl-meta-key">捕获时间</span>
+                    <span className="nl-meta-val">
+                      {new Date(activeThreadSession.updatedAt).toLocaleString()}
                     </span>
-                  ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion 3: 记忆 */}
+            <div className="nl-inspector-accordion">
+              <div
+                className="nl-accordion-header"
+                onClick={() => toggleSection("memory")}
+              >
+                <span>💡 记忆</span>
+                <span className="nl-chevron">{expandedSections.memory ? "∧" : "∨"}</span>
+              </div>
+              {expandedSections.memory && (
+                <div className="nl-accordion-body">
+                  <div className="nl-empty-sub" style={{ fontSize: "12px", color: "var(--nl-text-muted)" }}>
+                    尚未提炼记忆
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion 4: 关联的实体 */}
+            <div className="nl-inspector-accordion">
+              <div
+                className="nl-accordion-header"
+                onClick={() => toggleSection("entities")}
+              >
+                <span>🕸️ 关联的实体 ({sessionGraph.nodes.length})</span>
+                <span className="nl-chevron">{expandedSections.entities ? "∧" : "∨"}</span>
+              </div>
+              {expandedSections.entities && (
+                <div className="nl-accordion-body">
+                  {sessionGraph.nodes.length === 0 ? (
+                    <div className="nl-empty-sub" style={{ fontSize: "11px" }}>尚未关联实体</div>
+                  ) : (
+                    <div className="nl-entity-chips-wrap">
+                      {sessionGraph.nodes.map((node: any) => (
+                        <span key={node.id} className="nl-entity-chip">
+                          ● {node.id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

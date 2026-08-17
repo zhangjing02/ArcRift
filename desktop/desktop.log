@@ -167,3 +167,32 @@
 [2026-08-17T08:06:02.437Z] Creating BrowserWindow immediately...
 [2026-08-17T08:06:02.534Z] Loading URL: http://127.0.0.1:3001
 [2026-08-17T08:06:02.568Z] createWindow done
+[2026-08-17T08:07:24.041Z] Starting Electron main.js...
+[2026-08-17T08:07:24.043Z] Registering app lifecycle events...
+[2026-08-17T08:07:24.252Z] app.whenReady fired!
+[2026-08-17T08:07:24.253Z] Spawning backend with node: C:\Program Files\nodejs\node.exe -> d:\Devs\ArcRift\backend\dist\index.js
+[2026-08-17T08:07:24.358Z] createTray done
+[2026-08-17T08:07:24.358Z] Creating BrowserWindow immediately...
+[2026-08-17T08:07:24.447Z] Loading URL: http://127.0.0.1:3001
+[2026-08-17T08:07:24.479Z] createWindow done
+[2026-08-17T08:07:25.516Z] [Backend] {"level":30,"time":1786954045509,"pid":44376,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+[2026-08-17T08:07:25.519Z] [Backend] ◇ injected env (10) from .env // tip: ⌘ enable debugging { debug: true }
+[2026-08-17T08:07:25.542Z] [Backend] {"level":30,"time":1786954045510,"pid":44376,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786954045511,"pid":44376,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786954045530,"pid":44376,"hostname":"het-user002","success":true,"msg":"[ArcRift] Dashboard served from production build: \u001b[1;96mhttp://localhost:3001\u001b[0m"}
+{"level":30,"time":1786954045530,"pid":44376,"hostname":"het-user002","msg":"Initializing ArcRift in SQLITE mode (Zero-Docker)"}
+{"level":30,"time":1786954045533,"pid":44376,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+{"level":30,"time":1786954045533,"pid":44376,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786954045534,"pid":44376,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786954045535,"pid":44376,"hostname":"het-user002","msg":"Auto-backup service started (checks every 12h)"}
+{"level":30,"time":1786954045535,"pid":44376,"hostname":"het-user002","msg":"[Job Queue] Cleaning up ghost jobs from previous run..."}
+{"level":30,"time":1786954045536,"pid":44376,"hostname":"het-user002","msg":"[Job Queue] Background worker started."}
+{"level":30,"time":1786954045538,"pid":44376,"hostname":"het-user002","success":true,"msg":"ArcRift backend running on port \u001b[1;96m3001\u001b[0m"}
+[2026-08-17T08:25:01.948Z] Starting Electron main.js...
+[2026-08-17T08:25:01.952Z] Registering app lifecycle events...
+[2026-08-17T08:25:02.022Z] app.whenReady fired!
+[2026-08-17T08:25:02.023Z] Spawning backend with node: C:\Program Files\nodejs\node.exe -> d:\Devs\ArcRift\backend\dist\index.js
+[2026-08-17T08:25:02.085Z] createTray done
+[2026-08-17T08:25:02.086Z] Creating BrowserWindow immediately...
+[2026-08-17T08:25:02.156Z] Loading URL: http://127.0.0.1:3001
+[2026-08-17T08:25:02.188Z] createWindow done

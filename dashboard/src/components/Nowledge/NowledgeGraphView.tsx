@@ -15,7 +15,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const [searchSpeed, setSearchSpeed] = useState<"smart" | "fast">("smart");
   const [depthScope, setDepthScope] = useState(1);
   const [viewDimension, setViewDimension] = useState<"2D" | "3D">("2D");
-  const [, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAsking, setIsAsking] = useState(false);
@@ -30,7 +30,9 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const loadGraph = async () => {
     try {
       const g = await getGraphData(sessionId);
-      setData(g as GraphData);
+      if (g && g.nodes) {
+        setData(g as GraphData);
+      }
     } catch (err) {
       console.error("Failed to load graph data", err);
     }
@@ -42,7 +44,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     const q = searchQuery.toLowerCase();
     const matchedNodeIds = new Set(
       data.nodes
-        .filter((n: GraphNode) => n.id.toLowerCase().includes(q) || n.type.toLowerCase().includes(q))
+        .filter((n: GraphNode) => n.id.toLowerCase().includes(q) || (n.type && n.type.toLowerCase().includes(q)))
         .map((n: GraphNode) => n.id)
     );
 
@@ -56,27 +58,28 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   }, [data, searchQuery]);
 
   // Color mapping based on Nowledge Mem categories
-  const getNodeColor = (type: string) => {
+  const getNodeColor = (type: string = "") => {
     switch (type.toLowerCase()) {
       case "entity":
       case "concept":
         return "#a855f7"; // 🟣 实体
       case "memory":
       case "decision":
-        return "#3b82f6"; // 🔵 记忆
+        return "#38bdf8"; // 🔵 记忆
       case "document":
       case "file":
       case "tech":
-        return "#10b981"; // 🟢 资料
+        return "#10b981"; // 🟢 资料 / 技术
       case "chat":
       case "session":
         return "#f97316"; // 🟠 对话
       case "skill":
       case "rule":
+      case "gotcha":
       case "architecture":
-        return "#ef4444"; // 🔴 技能 / 规则
+        return "#ef4444"; // 🔴 技能 / 规则 / 避坑
       default:
-        return "#64748b";
+        return "#f59e0b";
     }
   };
 
@@ -85,7 +88,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     if (!svgRef.current || !containerRef.current) return;
 
     const width = containerRef.current.clientWidth || 800;
-    const height = containerRef.current.clientHeight || 600;
+    const height = containerRef.current.clientHeight || 560;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
@@ -97,22 +100,32 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     // Zoom behavior
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 4])
+      .scaleExtent([0.1, 5])
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
 
     svg.call(zoom);
 
+    if (filteredData.nodes.length === 0) return;
+
     const nodes: any[] = filteredData.nodes.map((d: any) => ({ ...d }));
     const links: any[] = filteredData.links.map((d: any) => ({ ...d }));
 
     const simulation = d3
       .forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100))
-      .force("charge", d3.forceManyBody().strength(-240))
+      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(120))
+      .force("charge", d3.forceManyBody().strength(-280))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(35));
+      .force("collision", d3.forceCollide().radius(40));
+
+    // Glow Filter Defs
+    const defs = svg.append("defs");
+    const filter = defs.append("filter").attr("id", "node-glow");
+    filter.append("feGaussianBlur").attr("stdDeviation", "3").attr("result", "coloredBlur");
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode").attr("in", "coloredBlur");
+    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
     // Links
     const link = g
@@ -129,12 +142,12 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .selectAll("text")
       .data(links)
       .join("text")
-      .attr("font-size", "9px")
+      .attr("font-size", "10px")
       .attr("fill", "#64748b")
       .attr("text-anchor", "middle")
       .text((d: any) => d.relation || "");
 
-    // Nodes
+    // Nodes Group
     const node = g
       .append("g")
       .selectAll("g")
@@ -163,22 +176,30 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         setSelectedNode(d);
       });
 
-    // Glowing Circles
+    // Outer Halo
     node
       .append("circle")
-      .attr("r", 14)
+      .attr("r", 18)
+      .attr("fill", (d: any) => getNodeColor(d.type))
+      .attr("opacity", 0.15);
+
+    // Main Circle
+    node
+      .append("circle")
+      .attr("r", 12)
       .attr("fill", (d: any) => getNodeColor(d.type))
       .attr("stroke", "#ffffff")
       .attr("stroke-width", 1.5)
+      .attr("filter", "url(#node-glow)")
       .attr("cursor", "pointer");
 
     // Node Labels
     node
       .append("text")
-      .attr("dx", 18)
+      .attr("dx", 16)
       .attr("dy", 4)
-      .attr("fill", "#f1f5f9")
-      .attr("font-size", "11px")
+      .attr("fill", "#f8fafc")
+      .attr("font-size", "12px")
       .attr("font-weight", "500")
       .text((d: any) => d.id);
 
@@ -205,9 +226,11 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     setAiPrompt(question);
     setIsAsking(true);
     setTimeout(() => {
-      setAiAnswer(`关于「${question}」的图谱推演：当前在图谱中检索到了 ${data.nodes.length} 个实体与 ${data.links.length} 条关系三元组。核心脉络聚焦于 OTA 接口改造与 Android 架构协议约定。`);
+      setAiAnswer(
+        `关于「${question}」的图谱洞察：当前在图谱中检索到了 ${data.nodes.length} 个实体与 ${data.links.length} 条拓扑关系。核心脉络聚焦于 OTA 接口参数由 Query 改为 POST Body，并明确了硬件 MQTT 错误码 12/8 的拦截流转机制。`
+      );
       setIsAsking(false);
-    }, 1000);
+    }, 800);
   };
 
   return (
@@ -219,6 +242,14 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           <p className="nl-view-subtitle">
             全图 · {data.nodes.length} 个节点，{data.links.length} 条边
           </p>
+        </div>
+
+        {/* Top Right Action Chips (Matching Screenshot 1) */}
+        <div className="nl-graph-header-actions">
+          <button className="nl-action-chip">✨ 解读</button>
+          <button className="nl-action-chip">📄 查看</button>
+          <button className="nl-action-chip">⚙️ 本体</button>
+          <button className="nl-action-chip">☷ 图谱维护</button>
         </div>
       </div>
 
@@ -265,13 +296,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
       {/* Main Canvas & Right Explore Layout */}
       <div className="nl-graph-body">
-        {/* Canvas Area */}
-        <div className="nl-graph-canvas-wrap" ref={containerRef}>
-          {/* Top Floating Controls */}
+        {/* Floating Canvas Card Container */}
+        <div className="nl-graph-card-container" ref={containerRef}>
+          {/* Top Floating Controls inside canvas */}
           <div className="nl-canvas-top-tools">
             <div className="nl-tool-group">
-              <button className="nl-canvas-btn" title="随机重排">🔀</button>
-              <button className="nl-canvas-btn" title="全局居中">🌐</button>
+              <button className="nl-canvas-btn" title="随机重排" onClick={() => loadGraph()}>🔀</button>
+              <button className="nl-canvas-btn" title="全局居中" onClick={() => loadGraph()}>🌐</button>
               <div className="nl-dim-toggle">
                 <button
                   className={`nl-dim-btn ${viewDimension === "2D" ? "active" : ""}`}
@@ -294,13 +325,6 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               <button className="nl-canvas-btn" title="关系过滤">🔗</button>
               <button className="nl-canvas-btn" title="全屏查看">⤢</button>
             </div>
-
-            <div className="nl-tool-group">
-              <button className="nl-action-chip">✨ 解读</button>
-              <button className="nl-action-chip">📄 查看</button>
-              <button className="nl-action-chip">⚙️ 本体</button>
-              <button className="nl-action-chip">☷ 图谱维护</button>
-            </div>
           </div>
 
           {/* D3 SVG Canvas */}
@@ -313,7 +337,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               <span>实体</span>
             </div>
             <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#3b82f6" }}></span>
+              <span className="nl-legend-dot" style={{ background: "#38bdf8" }}></span>
               <span>记忆</span>
             </div>
             <div className="nl-legend-pill">
@@ -329,9 +353,20 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               <span>技能</span>
             </div>
           </div>
+
+          {/* Node Inspector Floating Badge when node clicked */}
+          {selectedNode && (
+            <div className="nl-node-inspector-floating">
+              <div className="nl-node-floating-header">
+                <span className="nl-node-badge-type">{selectedNode.type}</span>
+                <button className="nl-close-btn" onClick={() => setSelectedNode(null)}>✕</button>
+              </div>
+              <div className="nl-node-floating-title">{selectedNode.id}</div>
+            </div>
+          )}
         </div>
 
-        {/* Right Explore Drawer (Screenshot 5 Right Side) */}
+        {/* Right Explore Drawer (Matching Screenshot 1 Right Side) */}
         <div className="nl-graph-explore-panel">
           <div className="nl-explore-header">探索</div>
 
