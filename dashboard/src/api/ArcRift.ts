@@ -121,6 +121,7 @@ export async function testSettingsConnection(data: {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  embeddingModel?: string;
 }) {
   const res = await apiClient.post("/api/settings/test", data);
   return res.data as { success: boolean; message: string; error?: string };

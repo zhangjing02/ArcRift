@@ -116,6 +116,7 @@ const SettingsView: React.FC = () => {
     setError(null);
 
     const effectiveExtraction = isCustomExtraction ? customExtractionModel.trim() : activeExtractionModel;
+    const effectiveEmbedding = isCustomEmbedding ? customEmbeddingModel.trim() : activeEmbeddingModel;
 
     try {
       const res = await testSettingsConnection({
@@ -123,6 +124,7 @@ const SettingsView: React.FC = () => {
         baseUrl: apiBaseUrl.trim(),
         apiKey: apiKey.trim(),
         model: effectiveExtraction,
+        embeddingModel: effectiveEmbedding,
       });
       if (res.success) {
         setTestResult({ success: true, message: res.message || t.settings.testSuccess });

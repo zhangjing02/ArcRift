@@ -104,13 +104,21 @@ function getProxyConfig(targetUrl: string) {
   }
 }
 
-// POST /api/settings/test-connection
-router.post("/test-connection", async (req: Request, res: Response) => {
+const handleTestConnection = async (req: Request, res: Response) => {
   const settings = getSettings();
   const testType = req.body.type || "all"; // "chat" | "embedding" | "all"
 
+  const apiBaseUrl = req.body.apiBaseUrl || req.body.baseUrl || settings.apiBaseUrl || "https://api.siliconflow.cn/v1";
+  const apiKey = req.body.apiKey !== undefined ? req.body.apiKey : (settings.apiKey || "");
+  const chatModel = req.body.chatModel || req.body.model || settings.chatModel || "gemini-2.0-flash";
+  const embeddingModel = req.body.embeddingModel || settings.embeddingModel || "text-embedding-004";
+  const embeddingBaseUrl = req.body.embeddingBaseUrl || settings.embeddingBaseUrl || apiBaseUrl;
+  const embeddingApiKey = req.body.embeddingApiKey || req.body.apiKey || settings.embeddingApiKey || settings.apiKey || "";
+  const provider = req.body.provider || req.body.chatProvider || settings.chatProvider || "";
+
   const results: {
     success: boolean;
+    message?: string;
     chat?: { success: boolean; latencyMs?: number; model?: string; message?: string; error?: string };
     embedding?: { success: boolean; latencyMs?: number; model?: string; dimension?: number; message?: string; error?: string };
     error?: string;
@@ -121,45 +129,71 @@ router.post("/test-connection", async (req: Request, res: Response) => {
   // 1. Test Chat Completion Connection
   if (testType === "chat" || testType === "all") {
     const startTime = Date.now();
-    const chatModel = req.body.chatModel || settings.chatModel || "deepseek-ai/DeepSeek-V3";
-    const apiBaseUrl = req.body.apiBaseUrl || settings.apiBaseUrl || "https://api.siliconflow.cn/v1";
-    const apiKey = req.body.apiKey !== undefined ? req.body.apiKey : (settings.apiKey || "");
 
     try {
-      const cleanBase = apiBaseUrl.replace(/\/+$/, "");
-      const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      const isGemini = provider === "gemini" || apiBaseUrl.includes("googleapis.com");
+      
+      if (isGemini) {
+        // Test Gemini native generateContent
+        const modelName = chatModel.replace(/^models\//, "");
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+        const proxy = getProxyConfig(endpoint);
 
-      const proxy = getProxyConfig(endpoint);
+        const resp = await axios.post(
+          endpoint,
+          {
+            contents: [{ parts: [{ text: "Say OK" }] }],
+            generationConfig: { maxOutputTokens: 10, temperature: 0.1 },
+          },
+          { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
+        );
 
-      const resp = await axios.post(
-        endpoint,
-        {
+        const latencyMs = Date.now() - startTime;
+        const text = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || "OK";
+
+        results.chat = {
+          success: true,
+          latencyMs,
           model: chatModel,
-          messages: [{ role: "user", content: "Say 'OK' if you can read this." }],
-          max_tokens: 10,
-          temperature: 0.1,
-        },
-        { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
-      );
+          message: `Gemini Chat API connected successfully. (${latencyMs}ms)`,
+        };
+      } else {
+        // Test OpenAI-compatible endpoint
+        const cleanBase = apiBaseUrl.replace(/\/+$/, "");
+        const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-      const latencyMs = Date.now() - startTime;
-      const content = resp.data?.choices?.[0]?.message?.content || "OK";
+        const proxy = getProxyConfig(endpoint);
 
-      results.chat = {
-        success: true,
-        latencyMs,
-        model: chatModel,
-        message: `Chat API connected successfully. (Response: "${content.slice(0, 30)}")`,
-      };
+        const resp = await axios.post(
+          endpoint,
+          {
+            model: chatModel,
+            messages: [{ role: "user", content: "Say 'OK' if you can read this." }],
+            max_tokens: 10,
+            temperature: 0.1,
+          },
+          { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
+        );
+
+        const latencyMs = Date.now() - startTime;
+        const content = resp.data?.choices?.[0]?.message?.content || "OK";
+
+        results.chat = {
+          success: true,
+          latencyMs,
+          model: chatModel,
+          message: `Chat API connected successfully. (${latencyMs}ms)`,
+        };
+      }
     } catch (err: any) {
       const latencyMs = Date.now() - startTime;
       const errorMsg =
         err?.response?.data?.error?.message ||
         err?.response?.data?.message ||
         err.message ||
-        "Connection failed";
+        "Chat connection failed";
 
       results.chat = {
         success: false,
@@ -168,28 +202,22 @@ router.post("/test-connection", async (req: Request, res: Response) => {
         error: errorMsg,
       };
       results.success = false;
+      results.error = errorMsg;
     }
   }
 
   // 2. Test Embedding Connection
   if (testType === "embedding" || testType === "all") {
     const startTime = Date.now();
-    const embeddingModel = req.body.embeddingModel || settings.embeddingModel || "BAAI/bge-large-zh-v1.5";
-    const embeddingBaseUrl = req.body.embeddingBaseUrl || settings.embeddingBaseUrl || "https://api.siliconflow.cn/v1";
-    const embeddingApiKey =
-      req.body.embeddingApiKey !== undefined
-        ? req.body.embeddingApiKey
-        : (settings.embeddingApiKey || settings.apiKey || "");
 
     try {
       let latencyMs = 0;
       let dim = 768;
 
       const isGemini =
+        provider === "gemini" ||
         embeddingBaseUrl.includes("googleapis.com") ||
-        embeddingModel.includes("text-embedding-004") ||
-        req.body.chatProvider === "gemini" ||
-        settings.chatProvider === "gemini";
+        embeddingModel.includes("text-embedding-004");
 
       if (isGemini) {
         // Native Gemini EmbedContent endpoint
@@ -234,7 +262,7 @@ router.post("/test-connection", async (req: Request, res: Response) => {
         latencyMs,
         model: embeddingModel,
         dimension: dim,
-        message: `Embedding API connected successfully. (Vector Dimension: ${dim})`,
+        message: `Embedding API connected successfully. (Dimension: ${dim}, ${latencyMs}ms)`,
       };
     } catch (err: any) {
       const latencyMs = Date.now() - startTime;
@@ -251,10 +279,18 @@ router.post("/test-connection", async (req: Request, res: Response) => {
         error: errorMsg,
       };
       results.success = false;
+      if (!results.error) results.error = errorMsg;
     }
   }
 
+  if (results.success) {
+    results.message = `API 连通测试通过！Chat 响应正常，Embedding 向量维度为 ${results.embedding?.dimension || 768}。`;
+  }
+
   res.json(results);
-});
+};
+
+router.post("/test", handleTestConnection);
+router.post("/test-connection", handleTestConnection);
 
 export default router;
