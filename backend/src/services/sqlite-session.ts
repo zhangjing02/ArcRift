@@ -26,7 +26,7 @@ export class SqliteSessionStore implements ISessionStore {
     };
 
     this.db.prepare(`
-      INSERT INTO sessions (id, projectName, platform, tripleCount, topicCount, hasFullChat, tokensSaved, retrievalCount, createdAt, updatedAt, externalChatId)
+      INSERT OR REPLACE INTO sessions (id, projectName, platform, tripleCount, topicCount, hasFullChat, tokensSaved, retrievalCount, createdAt, updatedAt, externalChatId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, projectName, platform, 0, 0, 0, 0, 0, now, now, externalChatId || null);
 

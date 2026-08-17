@@ -57,9 +57,15 @@ function createTables() {
       // SQLite does NOT allow adding a UNIQUE column via ALTER TABLE
       // We must add it normally and then create a UNIQUE INDEX
       db.exec("ALTER TABLE sessions ADD COLUMN externalChatId TEXT");
-      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_externalChatId ON sessions(externalChatId)");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_externalChatId ON sessions(externalChatId) WHERE externalChatId IS NOT NULL");
       logger.info("Database migration: Added externalChatId column and unique index");
     }
+
+    // Ensure index allows multiple nulls if already exists
+    try {
+      db.exec("DROP INDEX IF EXISTS idx_sessions_externalChatId");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_externalChatId ON sessions(externalChatId) WHERE externalChatId IS NOT NULL");
+    } catch {}
 
     const hasTokens = tableInfo.some(col => col.name === "tokensSaved");
     if (!hasTokens) {
@@ -331,7 +337,28 @@ function createTables() {
       FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_communities_session ON communities(sessionId)");
+  // Nowledge Mem P3: Timeline Review Inbox & Conflict Governance
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS timeline_reviews (
+      id TEXT PRIMARY KEY,
+      sessionId TEXT NOT NULL,
+      memory_a_id TEXT NOT NULL,
+      memory_b_id TEXT NOT NULL,
+      conflict_type TEXT DEFAULT 'contradiction',
+      conflict_reason TEXT,
+      evidence_a TEXT,
+      evidence_b TEXT,
+      suggested_action TEXT DEFAULT 'keep_newer_as_latest',
+      status TEXT DEFAULT 'pending',
+      resolution_action TEXT,
+      resolution_note TEXT,
+      createdAt TEXT,
+      resolvedAt TEXT,
+      FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_reviews_session ON timeline_reviews(sessionId)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_reviews_status ON timeline_reviews(status)");
 
   logger.success("All SQLite tables initialized successfully");
 }

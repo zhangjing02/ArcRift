@@ -219,70 +219,239 @@ export class SqliteMemoryStore implements IMemoryStore {
     return rows.map(r => this.mapMemory(r));
   }
 
+  // --- RRF & Half-life Scoring Utilities ---
+  private computeDecayFactor(createdAt: Date, temporalContext?: string): number {
+    if (temporalContext === "timeless") return 1.0;
+    
+    const now = Date.now();
+    const createdMs = createdAt.getTime();
+    const deltaMs = Math.max(0, now - createdMs);
+    
+    // 30 days half life = 2,592,000,000 ms
+    const HALF_LIFE_MS = 30 * 24 * 3600 * 1000;
+    const lambda = Math.LN2 / HALF_LIFE_MS;
+    
+    if (temporalContext === "temporary") {
+      // 7-day half life for temporary memories
+      const tempLambda = Math.LN2 / (7 * 24 * 3600 * 1000);
+      return Math.exp(-tempLambda * deltaMs);
+    }
+    
+    return Math.exp(-lambda * deltaMs);
+  }
+
+  private computeEffectiveImportance(importance: number, createdAt: Date, temporalContext?: string): number {
+    const base = normalizeImportance(importance);
+    const decay = this.computeDecayFactor(createdAt, temporalContext);
+    const floor = Math.max(0.15, base * 0.35);
+    return Math.max(base * decay, floor);
+  }
+
   async searchMemories(filters: MemorySearchFilters): Promise<Array<Memory & { score?: number }>> {
-    const { query, spaceId, sessionId, filterLabels, unitType, category, limit = 10, confidenceThreshold = 0 } = filters;
+    const {
+      query,
+      spaceId,
+      sessionId,
+      filterLabels,
+      unitType,
+      category,
+      limit = 10,
+      confidenceThreshold = 0,
+      mode = "normal",
+    } = filters;
     const targetSpace = spaceId || sessionId;
 
-    // 1. If query is provided, run FTS5 search
-    if (query && query.trim()) {
-      const cleanQuery = query.replace(/[^\w\s\u4e00-\u9fa5]/g, " ").trim();
-      const ftsTokens = cleanQuery.split(/\s+/).filter(Boolean).map(t => `"${t}"*`).join(" OR ");
+    // 1. If no query string, sort by effective importance and recency
+    if (!query || !query.trim()) {
+      const regularMemories = await this.getMemories(targetSpace, {
+        unitType,
+        category,
+        limit: limit * 2,
+      });
 
-      let rows: any[] = [];
-      if (ftsTokens) {
-        try {
-          let ftsSql = `
-            SELECT m.*, fts.rank as fts_rank
-            FROM fts_memories fts
-            JOIN memories m ON m.id = fts.memory_id
-            WHERE fts_memories MATCH ?
-          `;
-          const params: any[] = [ftsTokens];
+      return regularMemories
+        .map((m) => {
+          const effectiveImp = this.computeEffectiveImportance(m.importance, m.createdAt, m.temporalContext);
+          return {
+            ...m,
+            score: parseFloat(effectiveImp.toFixed(3)),
+          };
+        })
+        .filter((m) => (m.score || 0) >= confidenceThreshold)
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, limit);
+    }
 
-          if (targetSpace && targetSpace !== "all") {
-            ftsSql += " AND (m.sessionId = ? OR m.sessionId = 'default')";
-            params.push(targetSpace);
-          }
-          if (unitType) {
-            ftsSql += " AND m.unit_type = ?";
-            params.push(unitType);
-          }
-          if (category) {
-            ftsSql += " AND m.category = ?";
-            params.push(category);
-          }
+    // 2. Multi-Channel Retrieval for RRF
+    const candidateMap = new Map<string, { memory: Memory; ftsRank?: number; textSimScore?: number }>();
+    const ftsRankList: string[] = [];
+    const textSimRankList: string[] = [];
 
-          ftsSql += " ORDER BY fts.rank ASC, m.importance DESC LIMIT ?";
-          params.push(limit);
+    // --- Channel 1: FTS5 BM25 Search ---
+    const cleanQuery = query.replace(/[^\w\s\u4e00-\u9fa5]/g, " ").trim();
+    const ftsTokens = cleanQuery
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => `"${t}"*`)
+      .join(" OR ");
 
-          rows = this.db.prepare(ftsSql).all(...params) as any[];
-        } catch {
-          // Fallback to LIKE if FTS expression parsing fails
-          rows = [];
+    if (ftsTokens) {
+      try {
+        let ftsSql = `
+          SELECT m.*, fts.rank as fts_rank
+          FROM fts_memories fts
+          JOIN memories m ON m.id = fts.memory_id
+          WHERE fts_memories MATCH ?
+        `;
+        const params: any[] = [ftsTokens];
+
+        if (targetSpace && targetSpace !== "all") {
+          ftsSql += " AND m.sessionId = ?";
+          params.push(targetSpace);
         }
-      }
+        if (unitType) {
+          ftsSql += " AND m.unit_type = ?";
+          params.push(unitType);
+        }
+        if (category) {
+          ftsSql += " AND m.category = ?";
+          params.push(category);
+        }
 
-      // If FTS returned results, return them
-      if (rows.length > 0) {
-        return rows.map(r => ({
-          ...this.mapMemory(r),
-          score: Math.max(0.5, Math.min(1.0, 1.0 / (1.0 + Math.abs(r.fts_rank || 1)))),
-        })).filter(m => (m.score || 1) >= confidenceThreshold);
+        ftsSql += " ORDER BY fts.rank ASC LIMIT 50";
+
+        const rows = this.db.prepare(ftsSql).all(...params) as any[];
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          const mem = this.mapMemory(r);
+          ftsRankList.push(mem.id);
+          candidateMap.set(mem.id, {
+            memory: mem,
+            ftsRank: i + 1,
+          });
+        }
+      } catch (err) {
+        // Fallback to LIKE if FTS expression parsing fails
       }
     }
 
-    // 2. Default fallback: query by standard filters sorted by recency & importance
-    const regularMemories = await this.getMemories(targetSpace, {
-      query,
-      unitType,
-      category,
-      limit,
+    // --- Channel 2: Exact & Token Overlap Semantic Channel ---
+    let fallbackSql = `SELECT * FROM memories WHERE 1=1`;
+    const fallbackParams: any[] = [];
+
+    if (targetSpace && targetSpace !== "all") {
+      fallbackSql += " AND sessionId = ?";
+      fallbackParams.push(targetSpace);
+    }
+    if (unitType) {
+      fallbackSql += " AND unit_type = ?";
+      fallbackParams.push(unitType);
+    }
+    if (category) {
+      fallbackSql += " AND category = ?";
+      fallbackParams.push(category);
+    }
+    fallbackSql += " ORDER BY createdAt DESC LIMIT 100";
+
+    const allCandidates = (this.db.prepare(fallbackSql).all(...fallbackParams) as any[]).map((r) => this.mapMemory(r));
+    const queryLower = query.toLowerCase();
+    const queryWords = queryLower.split(/\s+/).filter(Boolean);
+
+    const scoredFallback = allCandidates.map((m) => {
+      let sim = 0;
+      const titleLower = m.title.toLowerCase();
+      const contentLower = m.content.toLowerCase();
+      const labelsLower = m.labels.map((l) => l.toLowerCase());
+
+      if (titleLower.includes(queryLower)) sim += 3.0;
+      if (contentLower.includes(queryLower)) sim += 2.0;
+      if (labelsLower.some((l) => l.includes(queryLower))) sim += 2.5;
+
+      for (const w of queryWords) {
+        if (titleLower.includes(w)) sim += 0.8;
+        if (contentLower.includes(w)) sim += 0.4;
+        if (labelsLower.some((l) => l.includes(w))) sim += 0.6;
+      }
+
+      return { memory: m, sim };
     });
 
-    return regularMemories.map(m => ({
-      ...m,
-      score: m.importance,
-    })).filter(m => (m.score || 1) >= confidenceThreshold);
+    scoredFallback.sort((a, b) => b.sim - a.sim);
+
+    for (let i = 0; i < scoredFallback.length; i++) {
+      const item = scoredFallback[i];
+      if (item.sim > 0) {
+        textSimRankList.push(item.memory.id);
+        const existing = candidateMap.get(item.memory.id);
+        if (existing) {
+          existing.textSimScore = item.sim;
+        } else {
+          candidateMap.set(item.memory.id, {
+            memory: item.memory,
+            textSimScore: item.sim,
+          });
+        }
+      }
+    }
+
+    // --- Channel 3: RRF (Reciprocal Rank Fusion) Scoring ---
+    const RRF_K = 60; // Standard IR constant
+    const W_FTS = 1.0;
+    const W_SIM = 1.0;
+    const maxTheoreticalRRF = W_FTS / (RRF_K + 1) + W_SIM / (RRF_K + 1); // ~ 0.03278
+
+    const scoredResults: Array<Memory & { score: number }> = [];
+
+    for (const [id, entry] of candidateMap.entries()) {
+      const m = entry.memory;
+
+      // Label filter if requested
+      if (filterLabels && filterLabels.length > 0) {
+        const memLabelsLower = m.labels.map((l) => l.toLowerCase());
+        const hasAllLabels = filterLabels.every((reqLabel) =>
+          memLabelsLower.includes(reqLabel.toLowerCase())
+        );
+        if (!hasAllLabels) continue;
+      }
+
+      // Calculate RRF score across channels
+      let rrfScore = 0;
+      const ftsRankIdx = ftsRankList.indexOf(id);
+      if (ftsRankIdx !== -1) {
+        rrfScore += W_FTS / (RRF_K + (ftsRankIdx + 1));
+      }
+
+      const simRankIdx = textSimRankList.indexOf(id);
+      if (simRankIdx !== -1) {
+        rrfScore += W_SIM / (RRF_K + (simRankIdx + 1));
+      }
+
+      // Normalized RRF score in [0.1, 1.0]
+      const normalizedRRF = Math.min(1.0, rrfScore / maxTheoreticalRRF);
+
+      // Compute 30-day half life exponential decay with importance floor
+      const effectiveImportance = this.computeEffectiveImportance(m.importance, m.createdAt, m.temporalContext);
+
+      // Final composite score (60% RRF retrieval relevance + 40% time-decayed effective importance)
+      let finalScore = normalizedRRF * 0.65 + effectiveImportance * 0.35;
+      if (ftsRankIdx === 0 && simRankIdx === 0) {
+        finalScore = Math.min(1.0, finalScore * 1.15); // Top exact match bonus
+      }
+
+      finalScore = parseFloat(Math.min(1.0, Math.max(0.01, finalScore)).toFixed(3));
+
+      if (finalScore >= confidenceThreshold) {
+        scoredResults.push({
+          ...m,
+          score: finalScore,
+        });
+      }
+    }
+
+    // Sort descending by composite score
+    scoredResults.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    return scoredResults.slice(0, limit);
   }
 
   async getMemory(id: string): Promise<Memory | null> {

@@ -74,6 +74,10 @@ import { getSummary } from "./tools/summary";
 import { identifyProject } from "./tools/detector";
 import { indexCodebase } from "./tools/index_codebase";
 import { updateWorkingMemoryTool } from "./tools/working_memory";
+import { memFs } from "./tools/mem_fs";
+import { checkClaims } from "./tools/check_claims";
+import { listTimelineReviews } from "./tools/list_timeline_reviews";
+import { resolveTimelineReview } from "./tools/resolve_timeline_review";
 import { initStorage, sessionStore } from "../services/storage";
 import { logger } from "../utils/logger";
 
@@ -412,6 +416,82 @@ const TOOLS = [
       properties: {},
       required: [],
     },
+  // 21. Nowledge Mem Standard: mem_fs
+  {
+    name: "mem_fs",
+    description:
+      "Nowledge FS virtual filesystem interface. Supports 'capabilities', 'ls', 'stat' (low-overhead metadata inspection), 'cat' (windowed slice reading with --line and --lines), 'tree', and 'recall'.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        command: {
+          type: "string",
+          enum: ["capabilities", "ls", "stat", "cat", "tree", "find", "recall"],
+          description: "Filesystem command to execute",
+        },
+        path: { type: "string", description: "Virtual path (e.g. '/memories/by-id/xxx.memory.md', '/working-memory/working-memory.md')" },
+        line: { type: "number", description: "Start line for cat (1-indexed, default 1)" },
+        lines: { type: "number", description: "Max lines to read for cat (default 100)" },
+        space_id: { type: "string", description: "Isolation space ID" },
+        query: { type: "string", description: "Query for recall command" },
+      },
+      required: [],
+    },
+  },
+
+  // 22. Nowledge Mem Standard: check_claims
+  {
+    name: "check_claims",
+    description:
+      "Pre-flight claim verification. Checks draft text statements against the knowledge base for contradictions, deprecated facts, or contested claims.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The text content or draft report to analyze for factual conflicts" },
+        space_id: { type: "string", description: "Optional isolation space ID" },
+        confidence_threshold: { type: "number", description: "Confidence threshold for conflict detection (default: 0.5)" },
+      },
+      required: ["text"],
+    },
+  },
+
+  // 23. Nowledge Mem Standard: list_timeline_reviews
+  {
+    name: "list_timeline_reviews",
+    description: "List timeline conflict reviews in the inbox requiring human or agent adjudication.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        space_id: { type: "string", description: "Optional space ID filter" },
+        status: {
+          type: "string",
+          enum: ["pending", "resolved", "dismissed", "all"],
+          description: "Review status filter (default: 'pending')",
+        },
+        limit: { type: "number", description: "Max reviews to return" },
+      },
+      required: [],
+    },
+  },
+
+  // 24. Nowledge Mem Standard: resolve_timeline_review
+  {
+    name: "resolve_timeline_review",
+    description:
+      "Adjudicate a timeline review conflict. Actions: 'keep_newer_as_latest', 'keep_older_as_latest', 'keep_both_linked', 'dismiss'.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        review_id: { type: "string", description: "Timeline review ID" },
+        action: {
+          type: "string",
+          enum: ["keep_newer_as_latest", "keep_older_as_latest", "keep_both_linked", "dismiss"],
+          description: "Adjudication decision",
+        },
+        custom_note: { type: "string", description: "Optional explanation or audit note" },
+      },
+      required: ["review_id", "action"],
+    },
   },
 
   // ── Backward Compatible / Coding Helper Tools ─────────────────────
@@ -748,6 +828,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
       // 20. graph_stats
       case "graph_stats": {
         const result = await graphStats();
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 21. mem_fs
+      case "mem_fs": {
+        const result = await memFs(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 22. check_claims
+      case "check_claims": {
+        const result = await checkClaims(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 23. list_timeline_reviews
+      case "list_timeline_reviews": {
+        const result = await listTimelineReviews(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 24. resolve_timeline_review
+      case "resolve_timeline_review": {
+        const result = await resolveTimelineReview(args as any);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };

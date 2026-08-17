@@ -113,8 +113,8 @@ export interface IVectorStore {
 export type ImportanceLevel = "critical" | "high" | "medium" | "low";
 export type MemoryCategory = "Architecture" | "Decision" | "Gotcha" | "Rule" | "Tech" | "Note";
 export type UnitType = "fact" | "preference" | "decision" | "plan" | "procedure" | "learning" | "context" | "event";
-export type ClaimStatus = "asserted" | "explored" | "proposed" | "planned" | "unverified";
-export type EvolvesRelation = "replaces" | "enriches" | "confirms";
+export type ClaimStatus = "asserted" | "explored" | "proposed" | "planned" | "unverified" | "deprecated" | "disputed";
+export type EvolvesRelation = "replaces" | "enriches" | "confirms" | "challenges";
 
 export interface Memory {
   id: string;

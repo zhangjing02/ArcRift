@@ -278,6 +278,9 @@ export interface Settings {
     shortcutHints?: boolean;
   };
 
+  // Context mode
+  contextMode?: "raw" | "summarized";
+
   // Legacy / Ollama-specific backwards compatibility
   ollamaEmbeddingModel?: string;
   ollamaExtractionModel?: string;

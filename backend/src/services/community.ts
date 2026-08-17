@@ -1,4 +1,4 @@
-﻿import { getSqlite } from "./sqlite";
+import { getSqlite } from "./sqlite";
 import { v4 as uuidv4 } from "uuid";
 import { graphStore, memoryStore } from "./storage";
 
@@ -137,6 +137,12 @@ export class CommunityService {
     }
 
     return rows.map(r => this.mapCommunity(r));
+  }
+
+  async getCommunity(id: string): Promise<Community | null> {
+    const row = this.db.prepare("SELECT * FROM communities WHERE id = ?").get(id) as any;
+    if (!row) return null;
+    return this.mapCommunity(row);
   }
 
   async getCommunityDetails(communityId: string): Promise<any | null> {

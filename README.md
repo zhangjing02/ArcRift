@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # ArcRift (Nowledge Mem Pure SQLite) — 本地化 AI 记忆与知识管理系统
 
@@ -103,6 +103,10 @@ ArcRift 内置了完整的 Nowledge Mem 标准 MCP 工具协议：
 | **P2** | `memory_evolves_chain` | 获取记忆的版本演化链（双向追溯祖先与后代） |
 | **P2** | `memory_supersede` | 将旧记忆淘汰，标记新版本记忆并自动建立演化关联 |
 | **P3** | `get_space_profile` | 按 ID/名称/Slug 解析空间画像（统计、资料、工作记忆） |
+| **P3** | `mem_fs` | Nowledge FS 虚拟文件系统（支持 `capabilities`, `ls`, `stat` 低开销元数据探测, `cat --line N --lines M` 窗口切片读取, `tree`, `recall`） |
+| **P3** | `check_claims` | 交付前只读断言预检（比对废弃/冲突记忆，防止 Agent 产生幻觉与过时输出） |
+| **P3** | `list_timeline_reviews` | 查看时间线审议收件箱中的冲突审查事件列表 |
+| **P3** | `resolve_timeline_review` | 裁决时间线冲突（keep_newer_as_latest, keep_older_as_latest, keep_both_linked, dismiss） |
 | **Compat** | `recall_context` | 编码助手兼容接口：检索相关记忆片段并封装为上下文 |
 | **Compat** | `store_memory` / `search_memory` / `prune_memory` / `list_projects` | 历史兼容别名接口 |
 
@@ -116,30 +120,40 @@ ArcRift/
 │   ├── src/
 │   │   ├── index.ts             # Express 入口，集成 API 路由与生产前端挂载
 │   │   ├── mcp/
-│   │   │   ├── server.ts        # 标准 MCP Stdio 服务端
-│   │   │   └── tools/           # 20+ 个标准 MCP 工具实现
-│   │   ├── routes/              # REST 路由（memories, sources, communities, graph, etc.）
+│   │   │   ├── server.ts        # 标准 MCP Stdio 服务端（注册 25+ 个工具）
+│   │   │   └── tools/           # 标准 MCP 工具实现（mem_fs, check_claims, timeline_reviews 等）
+│   │   ├── routes/              # REST 路由（memories, sources, communities, migration, intelligence, etc.）
 │   │   ├── services/            # 业务服务层
 │   │   │   ├── sqlite.ts        # SQLite 单文件驱动、迁移与 FTS5/Vector 扩展
-│   │   │   ├── sqlite-memory.ts # 记忆卡片 CRUD、混合检索、关系图与演化链
+│   │   │   ├── sqlite-memory.ts # 记忆卡片 CRUD、RRF 混合检索、30天半衰期衰减与演化链
 │   │   │   ├── sqlite-source.ts # 信源资料库管理
 │   │   │   ├── sqlite-graph.ts  # 知识图谱三元组存储
 │   │   │   ├── sqlite-vector.ts # sqlite-vec 向量检索与 FTS5 降级检索
 │   │   │   ├── community.ts     # 知识图谱社区聚类引擎
+│   │   │   ├── nowledge-fs.ts   # Nowledge FS 虚拟文件系统映射引擎
+│   │   │   ├── claims-checker.ts# 断言冲突预检与时间线审议服务
+│   │   │   ├── migration.ts     # 数据迁移（JSON 导出与 Merge/Skip/Replace 导入）
 │   │   │   ├── storage.ts       # 纯 SQLite 统一数据存储门面
 │   │   │   └── storage.types.ts # 核心类型契约
 │   │   └── utils/
 │   │       ├── paths.ts         # 跨平台数据路径管理器（自动锁定应用根目录 data/）
-│   │       └── settings.ts      # 系统设置管理
-│   └── scripts/                 # 全套自动化测试套件
-│       ├── test-mcp-alignment.ts
-│       ├── test-p1-relations-sources.ts
-│       ├── test-p2-communities-evolution.ts
-│       └── test-p3-multispace.ts
+│   │       └── settings.ts      # 系统设置管理（19家服务商、偏好设置、个人画像、随处访问）
+│   └── scripts/                 # 全套自动化集成测试套件（100% 保持通过）
+│       ├── test-rrf-decay.ts           # RRF 融合与 30 天半衰期时间衰减测试
+│       ├── test-mem-fs.ts              # Nowledge FS 窗口化切片与 stat 探测测试
+│       ├── test-claims-reviews.ts      # 断言冲突预检与审议收件箱裁决测试
+│       ├── test-mcp-alignment.ts       # MCP 协议基础对齐测试
+│       ├── test-p1-relations-sources.ts# 记忆关联与信源管理测试
+│       ├── test-p2-communities-evolution.ts # 社区发现与演化链测试
+│       ├── test-p3-multispace.ts       # 多空间数据与检索严格隔离测试
+│       ├── test-smart-processing.ts    # 智能处理与 Token 预算测试
+│       ├── test-providers.ts           # 19家服务商配置与连接性测试
+│       ├── test-migration-remote.ts    # 数据迁移与随处访问测试
+│       └── test-preferences.ts         # 偏好设置持久化测试
 ├── dashboard/                   # Web 管理面板 & Tauri 桌面端（React + Vite + Tauri 2）
 │   └── src/
 │       ├── api/ArcRift.ts       # 前端 API 客户端封装
-│       └── components/Nowledge/ # Nowledge Mem 风格组件（记忆、信源、图谱、工作记忆）
+│       └── components/Nowledge/ # 偏好设置、服务商、智能处理、记忆、信源、图谱、工作记忆等面板
 ├── data/                        # SQLite 单文件存储目录（NowledgeMem.db）
 └── README.md
 ```
