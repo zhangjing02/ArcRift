@@ -12,11 +12,24 @@ echo   ArcRift - Starting up
 echo  ===================================
 echo.
 
-REM 1. Load .env settings
+REM 1. Load or initialize .env settings
 if not exist "backend\.env" (
-  echo  ERROR: backend\.env not found. Run install.bat first.
-  pause
-  exit /b 1
+  echo  [INFO] Initializing backend\.env from template...
+  copy "backend\.env.example" "backend\.env" >nul
+)
+
+if not exist "backend\node_modules" (
+  echo  [INFO] Installing backend dependencies...
+  pushd backend
+  call npm install --registry=https://registry.npmmirror.com
+  popd
+)
+
+if not exist "dashboard\node_modules" (
+  echo  [INFO] Installing dashboard dependencies...
+  pushd dashboard
+  call npm install --registry=https://registry.npmmirror.com
+  popd
 )
 
 set "ARCRIFT_STORAGE_MODE=docker"
