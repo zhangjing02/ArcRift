@@ -1,14 +1,11 @@
 /**
  * Validates session and job IDs.
- * Supports both MongoDB ObjectIds (24-char hex) and SQLite UUIDs.
+ * Supports MongoDB ObjectIds (24-char hex), SQLite UUIDs, and custom project identifiers.
  */
 export function isValidObjectId(id: string): boolean {
-  if (!id) return false;
-  // MongoDB check (24-char hex)
-  if (/^[0-9a-fA-F]{24}$/.test(id)) return true;
-  // UUID check (standard 8-4-4-4-12 format)
-  if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)) return true;
-  // Explicit test ID check (must start with 'test-')
-  if (id.startsWith("test-")) return true;
-  return false;
+  if (!id || typeof id !== "string") return false;
+  const trimmed = id.trim();
+  if (trimmed.length === 0 || trimmed.length > 128) return false;
+  // Allow alphanumeric, dash, underscore, dot, colon for SQLite / MCP custom project IDs
+  return /^[a-zA-Z0-9_\-\.\:\/]+$/.test(trimmed);
 }

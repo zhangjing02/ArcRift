@@ -1,16 +1,16 @@
 {
-  "chatProvider": "gemini",
-  "apiBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
-  "apiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
-  "chatModel": "gemini-2.0-flash",
+  "chatProvider": "siliconflow",
+  "apiBaseUrl": "https://api.siliconflow.cn/v1",
+  "apiKey": "sk-onulfviugmmxhrgzkmmeqbuhlmftulexibeknurubyyhsfmf",
+  "chatModel": "deepseek-ai/DeepSeek-V3",
   "embeddingProvider": "openai-compatible",
   "embeddingBaseUrl": "https://api.siliconflow.cn/v1",
-  "embeddingApiKey": "",
-  "embeddingModel": "text-embedding-004",
+  "embeddingApiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
+  "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
   "contextMode": "raw",
-  "ollamaEmbeddingModel": "text-embedding-004",
-  "ollamaExtractionModel": "gemini-2.0-flash",
-  "activeExtractionModel": "gemini-2.0-flash",
-  "activeEmbeddingModel": "text-embedding-004"
+  "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
+  "ollamaExtractionModel": "deepseek-ai/DeepSeek-V3",
+  "activeExtractionModel": "deepseek-ai/DeepSeek-V3",
+  "activeEmbeddingModel": "BAAI/bge-large-zh-v1.5"
 }
