@@ -1,3 +1,3 @@
 @echo off
 cd /d "d:\Devs\ArcRift"
-start "" "d:\Devs\ArcRift\desktop\node_modules\electron\dist\electron.exe" "d:\Devs\ArcRift\desktop\main.js"
+start "" wscript.exe "d:\Devs\ArcRift\ChronosMind.vbs"

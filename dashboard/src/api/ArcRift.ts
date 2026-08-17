@@ -239,6 +239,67 @@ export async function connectToolById(toolId: string): Promise<{ success: boolea
   }
 }
 
+export async function getModelStatuses(): Promise<{
+  success: boolean;
+  models: Array<{
+    id: string;
+    name: string;
+    type: "embedding" | "llm";
+    category: string;
+    sizeText: string;
+    isDownloaded: boolean;
+    isDownloading: boolean;
+    progress: number;
+    speed: string;
+    downloadedBytes: number;
+    totalBytes: number;
+    error?: string;
+  }>;
+}> {
+  try {
+    const res = await apiClient.get("/api/models/status");
+    return res.data;
+  } catch {
+    return { success: false, models: [] };
+  }
+}
+
+export async function downloadModel(modelId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.post("/api/models/download", { modelId });
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "下载请求失败" };
+  }
+}
+
+export async function deleteModelById(modelId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.delete(`/api/models/${modelId}`);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "删除失败" };
+  }
+}
+
+export async function fetchAppSettings(): Promise<any> {
+  try {
+    const res = await apiClient.get("/api/settings");
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAppSettings(data: any): Promise<any> {
+  try {
+    const res = await apiClient.post("/api/settings", data);
+    return res.data;
+  } catch (err: any) {
+    throw new Error(err?.response?.data?.error || "保存失败");
+  }
+}
+
 export async function getFullChat(sessionId: string): Promise<import("../types").FullChat | null> {
   try {
     const res = await apiClient.get(`/api/chat/${sessionId}`);
@@ -256,3 +317,4 @@ export async function getFullChat(sessionId: string): Promise<import("../types")
 }
 
 export { extractErrorMessage, apiClient };
+

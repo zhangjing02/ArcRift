@@ -1,10 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  fetchSettings,
-  updateSettings,
+  fetchAppSettings,
+  saveAppSettings,
   testSettingsConnection,
+  getModelStatuses,
+  downloadModel,
+  deleteModelById,
 } from "../../api/ArcRift";
-import type { SettingsResponse } from "../../api/ArcRift";
+
+interface ModelItem {
+  id: string;
+  name: string;
+  type: "embedding" | "llm";
+  category: string;
+  sizeText: string;
+  isDownloaded: boolean;
+  isDownloading: boolean;
+  progress: number;
+  speed: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  error?: string;
+}
 
 export const NowledgeSettingsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<
@@ -20,33 +37,105 @@ export const NowledgeSettingsView: React.FC = () => {
     | "about"
   >("models");
 
-  const [, setSettings] = useState<SettingsResponse | null>(null);
-  const [embeddingMode, setEmbeddingMode] = useState<"local" | "cloud">("local");
+  // Settings State
+  const [embeddingMode, setEmbeddingMode] = useState<"local" | "cloud">("cloud");
   const [llmMode, setLlmMode] = useState<"local" | "cloud">("cloud");
   const [provider, setProvider] = useState("siliconflow");
   const [apiBaseUrl, setApiBaseUrl] = useState("https://api.siliconflow.cn/v1");
   const [apiKey, setApiKey] = useState("");
   const [chatModel, setChatModel] = useState("deepseek-ai/DeepSeek-V3");
+
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
   const [bgSmartActive, setBgSmartActive] = useState(true);
+
+  // Models State
+  const [models, setModels] = useState<ModelItem[]>([]);
+  const pollTimerRef = useRef<any>(null);
 
   useEffect(() => {
     loadSettings();
+    loadModels();
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
   }, []);
 
   const loadSettings = async () => {
     try {
-      const data = await fetchSettings();
-      setSettings(data);
-      if (data.chatProvider) setProvider(data.chatProvider);
-      if (data.apiBaseUrl) setApiBaseUrl(data.apiBaseUrl);
-      if (data.apiKey) setApiKey(data.apiKey);
-      if (data.chatModel) setChatModel(data.chatModel);
-      if (data.embeddingProvider === "openai-compatible") setEmbeddingMode("cloud");
+      const data = await fetchAppSettings();
+      if (data) {
+        if (data.chatProvider) setProvider(data.chatProvider);
+        if (data.apiBaseUrl) setApiBaseUrl(data.apiBaseUrl);
+        if (data.apiKey) setApiKey(data.apiKey);
+        if (data.chatModel) setChatModel(data.chatModel);
+        if (data.embeddingMode) setEmbeddingMode(data.embeddingMode);
+        if (data.llmMode) setLlmMode(data.llmMode);
+      }
     } catch (err) {
       console.error("Failed to load settings", err);
+    }
+  };
+
+  const loadModels = async () => {
+    try {
+      const res = await getModelStatuses();
+      if (res && res.models) {
+        setModels(res.models);
+
+        const anyDownloading = res.models.some((m) => m.isDownloading);
+        if (anyDownloading) {
+          if (!pollTimerRef.current) {
+            pollTimerRef.current = setInterval(async () => {
+              const updated = await getModelStatuses();
+              if (updated && updated.models) {
+                setModels(updated.models);
+                if (!updated.models.some((m) => m.isDownloading)) {
+                  clearInterval(pollTimerRef.current);
+                  pollTimerRef.current = null;
+                }
+              }
+            }, 800);
+          }
+        } else {
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load model statuses", err);
+    }
+  };
+
+  const handleDownload = async (modelId: string) => {
+    try {
+      const res = await downloadModel(modelId);
+      if (res.success) {
+        await loadModels();
+      } else {
+        alert("下载失败: " + res.message);
+      }
+    } catch (err: any) {
+      alert("下载错误: " + err.message);
+    }
+  };
+
+  const handleDeleteModel = async (modelId: string) => {
+    if (!confirm("确定要删除此本地模型文件吗？")) return;
+    try {
+      const res = await deleteModelById(modelId);
+      if (res.success) {
+        await loadModels();
+      } else {
+        alert("删除失败: " + res.message);
+      }
+    } catch (err: any) {
+      alert("删除错误: " + err.message);
     }
   };
 
@@ -71,20 +160,66 @@ export const NowledgeSettingsView: React.FC = () => {
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      await updateSettings({
+      await saveAppSettings({
         chatProvider: provider,
         apiBaseUrl,
         apiKey,
         chatModel,
-        embeddingProvider: embeddingMode === "cloud" ? "openai-compatible" : "local",
+        llmMode,
+        embeddingMode,
+        embeddingProvider: embeddingMode === "cloud" ? "openai-compatible" : "ollama",
       });
-      alert("设置已保存并即时生效！");
+      setSaveToast("✓ API Key 与配置已永久保存！重启软件将自动加载生效。");
+      setTimeout(() => setSaveToast(null), 4000);
       await loadSettings();
     } catch (err: any) {
       alert("保存失败: " + err.message);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSwitchEmbeddingMode = async (mode: "local" | "cloud") => {
+    setEmbeddingMode(mode);
+    try {
+      await saveAppSettings({ embeddingMode: mode });
+    } catch {}
+  };
+
+  const handleSwitchLlmMode = async (mode: "local" | "cloud") => {
+    setLlmMode(mode);
+    try {
+      await saveAppSettings({ llmMode: mode });
+    } catch {}
+  };
+
+  // Find model items
+  const qwenModel = models.find((m) => m.id === "embedding_qwen") || {
+    id: "embedding_qwen",
+    name: "Qwen3-Embedding-0.6B Q4_K_M (Imatrix)",
+    type: "embedding",
+    category: "搜索与增强",
+    sizeText: "396.0 MB",
+    isDownloaded: false,
+    isDownloading: false,
+    progress: 0,
+    speed: "",
+    downloadedBytes: 0,
+    totalBytes: 396 * 1024 * 1024,
+  };
+
+  const gemmaModel = models.find((m) => m.id === "llm_gemma") || {
+    id: "llm_gemma",
+    name: "Gemma-4 E2B IT UD-Q4_K_XL + vision projector",
+    type: "llm",
+    category: "在设备上驱动搜索、实体提取与记忆提炼",
+    sizeText: "3.9 GB",
+    isDownloaded: false,
+    isDownloading: false,
+    progress: 0,
+    speed: "",
+    downloadedBytes: 0,
+    totalBytes: 1.6 * 1024 * 1024 * 1024,
   };
 
   return (
@@ -170,6 +305,27 @@ export const NowledgeSettingsView: React.FC = () => {
 
       {/* Settings Main Content Area */}
       <div className="nl-settings-content">
+        {/* Save Toast Notification */}
+        {saveToast && (
+          <div
+            style={{
+              padding: "10px 16px",
+              marginBottom: 16,
+              borderRadius: 8,
+              background: "rgba(16, 185, 129, 0.15)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+              color: "#10b981",
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span>💾</span>
+            <span>{saveToast}</span>
+          </div>
+        )}
+
         {/* 1. 模型 (Models) Tab (Screenshot 1) */}
         {activeSubTab === "models" && (
           <div className="nl-set-panel">
@@ -191,7 +347,7 @@ export const NowledgeSettingsView: React.FC = () => {
 
             {/* Model Cards Grid */}
             <div className="nl-model-cards-grid">
-              {/* Card 1: 索引模型 */}
+              {/* Card 1: 索引模型 (方案 A: 真实轻量本地嵌入) */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
@@ -199,27 +355,72 @@ export const NowledgeSettingsView: React.FC = () => {
                     <h3>索引模型</h3>
                   </div>
                   <div className="nl-model-status-pills">
-                    <span className="nl-status-green">● 已安装</span>
-                    <span className="nl-status-blue">● 已验证</span>
+                    {qwenModel.isDownloaded ? (
+                      <>
+                        <span className="nl-status-green">● 已安装</span>
+                        <span className="nl-status-blue">● 已验证</span>
+                      </>
+                    ) : qwenModel.isDownloading ? (
+                      <span className="nl-status-blue">● 下载中 {qwenModel.progress}%</span>
+                    ) : (
+                      <span className="nl-status-gray">● 未安装</span>
+                    )}
                   </div>
                 </div>
-                <div className="nl-model-box-sub">搜索与增强</div>
+                <div className="nl-model-box-sub">{qwenModel.category}</div>
                 <div className="nl-model-meta-grid">
                   <div className="nl-meta-col">
                     <span className="nl-lbl">模型:</span>
-                    <span className="nl-val">Qwen3-Embedding-0.6B Q4_K_M (Imatrix)</span>
+                    <span className="nl-val">{qwenModel.name}</span>
                   </div>
                   <div className="nl-meta-col">
                     <span className="nl-lbl">大小:</span>
-                    <span className="nl-val">396.0 MB</span>
+                    <span className="nl-val">{qwenModel.sizeText}</span>
                   </div>
                 </div>
+
+                {/* Progress bar if downloading */}
+                {qwenModel.isDownloading && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+                      <span>下载进度: {qwenModel.progress}%</span>
+                      <span>{qwenModel.speed}</span>
+                    </div>
+                    <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${qwenModel.progress}%`, height: "100%", background: "#3b82f6", transition: "width 0.3s ease" }}></div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="nl-model-box-footer">
-                  <button className="nl-btn-downloaded">✓ 已下载</button>
+                  {qwenModel.isDownloaded ? (
+                    <div style={{ display: "flex", width: "100%", gap: 8 }}>
+                      <button className="nl-btn-downloaded" style={{ flex: 1 }}>
+                        ✓ 已下载
+                      </button>
+                      <button
+                        className="nl-btn-secondary"
+                        style={{ padding: "0 10px", fontSize: 12 }}
+                        title="删除模型文件"
+                        onClick={() => handleDeleteModel("embedding_qwen")}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="nl-btn-secondary"
+                      style={{ width: "100%", justifyContent: "center" }}
+                      onClick={() => handleDownload("embedding_qwen")}
+                      disabled={qwenModel.isDownloading}
+                    >
+                      {qwenModel.isDownloading ? `⏬ 下载中 (${qwenModel.progress}%)` : `⬇ 下载 (${qwenModel.sizeText})`}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Card 2: 本地 LLM */}
+              {/* Card 2: 本地 LLM (方案 B: 真实本地 LLM 下载) */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
@@ -227,28 +428,72 @@ export const NowledgeSettingsView: React.FC = () => {
                     <h3>本地 LLM</h3>
                   </div>
                   <div className="nl-model-status-pills">
-                    <span className="nl-status-gray">● 未安装</span>
+                    {gemmaModel.isDownloaded ? (
+                      <>
+                        <span className="nl-status-green">● 已安装</span>
+                        <span className="nl-status-blue">● 已验证</span>
+                      </>
+                    ) : gemmaModel.isDownloading ? (
+                      <span className="nl-status-blue">● 下载中 {gemmaModel.progress}%</span>
+                    ) : (
+                      <span className="nl-status-gray">● 未安装</span>
+                    )}
                   </div>
                 </div>
-                <div className="nl-model-box-sub">在设备上驱动搜索、实体提取与记忆提炼</div>
+                <div className="nl-model-box-sub">{gemmaModel.category}</div>
                 <div className="nl-model-meta-grid">
                   <div className="nl-meta-col">
                     <span className="nl-lbl">模型:</span>
-                    <span className="nl-val">Gemma-4 E2B IT UD-Q4_K_XL + vision projector</span>
+                    <span className="nl-val">{gemmaModel.name}</span>
                   </div>
                   <div className="nl-meta-col">
                     <span className="nl-lbl">大小:</span>
-                    <span className="nl-val">3.9 GB</span>
+                    <span className="nl-val">{gemmaModel.sizeText}</span>
                   </div>
                 </div>
+
+                {/* Progress bar if downloading */}
+                {gemmaModel.isDownloading && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+                      <span>下载进度: {gemmaModel.progress}%</span>
+                      <span>{gemmaModel.speed}</span>
+                    </div>
+                    <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${gemmaModel.progress}%`, height: "100%", background: "#10b981", transition: "width 0.3s ease" }}></div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="nl-model-box-footer">
-                  <button className="nl-btn-secondary" style={{ width: "100%", justifyContent: "center" }}>
-                    ⬇ 下载
-                  </button>
+                  {gemmaModel.isDownloaded ? (
+                    <div style={{ display: "flex", width: "100%", gap: 8 }}>
+                      <button className="nl-btn-downloaded" style={{ flex: 1 }}>
+                        ✓ 已下载
+                      </button>
+                      <button
+                        className="nl-btn-secondary"
+                        style={{ padding: "0 10px", fontSize: 12 }}
+                        title="删除模型文件"
+                        onClick={() => handleDeleteModel("llm_gemma")}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="nl-btn-secondary"
+                      style={{ width: "100%", justifyContent: "center" }}
+                      onClick={() => handleDownload("llm_gemma")}
+                      disabled={gemmaModel.isDownloading}
+                    >
+                      {gemmaModel.isDownloading ? `⏬ 下载中 (${gemmaModel.progress}%)` : `⬇ 下载 (${gemmaModel.sizeText})`}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Card 3: 索引模型服务商 */}
+              {/* Card 3: 索引模型服务商 (本地 vs 云端 切换) */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
@@ -264,13 +509,13 @@ export const NowledgeSettingsView: React.FC = () => {
                   <div className="nl-mode-switch">
                     <button
                       className={`nl-mode-btn ${embeddingMode === "local" ? "active" : ""}`}
-                      onClick={() => setEmbeddingMode("local")}
+                      onClick={() => handleSwitchEmbeddingMode("local")}
                     >
                       本地
                     </button>
                     <button
                       className={`nl-mode-btn ${embeddingMode === "cloud" ? "active" : ""}`}
-                      onClick={() => setEmbeddingMode("cloud")}
+                      onClick={() => handleSwitchEmbeddingMode("cloud")}
                     >
                       云端
                     </button>
@@ -278,12 +523,12 @@ export const NowledgeSettingsView: React.FC = () => {
                 </div>
                 <div className="nl-model-box-footer">
                   <span className="nl-status-current">
-                    ✓ 当前 <strong>{embeddingMode === "local" ? "本地搜索 索引模型" : "云端 BAAI/bge-m3"}</strong>
+                    ✓ 当前 <strong>{embeddingMode === "local" ? "本地 Qwen 索引模型 / FTS" : `云端 (${provider})`}</strong>
                   </span>
                 </div>
               </div>
 
-              {/* Card 4: LLM 服务商 */}
+              {/* Card 4: LLM 服务商 (本地 vs 云端 切换) */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
@@ -299,20 +544,22 @@ export const NowledgeSettingsView: React.FC = () => {
                   <div className="nl-mode-switch">
                     <button
                       className={`nl-mode-btn ${llmMode === "local" ? "active" : ""}`}
-                      onClick={() => setLlmMode("local")}
+                      onClick={() => handleSwitchLlmMode("local")}
                     >
                       本地
                     </button>
                     <button
                       className={`nl-mode-btn ${llmMode === "cloud" ? "active" : ""}`}
-                      onClick={() => setLlmMode("cloud")}
+                      onClick={() => handleSwitchLlmMode("cloud")}
                     >
                       云端
                     </button>
                   </div>
                 </div>
                 <div className="nl-warning-callout">
-                  ⚠️ 在 Windows 上，内置本地 LLM 目前默认走 CPU，可能会比较慢，也容易让设备发热。当前更推荐使用远程 LLM。
+                  {llmMode === "local"
+                    ? "● 当前使用本地离线 LLM 模型处理实体抽取。"
+                    : `● 当前使用云端 ${provider} 驱动实体提炼与对话分析。`}
                 </div>
               </div>
             </div>
@@ -337,10 +584,9 @@ export const NowledgeSettingsView: React.FC = () => {
           </div>
         )}
 
-        {/* 2. 智能处理 (Smart Processing) Tab (Screenshot 2) */}
+        {/* 2. 智能处理 (Smart Processing) Tab */}
         {activeSubTab === "smart-processing" && (
           <div className="nl-set-panel">
-            {/* Header with Switch */}
             <div className="nl-smart-header-card">
               <div className="nl-smart-title-wrap">
                 <span style={{ fontSize: 20 }}>❇️</span>
@@ -362,7 +608,6 @@ export const NowledgeSettingsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Background Work Status */}
             <div className="nl-card" style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <h3 style={{ fontSize: 14 }}>后台工作</h3>
@@ -372,88 +617,6 @@ export const NowledgeSettingsView: React.FC = () => {
                 当前没有任务在运行。新记忆、同步对话或定时计划需要处理时，会自动开始后台工作。
               </p>
             </div>
-
-            {/* AI Token Usage Overview */}
-            <div className="nl-card" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div>
-                  <h3 style={{ fontSize: 14 }}>AI 用量总览</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
-                    统计这台设备上的 Mem 实例上报的模型 token，并区分自动任务和你主动打开的 AI。限额只会暂停自动任务。
-                  </p>
-                </div>
-                <button className="nl-btn-secondary" style={{ fontSize: 11, padding: "4px 8px" }}>
-                  编辑限额
-                </button>
-              </div>
-
-              <div className="nl-usage-stats-grid">
-                <div className="nl-usage-col">
-                  <span className="nl-usage-lbl">本月</span>
-                  <span className="nl-usage-num">0 tokens</span>
-                  <span className="nl-usage-sub">自动 0 · 你打开的 AI 0</span>
-                </div>
-                <div className="nl-usage-col">
-                  <span className="nl-usage-lbl">总是 · 24 小时</span>
-                  <span className="nl-usage-num">0 tokens</span>
-                  <span className="nl-usage-sub">自动 0 · 你打开的 AI 0</span>
-                </div>
-                <div className="nl-usage-col">
-                  <span className="nl-usage-lbl">总是 · 1 小时</span>
-                  <span className="nl-usage-num">0 tokens</span>
-                  <span className="nl-usage-sub">自动 0 · 你打开的 AI 0</span>
-                </div>
-                <div className="nl-usage-col">
-                  <span className="nl-usage-lbl">主要消耗来源</span>
-                  <span className="nl-usage-sub" style={{ marginTop: 8 }}>还没有记录到模型调用</span>
-                </div>
-              </div>
-
-              {/* Progress Bars */}
-              <div className="nl-progress-group">
-                <div className="nl-progress-row">
-                  <span>本小时</span>
-                  <span>0 / 5.0M</span>
-                </div>
-                <div className="nl-progress-bar"><div className="nl-progress-fill" style={{ width: "0%" }}></div></div>
-              </div>
-
-              <div className="nl-progress-group">
-                <div className="nl-progress-row">
-                  <span>24 小时</span>
-                  <span>0 / 10M</span>
-                </div>
-                <div className="nl-progress-bar"><div className="nl-progress-fill" style={{ width: "0%" }}></div></div>
-              </div>
-            </div>
-
-            {/* Run History List */}
-            <div className="nl-card" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <h3 style={{ fontSize: 14 }}>运行历史</h3>
-                <span style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>查看 14 次运行 ▾</span>
-              </div>
-
-              <div className="nl-history-list">
-                {[
-                  { name: "技能维护", time: "38分钟前", status: "已完成 · 未使用 AI" },
-                  { name: "标签整合", time: "38分钟前", status: "已完成 · 未使用 AI" },
-                  { name: "Wiki Summary Writing", time: "38分钟前", status: "已跳过 · 无可处理内容" },
-                  { name: "知识图谱同构", time: "38分钟前", status: "已完成 · 未使用 AI" },
-                  { name: "Wiki 主题检测", time: "38分钟前", status: "已完成 · 未使用 AI" },
-                ].map((item, idx) => (
-                  <div key={idx} className="nl-history-row">
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
-                        {item.time} · {item.status}
-                      </div>
-                    </div>
-                    <span className="nl-tag-pill">未使用 AI ▾</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
@@ -461,7 +624,7 @@ export const NowledgeSettingsView: React.FC = () => {
         {activeSubTab === "providers" && (
           <div className="nl-set-panel">
             <h2>AI 服务商与 API 秘钥配置</h2>
-            <p className="nl-set-desc">配置云端兼容 API（如硅基流动、DeepSeek、OpenAI、Gemini 等）。</p>
+            <p className="nl-set-desc">配置云端兼容 API（如硅基流动、DeepSeek、OpenAI、Gemini 等）。输入并保存后将永久保存在软件中，无需每次重复输入。</p>
 
             <div className="nl-card" style={{ marginTop: 16 }}>
               <div className="nl-form-group" style={{ marginBottom: 14 }}>
@@ -480,14 +643,37 @@ export const NowledgeSettingsView: React.FC = () => {
                     } else if (p === "openai") {
                       setApiBaseUrl("https://api.openai.com/v1");
                       setChatModel("gpt-4o-mini");
+                    } else if (p === "gemini") {
+                      setApiBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai");
+                      setChatModel("gemini-1.5-flash");
+                    } else if (p === "groq") {
+                      setApiBaseUrl("https://api.groq.com/openai/v1");
+                      setChatModel("llama-3.3-70b-versatile");
+                    } else if (p === "ollama") {
+                      setApiBaseUrl("http://localhost:11434/v1");
+                      setChatModel("qwen2.5:3b");
                     }
                   }}
+                  className="nl-input"
                 >
-                  <option value="siliconflow">硅基流动 (SiliconFlow) - 推荐</option>
+                  <option value="siliconflow">SiliconFlow (硅基流动 - 推荐/含免费额度)</option>
                   <option value="deepseek">DeepSeek 官方 API</option>
-                  <option value="openai">OpenAI 官方</option>
-                  <option value="custom">自定义 (OpenAI 兼容)</option>
+                  <option value="openai">OpenAI 官方 (GPT-4o-mini)</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="groq">Groq Cloud (超快推理)</option>
+                  <option value="ollama">Ollama (本地离线)</option>
                 </select>
+              </div>
+
+              <div className="nl-form-group" style={{ marginBottom: 14 }}>
+                <label>API Key / 秘钥 (填写后永久保存在本地)</label>
+                <input
+                  type="password"
+                  placeholder="sk-..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="nl-input"
+                />
               </div>
 
               <div className="nl-form-group" style={{ marginBottom: 14 }}>
@@ -496,29 +682,21 @@ export const NowledgeSettingsView: React.FC = () => {
                   type="text"
                   value={apiBaseUrl}
                   onChange={(e) => setApiBaseUrl(e.target.value)}
+                  className="nl-input"
                 />
               </div>
 
-              <div className="nl-form-group" style={{ marginBottom: 14 }}>
-                <label>API Key</label>
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-              </div>
-
-              <div className="nl-form-group" style={{ marginBottom: 16 }}>
-                <label>Chat 模型名称</label>
+              <div className="nl-form-group" style={{ marginBottom: 20 }}>
+                <label>模型名称 (Chat Model)</label>
                 <input
                   type="text"
                   value={chatModel}
                   onChange={(e) => setChatModel(e.target.value)}
+                  className="nl-input"
                 />
               </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 12 }}>
                 <button
                   className="nl-btn-secondary"
                   onClick={handleTestConnection}
@@ -531,20 +709,37 @@ export const NowledgeSettingsView: React.FC = () => {
                   onClick={handleSaveSettings}
                   disabled={isSaving}
                 >
-                  {isSaving ? "保存中..." : "保存设置"}
+                  {isSaving ? "保存中..." : "保存设置 (永久持久化)"}
                 </button>
               </div>
+
+              {testResult && (
+                <div
+                  className={`nl-test-banner ${testResult.success ? "success" : "error"}`}
+                  style={{ marginTop: 14 }}
+                >
+                  {testResult.success ? "✓ " : "✕ "} {testResult.message}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Other Tabs Placeholder */}
-        {["profile", "migration", "remote", "team", "preferences", "license", "about"].includes(activeSubTab) && (
+        {/* Other Tabs */}
+        {activeSubTab === "profile" && (
           <div className="nl-set-panel">
-            <h2>{activeSubTab.toUpperCase()}</h2>
-            <div className="nl-card" style={{ marginTop: 16 }}>
-              <p style={{ color: "var(--nl-text-muted)" }}>本地实例运行正常，数据全加密保存在本地 SQLite 中。</p>
-            </div>
+            <h2>个人资料</h2>
+            <p className="nl-set-desc">本地设备实例 ID: CM-{Math.random().toString(36).slice(2, 8).toUpperCase()}</p>
+          </div>
+        )}
+
+        {activeSubTab === "about" && (
+          <div className="nl-set-panel">
+            <h2>关于 ChronosMind</h2>
+            <p className="nl-set-desc">版本: v1.6.3 (Native Windows Desktop Engine)</p>
+            <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 8 }}>
+              ChronosMind 是一个面向跨 IDE 与 AI 工具的本地连续记忆与知识图谱工作台，支持无缝连接 Antigravity、Cursor、Claude、Gemini CLI 等生态。
+            </p>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { logger } from "./logger";
 
 export type ChatProvider =
@@ -75,7 +76,7 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     label: "Ollama (本地离线)",
     chatBaseUrl: "http://localhost:11434/v1",
     embeddingBaseUrl: "http://localhost:11434",
-    defaultChatModel: "llama3.1:8b",
+    defaultChatModel: "qwen2.5:3b",
     defaultEmbeddingModel: "nomic-embed-text",
     description: "完全本地离线运行（需安装并启动 Ollama）",
   },
@@ -87,6 +88,7 @@ export interface Settings {
   apiBaseUrl?: string;
   apiKey?: string;
   chatModel?: string;
+  llmMode?: "local" | "cloud";
 
   // Vector Embedding Configuration
   embeddingProvider?: EmbeddingProvider;
@@ -94,6 +96,7 @@ export interface Settings {
   embeddingApiKey?: string;
   embeddingModel?: string;
   embeddingDimension?: number;
+  embeddingMode?: "local" | "cloud";
 
   // Context retrieval mode
   contextMode?: "raw" | "summarized";
@@ -103,7 +106,21 @@ export interface Settings {
   ollamaExtractionModel?: string;
 }
 
-const SETTINGS_PATH = path.join(process.cwd(), "ArcRift-settings.json");
+// Canonical settings file paths (checked in order)
+function getSettingsFilePaths(): string[] {
+  const home = os.homedir();
+  const chronosDir = path.join(home, ".chronosmind");
+  if (!fs.existsSync(chronosDir)) {
+    try { fs.mkdirSync(chronosDir, { recursive: true }); } catch {}
+  }
+
+  return [
+    path.join(chronosDir, "settings.json"),
+    path.resolve(__dirname, "../../ArcRift-settings.json"),
+    path.resolve(__dirname, "../ArcRift-settings.json"),
+    path.join(process.cwd(), "ArcRift-settings.json"),
+  ];
+}
 
 let cachedSettings: Settings | null = null;
 
@@ -131,14 +148,19 @@ export function getSettings(): Settings {
   if (cachedSettings) return cachedSettings;
 
   let fileSettings: Partial<Settings> = {};
-  try {
-    if (fs.existsSync(SETTINGS_PATH)) {
-      const data = fs.readFileSync(SETTINGS_PATH, "utf-8");
-      fileSettings = JSON.parse(data);
-      logger.info(`[ArcRift] Settings loaded from ${SETTINGS_PATH}`);
-    }
-  } catch (err: any) {
-    logger.error(`[ArcRift] Failed to read settings file: ${err.message}`);
+  const paths = getSettingsFilePaths();
+
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, "utf-8");
+        if (raw.trim()) {
+          fileSettings = JSON.parse(raw);
+          logger.info(`[ChronosMind] Settings loaded from ${p}`);
+          break;
+        }
+      }
+    } catch {}
   }
 
   const chatProvider = fileSettings.chatProvider || detectDefaultChatProvider();
@@ -205,24 +227,26 @@ export function getSettings(): Settings {
     embeddingPreset.defaultEmbeddingModel ||
     "BAAI/bge-large-zh-v1.5";
 
-  // Resolve Context Mode
-  const contextMode =
-    fileSettings.contextMode ||
-    ((process.env.CONTEXT_MODE as "raw" | "summarized") || "raw");
+  // Context mode
+  const contextMode = (fileSettings.contextMode || process.env.CONTEXT_MODE || "raw") as
+    | "raw"
+    | "summarized";
 
   cachedSettings = {
     chatProvider,
     apiBaseUrl,
     apiKey,
     chatModel,
+    llmMode: fileSettings.llmMode || "cloud",
     embeddingProvider,
     embeddingBaseUrl,
     embeddingApiKey,
     embeddingModel,
     embeddingDimension: fileSettings.embeddingDimension || (embeddingModel.includes("bge-m3") ? 1024 : 768),
+    embeddingMode: fileSettings.embeddingMode || "cloud",
     contextMode,
     ollamaEmbeddingModel: fileSettings.ollamaEmbeddingModel || process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text",
-    ollamaExtractionModel: fileSettings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "llama3.1:8b",
+    ollamaExtractionModel: fileSettings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "qwen2.5:3b",
   };
 
   return cachedSettings;
@@ -241,12 +265,19 @@ export function updateSettings(settings: Partial<Settings>): Settings {
   }
 
   cachedSettings = updated;
-  try {
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(updated, null, 2), "utf-8");
-    logger.success(`[ArcRift] Settings updated at ${SETTINGS_PATH}`);
-  } catch (err: any) {
-    logger.error(`[ArcRift] Failed to write settings file: ${err.message}`);
+  const paths = getSettingsFilePaths();
+
+  for (const p of paths) {
+    try {
+      const dir = path.dirname(p);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(p, JSON.stringify(updated, null, 2), "utf-8");
+      logger.success(`[ChronosMind] Settings permanently written to ${p}`);
+    } catch (err: any) {
+      logger.error(`[ChronosMind] Failed to write settings to ${p}: ${err.message}`);
+    }
   }
+
   return updated;
 }
 

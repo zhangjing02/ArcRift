@@ -387,3 +387,60 @@ For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-17T09:06:53.902Z] Starting ChronosMind Electron main.js...
+[2026-08-17T09:06:53.906Z] Registering app lifecycle events...
+[2026-08-17T09:06:54.260Z] app.whenReady fired!
+[2026-08-17T09:06:54.316Z] Creating BrowserWindow...
+[2026-08-17T09:06:54.536Z] Backend already active on port 3001! Loading window.
+[2026-08-17T09:06:54.537Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-17T09:06:54.898Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-17T09:06:54.899Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-17T09:06:54.901Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-17T09:06:59.504Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-17T09:07:00.613Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-17T09:43:35.729Z] Starting ChronosMind Electron main.js...
+[2026-08-17T09:43:35.739Z] Registering app lifecycle events...
+[2026-08-17T09:43:35.926Z] app.whenReady fired!
+[2026-08-17T09:43:35.953Z] Creating BrowserWindow...
+[2026-08-17T09:43:36.294Z] Backend not active, starting new instance...
+[2026-08-17T09:43:36.297Z] Spawning backend: node "d:\Devs\ArcRift\backend\dist\index.js" (cwd: d:\Devs\ArcRift\backend)
+[2026-08-17T09:44:00.672Z] Starting ChronosMind Electron main.js...
+[2026-08-17T09:44:00.680Z] Registering app lifecycle events...
+[2026-08-17T09:44:00.843Z] app.whenReady fired!
+[2026-08-17T09:44:00.856Z] Creating BrowserWindow...
+[2026-08-17T09:44:01.048Z] Backend not active, starting new instance...
+[2026-08-17T09:44:01.051Z] Spawning backend: node "d:\Devs\ArcRift\backend\dist\index.js" (cwd: d:\Devs\ArcRift\backend)
+[2026-08-17T09:44:03.858Z] Backend ready on attempt 6. Loading frontend.
+[2026-08-17T09:44:03.860Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-17T09:44:07.370Z] [Backend OUT] {"level":30,"time":1786959847366,"pid":42648,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+[2026-08-17T09:44:07.384Z] [Backend OUT] ◇ injected env (10) from .env // tip: ⌘ override existing { override: true }
+[2026-08-17T09:44:07.455Z] [Backend OUT] {"level":30,"time":1786959847368,"pid":42648,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786959847372,"pid":42648,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786959847423,"pid":42648,"hostname":"het-user002","success":true,"msg":"[ArcRift] Dashboard served from production build: \u001b[1;96mhttp://localhost:3001\u001b[0m"}
+{"level":30,"time":1786959847423,"pid":42648,"hostname":"het-user002","msg":"Initializing ArcRift in SQLITE mode (Zero-Docker)"}
+{"level":30,"time":1786959847429,"pid":42648,"hostname":"het-user002","success":true,"msg":"sqlite-vec extension loaded"}
+{"level":30,"time":1786959847429,"pid":42648,"hostname":"het-user002","success":true,"msg":"SQLite initialized at d:\\Devs\\ArcRift\\backend\\ArcRift.db"}
+{"level":30,"time":1786959847429,"pid":42648,"hostname":"het-user002","success":true,"msg":"All SQLite tables initialized successfully"}
+{"level":30,"time":1786959847433,"pid":42648,"hostname":"het-user002","msg":"Auto-backup service started (checks every 12h)"}
+{"level":30,"time":1786959847434,"pid":42648,"hostname":"het-user002","msg":"[Job Queue] Cleaning up ghost jobs from previous run..."}
+{"level":30,"time":1786959847435,"pid":42648,"hostname":"het-user002","msg":"[Job Queue] Background worker started."}
+{"level":30,"time":1786959847449,"pid":42648,"hostname":"het-user002","success":true,"msg":"ArcRift backend running on port \u001b[1;96m3001\u001b[0m"}
+[2026-08-17T09:44:07.456Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-17T09:44:07.461Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-17T09:44:09.211Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-17T09:44:09.213Z] loadURL error: Error:  (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-17T09:44:11.496Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)

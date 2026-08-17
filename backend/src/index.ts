@@ -22,6 +22,7 @@ import settingsRoutes from "./routes/settings";
 import memoriesRoutes from "./routes/memories";
 import workingMemoryRoutes from "./routes/workingMemory";
 import toolsRoutes from "./routes/tools";
+import modelsRoutes from "./routes/models";
 
 
 // ── #9: .env validation — fail fast with a clear message ──────────
@@ -127,6 +128,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/memories", memoriesRoutes);
 app.use("/api/working-memory", workingMemoryRoutes);
 app.use("/api/tools", toolsRoutes);
+app.use("/api/models", modelsRoutes);
 
 // Health check — includes service status
 app.get("/health", (_req, res) => {
