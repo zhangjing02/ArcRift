@@ -1,14 +1,24 @@
-import React, { useState, useEffect } from "react";
-import type { Session, Memory } from "../../types";
-import { fetchMemories, createMemory } from "../../api/ArcRift";
+import React, { useState, useEffect, useRef } from "react";
+import * as d3 from "d3";
+import type { Session, Memory, GraphData } from "../../types";
+import {
+  fetchMemories,
+  createMemory,
+  getGraphData,
+  getFullChat,
+} from "../../api/ArcRift";
 
 interface TimelineViewProps {
   activeSession?: Session;
+  sessions?: Session[];
+  onSessionSelect?: (session: Session) => void;
   onNavigateTab: (tab: string) => void;
 }
 
 export const TimelineView: React.FC<TimelineViewProps> = ({
   activeSession,
+  sessions = [],
+  onSessionSelect,
   onNavigateTab,
 }) => {
   const [quickText, setQuickText] = useState("");
@@ -18,9 +28,18 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const [memories, setMemories] = useState<Memory[]>([]);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionGraph, setSessionGraph] = useState<GraphData>({ nodes: [], links: [] });
+  const [fullChatText, setFullChatText] = useState<string | null>(null);
+  const [showFullChat, setShowFullChat] = useState(false);
+  const [isDistilling, setIsDistilling] = useState(false);
+
+  const miniSvgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     loadMemories();
+    if (activeSession?._id) {
+      loadSessionDetails(activeSession._id);
+    }
   }, [activeSession?._id]);
 
   const loadMemories = async () => {
@@ -33,6 +52,83 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       console.error("Failed to load memories for timeline", err);
     }
   };
+
+  const loadSessionDetails = async (sessionId: string) => {
+    try {
+      const g = await getGraphData(sessionId);
+      setSessionGraph(g as GraphData);
+      const chat = await getFullChat(sessionId);
+      setFullChatText(chat?.rawText || null);
+    } catch (err) {
+      console.error("Failed to load session details", err);
+    }
+  };
+
+  // Render Mini D3 Graph in Right Inspector
+  useEffect(() => {
+    if (!miniSvgRef.current || sessionGraph.nodes.length === 0) return;
+
+    const width = 320;
+    const height = 140;
+
+    const svg = d3.select(miniSvgRef.current);
+    svg.selectAll("*").remove();
+
+    svg.attr("viewBox", [0, 0, width, height] as any);
+
+    const nodes = sessionGraph.nodes.slice(0, 10).map((d: any) => ({ ...d }));
+    const links = sessionGraph.links.slice(0, 12).map((d: any) => ({ ...d }));
+
+    const simulation = d3
+      .forceSimulation(nodes as any)
+      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(45))
+      .force("charge", d3.forceManyBody().strength(-80))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(18));
+
+    const link = svg
+      .append("g")
+      .attr("stroke", "rgba(56, 189, 248, 0.3)")
+      .attr("stroke-width", 1.5)
+      .selectAll("line")
+      .data(links)
+      .join("line");
+
+    const node = svg
+      .append("g")
+      .selectAll("g")
+      .data(nodes)
+      .join("g");
+
+    node
+      .append("circle")
+      .attr("r", 7)
+      .attr("fill", (d: any) => (d.type === "Tech" ? "#10b981" : d.type === "Decision" ? "#38bdf8" : "#c084fc"))
+      .attr("stroke", "#ffffff")
+      .attr("stroke-width", 1);
+
+    node
+      .append("text")
+      .attr("dx", 10)
+      .attr("dy", 3)
+      .attr("fill", "#94a3b8")
+      .attr("font-size", "9px")
+      .text((d: any) => (d.id.length > 8 ? d.id.slice(0, 8) + "…" : d.id));
+
+    simulation.on("tick", () => {
+      link
+        .attr("x1", (d: any) => d.source.x)
+        .attr("y1", (d: any) => d.source.y)
+        .attr("x2", (d: any) => d.target.x)
+        .attr("y2", (d: any) => d.target.y);
+
+      node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+    });
+
+    return () => {
+      simulation.stop();
+    };
+  }, [sessionGraph, selectedItem]);
 
   const handleQuickSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,32 +153,71 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     }
   };
 
-  // Build combined timeline items (Sessions + Memories + Events)
+  // Automatically distill session into long-term memories
+  const handleDistillMemories = async () => {
+    if (!activeSession || isDistilling) return;
+    setIsDistilling(true);
+    try {
+      // Split summary paragraphs into high-signal memory crystal cards
+      const summaryText = activeSession.summary || "";
+      const sections = summaryText.split(/##\s+/).filter(Boolean);
+
+      for (const sec of sections) {
+        const lines = sec.trim().split("\n");
+        const title = lines[0].replace(/^[0-9.\s]+/, "").trim();
+        const content = lines.slice(1).join("\n").trim();
+        if (title && content) {
+          await createMemory({
+            sessionId: activeSession._id,
+            title: title.slice(0, 40),
+            content,
+            importance: "critical",
+            category: title.includes("接口") ? "Architecture" : title.includes("错误码") ? "Gotcha" : "Decision",
+            tags: [activeSession.projectName, "OTA", "Android"],
+            source: "distillation",
+          });
+        }
+      }
+
+      await loadMemories();
+      alert(`已成功为《${activeSession.projectName}》提炼沉淀了 ${sections.length} 条结构化长期记忆！`);
+      onNavigateTab("memories");
+    } catch (err) {
+      console.error("Failed to distill memories", err);
+    } finally {
+      setIsDistilling(false);
+    }
+  };
+
+  // Build combined timeline items from real sessions + memories
+  const currentSessions = sessions.length > 0 ? sessions : (activeSession ? [activeSession] : []);
+
   const timelineItems = [
-    ...(activeSession
-      ? [
-          {
-            id: `session_${activeSession._id}`,
-            type: "session_import",
-            badge: "会话已导入",
-            title: `已从 ${activeSession.platform || "antigravity"} 保存 1 个会话`,
-            subtitle: "现在就能搜索。 安排第一批记忆",
-            time: "15:23",
-            source: activeSession.platform || "antigravity",
-            messageCount: activeSession.topicCount || 4,
-            importedCount: 1,
-            content: activeSession.summary || "原始会话已就绪，支持向量与全文检索。",
-          },
-        ]
-      : []),
+    ...currentSessions.map((s) => ({
+      id: `session_${s._id}`,
+      type: "session_import",
+      badge: "会话已导入",
+      rawSession: s,
+      title: `《${s.projectName}》会话已导入`,
+      subtitle: s.summary
+        ? s.summary.replace(/[#*`\n]/g, " ").slice(0, 110) + "..."
+        : `已从 ${s.platform || "MCP"} 捕获会话，提取了 ${s.tripleCount || 0} 个知识三元组。`,
+      time: s.createdAt
+        ? new Date(s.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : "刚刚",
+      source: s.platform || "Antigravity",
+      messageCount: s.topicCount || 1,
+      importedCount: 1,
+      content: s.summary || "原始会话已就绪，支持向量与全文检索。",
+    })),
     ...memories.map((m) => ({
-      id: m.id,
+      id: `mem_${m.id}`,
       type: "crystal",
       badge: m.importance === "critical" ? "💎 核心结晶" : "💡 知识记忆",
       title: m.title,
       subtitle: m.content.slice(0, 100) + (m.content.length > 100 ? "..." : ""),
       time: new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      source: m.source,
+      source: m.source || "手动记录",
       category: m.category,
       content: m.content,
       tags: m.tags,
@@ -96,6 +231,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     if (filterPill === "saved") return true;
     return true;
   });
+
+  // Default active selection to first item if none selected
+  const activeDetailItem = selectedItem || (filteredItems.length > 0 ? filteredItems[0] : null);
 
   return (
     <div className="nl-timeline-layout">
@@ -198,8 +336,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             filteredItems.map((item) => (
               <div
                 key={item.id}
-                className={`nl-feed-card ${selectedItem?.id === item.id ? "selected" : ""}`}
-                onClick={() => setSelectedItem(item)}
+                className={`nl-feed-card ${activeDetailItem?.id === item.id ? "selected" : ""}`}
+                onClick={() => {
+                  setSelectedItem(item);
+                  if ((item as any).rawSession && onSessionSelect) {
+                    onSessionSelect((item as any).rawSession);
+                  }
+                }}
               >
                 <div className="nl-card-indicator">
                   <span className="nl-dot"></span>
@@ -222,81 +365,112 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
       {/* Right Column: Context Inspector / Statistics Dashboard */}
       <div className="nl-inspector-column">
-        {selectedItem ? (
+        {activeDetailItem ? (
           <div className="nl-inspector-detail">
             <div className="nl-inspector-header">
               <span className="nl-inspector-label">详情</span>
-              <button
-                className="nl-close-btn"
-                onClick={() => setSelectedItem(null)}
-              >
-                ✕
-              </button>
+              <span className="nl-card-time">{activeDetailItem.time}</span>
             </div>
 
-            <h2 className="nl-detail-title">{selectedItem.title}</h2>
+            <h2 className="nl-detail-title">{activeDetailItem.title}</h2>
 
+            {/* Real Summary Markdown Box */}
             <div className="nl-detail-box">
-              <div className="nl-detail-box-badge">💬 {selectedItem.badge}</div>
-              <p className="nl-detail-box-text">
-                Mem 会先保存原始会话，所以你和你的 Agent 现在已经可以搜索它们。长期记忆提炼是可选操作；当你选择处理时，Mem 只会先从这个来源安排一个小批次。
-              </p>
+              <div className="nl-detail-box-badge">💬 {activeDetailItem.badge}</div>
+              <div className="nl-real-summary-markdown">
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "13px", lineHeight: "1.6", color: "#e2e8f0" }}>
+                  {activeDetailItem.content}
+                </pre>
+              </div>
             </div>
 
             {/* Metadata Table */}
             <div className="nl-metadata-table">
               <div className="nl-meta-row">
-                <span className="nl-meta-key">已导入</span>
-                <span className="nl-meta-val">{selectedItem.importedCount || 1}</span>
+                <span className="nl-meta-key">项目空间</span>
+                <span className="nl-meta-val" style={{ color: "#38bdf8", fontWeight: "bold" }}>
+                  {(activeDetailItem as any).rawSession?.projectName || activeSession?.projectName || "默认项目"}
+                </span>
               </div>
               <div className="nl-meta-row">
-                <span className="nl-meta-key">消息数</span>
-                <span className="nl-meta-val">{selectedItem.messageCount || 4}</span>
+                <span className="nl-meta-key">已导入会话</span>
+                <span className="nl-meta-val">{activeDetailItem.importedCount || 1} 条</span>
               </div>
               <div className="nl-meta-row">
-                <span className="nl-meta-key">来源</span>
-                <span className="nl-meta-val">{selectedItem.source || "antigravity"}</span>
+                <span className="nl-meta-key">图谱知识事实</span>
+                <span className="nl-meta-val" style={{ color: "#10b981" }}>
+                  {(activeDetailItem as any).rawSession?.tripleCount || sessionGraph.nodes.length || 0} 个实体三元组
+                </span>
+              </div>
+              <div className="nl-meta-row">
+                <span className="nl-meta-key">来源工具</span>
+                <span className="nl-meta-val">{activeDetailItem.source || "Antigravity"}</span>
               </div>
             </div>
 
+            {/* Action Buttons */}
             <div className="nl-detail-actions">
-              <div className="nl-action-tip">✓ 原始会话已经可以搜索。</div>
-              <div className="nl-action-tip">✓ 只把值得长期保留的事实、决策、流程和经验提炼成记忆。</div>
+              <div className="nl-action-tip">✓ 原始会话已建立向量索引，支持全文及语义检索。</div>
+              <div className="nl-action-tip">✓ 点击下方按钮可将本次讨论关键要点提炼为原子记忆卡片。</div>
               <button
                 className="nl-primary-action-btn"
-                onClick={() => onNavigateTab("memories")}
+                onClick={handleDistillMemories}
+                disabled={isDistilling}
               >
-                安排第一批记忆
+                {isDistilling ? "正在智能提炼..." : "✨ 安排第一批记忆 (提炼结晶)"}
               </button>
+
+              {fullChatText && (
+                <button
+                  className="nl-btn-secondary"
+                  style={{ width: "100%", marginTop: 8, justifyContent: "center" }}
+                  onClick={() => setShowFullChat(!showFullChat)}
+                >
+                  {showFullChat ? "收起原始会话正文" : "📄 查看原始对话文本"}
+                </button>
+              )}
             </div>
 
-            {/* Mini Knowledge Graph Preview */}
+            {/* Collapsible Full Chat Text */}
+            {showFullChat && fullChatText && (
+              <div className="nl-card" style={{ marginBottom: 16 }}>
+                <h4 style={{ fontSize: "12px", color: "var(--nl-text-muted)", marginBottom: 8 }}>原始对话记录</h4>
+                <pre className="nl-chat-transcript-text" style={{ maxHeight: "200px", fontSize: "12px" }}>
+                  {fullChatText}
+                </pre>
+              </div>
+            )}
+
+            {/* Real Interactive Mini Knowledge Graph */}
             <div className="nl-mini-graph-section">
               <div className="nl-mini-graph-header">
-                <span>知识图谱</span>
+                <span>知识图谱 ({sessionGraph.nodes.length} 节点)</span>
                 <button
                   className="nl-expand-link"
                   onClick={() => onNavigateTab("graph")}
                 >
-                  ⤢ 展开
+                  ⤢ 展开全图
                 </button>
               </div>
               <div className="nl-mini-graph-canvas">
-                <div className="nl-graph-placeholder">
-                  <div className="nl-pulsing-node"></div>
-                  <span>{activeSession?.tripleCount ? `${activeSession.tripleCount} 个图谱三元组就绪` : "No graph data"}</span>
-                </div>
+                {sessionGraph.nodes.length > 0 ? (
+                  <svg ref={miniSvgRef} style={{ width: "100%", height: "100%" }}></svg>
+                ) : (
+                  <div className="nl-graph-placeholder">
+                    <div className="nl-pulsing-node"></div>
+                    <span>No graph data</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ) : (
-          /* Default Dashboard View (Screenshot 1 Right side) */
+          /* Default Dashboard View */
           <div className="nl-inspector-overview">
             <div className="nl-overview-header">
               <span>项目概览</span>
             </div>
 
-            {/* 4 Stat Cards */}
             <div className="nl-stats-grid">
               <div className="nl-stat-card">
                 <div className="nl-stat-num">{memories.length}</div>
@@ -313,43 +487,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
               <div className="nl-stat-card">
                 <div className="nl-stat-num">0</div>
                 <div className="nl-stat-name">遗忘中</div>
-              </div>
-            </div>
-
-            {/* Calendar Heatmap Matrix */}
-            <div className="nl-calendar-card">
-              <div className="nl-calendar-header">
-                <span>活动日历</span>
-                <span className="nl-cal-month">◀ 2026年8月 ▶</span>
-              </div>
-              <div className="nl-calendar-grid">
-                {["一", "二", "三", "四", "五", "六", "日"].map((d) => (
-                  <div key={d} className="nl-cal-day-label">{d}</div>
-                ))}
-                {Array.from({ length: 31 }).map((_, i) => {
-                  const dayNum = i + 1;
-                  const isActive = dayNum === 17; // Today August 17
-                  return (
-                    <div
-                      key={i}
-                      className={`nl-cal-cell ${isActive ? "active" : ""}`}
-                    >
-                      {dayNum}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Recent Events Log */}
-            <div className="nl-recent-events">
-              <div className="nl-events-header">最近事件</div>
-              <div className="nl-event-row">
-                <span className="nl-event-dot"></span>
-                <span className="nl-event-text">
-                  Synced 1 {activeSession?.platform || "antigravity"} conversation(s)
-                </span>
-                <span className="nl-event-time">5分钟前</span>
               </div>
             </div>
           </div>

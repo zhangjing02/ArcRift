@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { Session, FullChat } from "../../types";
-import { getFullChat } from "../../api/ArcRift";
+import { getFullChat, getGraphData, createMemory } from "../../api/ArcRift";
 
 interface ThreadsViewProps {
   sessions: Session[];
@@ -18,11 +18,12 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
   onImport,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeThreadSession, setActiveThreadSession] = useState<Session | null>(null);
   const [selectedChat, setSelectedChat] = useState<FullChat | null>(null);
-  const [selectedSessionName, setSelectedSessionName] = useState("");
+  const [sessionGraph, setSessionGraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
   const [isLoadingChat, setIsLoadingChat] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<"all" | "agent">("all");
+  const [isDistilling, setIsDistilling] = useState(false);
 
   const filteredSessions = sessions.filter((s) => {
     if (!searchQuery.trim()) return true;
@@ -32,19 +33,55 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
     );
   });
 
-  const handleOpenChat = async (session: Session) => {
+  const handleOpenThread = async (session: Session) => {
     onSessionSelect(session);
-    setSelectedSessionName(session.projectName);
+    setActiveThreadSession(session);
     setIsLoadingChat(true);
-    setIsDrawerOpen(true);
     try {
       const chat = await getFullChat(session._id);
       setSelectedChat(chat);
+      const graph = await getGraphData(session._id);
+      setSessionGraph(graph);
     } catch (err) {
-      console.error("Failed to load full chat", err);
-      setSelectedChat(null);
+      console.error("Failed to load thread details", err);
     } finally {
       setIsLoadingChat(false);
+    }
+  };
+
+  const handleBackToList = () => {
+    setActiveThreadSession(null);
+    setSelectedChat(null);
+  };
+
+  const handleDistillMemories = async () => {
+    if (!activeThreadSession || isDistilling) return;
+    setIsDistilling(true);
+    try {
+      const summaryText = activeThreadSession.summary || selectedChat?.rawText || "";
+      const sections = summaryText.split(/##\s+/).filter(Boolean);
+
+      for (const sec of sections) {
+        const lines = sec.trim().split("\n");
+        const title = lines[0].replace(/^[0-9.\s]+/, "").trim();
+        const content = lines.slice(1).join("\n").trim();
+        if (title && content) {
+          await createMemory({
+            sessionId: activeThreadSession._id,
+            title: title.slice(0, 40),
+            content,
+            importance: "critical",
+            category: title.includes("接口") ? "Architecture" : title.includes("错误码") ? "Gotcha" : "Decision",
+            tags: [activeThreadSession.projectName, "OTA", "Android"],
+            source: "distillation",
+          });
+        }
+      }
+      alert(`已成功为《${activeThreadSession.projectName}》提炼沉淀了结构化长期记忆！`);
+    } catch (err) {
+      console.error("Failed to distill memories", err);
+    } finally {
+      setIsDistilling(false);
     }
   };
 
@@ -57,6 +94,143 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
     return "💬";
   };
 
+  // If a thread is selected, render the 2-Column Thread View (matching Screenshot 2!)
+  if (activeThreadSession) {
+    const rawContent = selectedChat?.rawText || activeThreadSession.summary || "暂无对话原始文本";
+    
+    // Parse messages (User vs Assistant)
+    const messageBlocks = rawContent.includes("<USER_REQUEST>")
+      ? [
+          {
+            role: "User",
+            avatar: "👤",
+            text: rawContent.split("</USER_REQUEST>")[0].replace("<USER_REQUEST>", "").trim(),
+          },
+          {
+            role: "Assistant",
+            avatar: "🤖",
+            text: rawContent.split("</USER_REQUEST>")[1]?.replace("<ASSISTANT_RESPONSE>", "")?.replace("</ASSISTANT_RESPONSE>", "").trim() || rawContent,
+          },
+        ]
+      : [
+          {
+            role: "User",
+            avatar: "👤",
+            text: activeThreadSession.summary?.slice(0, 120) || "项目上下文",
+          },
+          {
+            role: "Assistant",
+            avatar: "🤖",
+            text: rawContent,
+          },
+        ];
+
+    return (
+      <div className="nl-thread-detail-layout">
+        {/* Left / Center Chat Stream Column */}
+        <div className="nl-thread-chat-pane">
+          {/* Header Bar with Back Button */}
+          <div className="nl-thread-chat-header">
+            <button className="nl-back-btn" onClick={handleBackToList}>
+              ◀ 返回所有会话
+            </button>
+            <div className="nl-thread-header-badge">
+              <span>{getPlatformIcon(activeThreadSession.platform)}</span>
+              <span>{activeThreadSession.platform?.toUpperCase() || "ANTIGRAVITY"}</span>
+            </div>
+          </div>
+
+          {/* Chat Messages Stream */}
+          <div className="nl-chat-messages-stream">
+            {isLoadingChat ? (
+              <div className="nl-loading-box">正在加载对话上下文...</div>
+            ) : (
+              messageBlocks.map((msg, idx) => (
+                <div key={idx} className={`nl-chat-bubble-card ${msg.role === "User" ? "user-bubble" : "ai-bubble"}`}>
+                  <div className="nl-bubble-header">
+                    <span className="nl-bubble-avatar">{msg.avatar}</span>
+                    <span className="nl-bubble-role">{msg.role}</span>
+                  </div>
+                  <pre className="nl-bubble-text">{msg.text}</pre>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right Inspector Column (Matching Screenshot 2 Right Side) */}
+        <div className="nl-thread-inspector-pane">
+          {/* Top Distill Action */}
+          <div className="nl-thread-distill-card">
+            <button
+              className="nl-primary-action-btn"
+              onClick={handleDistillMemories}
+              disabled={isDistilling}
+            >
+              {isDistilling ? "正在提炼..." : "✨ 提炼 (Distill Memory)"}
+            </button>
+          </div>
+
+          {/* AI Summary Accordion */}
+          <div className="nl-inspector-accordion">
+            <div className="nl-accordion-header">
+              <span>✨ AI 摘要</span>
+            </div>
+            <div className="nl-accordion-body">
+              <pre className="nl-summary-accordion-text">
+                {activeThreadSession.summary || "已就绪"}
+              </pre>
+            </div>
+          </div>
+
+          {/* Session Metadata Accordion */}
+          <div className="nl-inspector-accordion">
+            <div className="nl-accordion-header">
+              <span>💬 会话信息</span>
+            </div>
+            <div className="nl-accordion-body">
+              <div className="nl-meta-row">
+                <span className="nl-meta-key">来源平台</span>
+                <span className="nl-meta-val">{activeThreadSession.platform || "antigravity"}</span>
+              </div>
+              <div className="nl-meta-row">
+                <span className="nl-meta-key">切片 / 消息</span>
+                <span className="nl-meta-val">{activeThreadSession.topicCount || 2} 条</span>
+              </div>
+              <div className="nl-meta-row">
+                <span className="nl-meta-key">捕获时间</span>
+                <span className="nl-meta-val">
+                  {new Date(activeThreadSession.updatedAt).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Extracted Graph Entities Accordion */}
+          <div className="nl-inspector-accordion">
+            <div className="nl-accordion-header">
+              <span>🕸️ 关联的实体 ({sessionGraph.nodes.length})</span>
+            </div>
+            <div className="nl-accordion-body">
+              {sessionGraph.nodes.length === 0 ? (
+                <div className="nl-empty-sub" style={{ fontSize: "11px" }}>尚未关联实体</div>
+              ) : (
+                <div className="nl-entity-chips-wrap">
+                  {sessionGraph.nodes.map((node: any) => (
+                    <span key={node.id} className="nl-entity-chip">
+                      ● {node.id}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Otherwise, render the Thread List View
   return (
     <div className="nl-threads-view">
       {/* View Header */}
@@ -134,7 +308,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
             <div
               key={s._id}
               className={`nl-thread-item-card ${activeSessionId === s._id ? "active" : ""}`}
-              onClick={() => handleOpenChat(s)}
+              onClick={() => handleOpenThread(s)}
             >
               <div className="nl-thread-avatar">
                 {getPlatformIcon(s.platform)}
@@ -170,7 +344,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
                   title="查看详情"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleOpenChat(s);
+                    handleOpenThread(s);
                   }}
                 >
                   📄
@@ -187,32 +361,6 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           ))
         )}
       </div>
-
-      {/* Sliding Chat Drawer */}
-      {isDrawerOpen && (
-        <div className="nl-drawer-backdrop" onClick={() => setIsDrawerOpen(false)}>
-          <div className="nl-drawer-card" onClick={(e) => e.stopPropagation()}>
-            <div className="nl-drawer-header">
-              <div className="nl-drawer-title-group">
-                <span className="nl-drawer-icon">💬</span>
-                <h3>{selectedSessionName} · 会话正文</h3>
-              </div>
-              <button className="nl-close-btn" onClick={() => setIsDrawerOpen(false)}>
-                ✕
-              </button>
-            </div>
-            <div className="nl-drawer-body">
-              {isLoadingChat ? (
-                <div className="nl-loading-box">正在加载对话内容...</div>
-              ) : selectedChat ? (
-                <pre className="nl-chat-transcript-text">{selectedChat.rawText}</pre>
-              ) : (
-                <div className="nl-empty-chat">暂无原始文本</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
