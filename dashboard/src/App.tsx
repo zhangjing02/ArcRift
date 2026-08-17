@@ -9,9 +9,9 @@ import { AiNowView } from "./components/Nowledge/AiNowView";
 import { ConnectView } from "./components/Nowledge/ConnectView";
 import { NowledgeSettingsView } from "./components/Nowledge/NowledgeSettingsView";
 import { SkillsView } from "./components/Nowledge/SkillsView";
+import { KnowledgeTreeView } from "./components/Nowledge/KnowledgeTreeView";
 import {
   LibraryView,
-  KnowledgeTreeView,
   ContextView,
   StatsView,
 } from "./components/Nowledge/OtherViews";
@@ -112,7 +112,10 @@ const AppContent: React.FC = () => {
         )}
 
         {currentTab === "tree" && (
-          <KnowledgeTreeView activeSession={activeSession || undefined} />
+          <KnowledgeTreeView
+            activeSession={activeSession || undefined}
+            onNavigateTab={(tab) => setCurrentTab(tab as any)}
+          />
         )}
 
         {currentTab === "skills" && (
