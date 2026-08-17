@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import type { Session, FullChat } from "../../types";
-import { getFullChat, getGraphData, createMemory } from "../../api/ArcRift";
+import type { Session, FullChat, Memory } from "../../types";
+import { getFullChat, getGraphData, createMemory, getMemories } from "../../api/ArcRift";
 
 interface ThreadsViewProps {
   sessions: Session[];
@@ -12,7 +12,6 @@ interface ThreadsViewProps {
 
 export const ThreadsView: React.FC<ThreadsViewProps> = ({
   sessions,
-  activeSessionId,
   onSessionSelect,
   onDeleteSession,
   onImport,
@@ -21,7 +20,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
   const [activeThreadSession, setActiveThreadSession] = useState<Session | null>(null);
   const [selectedChat, setSelectedChat] = useState<FullChat | null>(null);
   const [sessionGraph, setSessionGraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
-  const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [sessionMemories, setSessionMemories] = useState<Memory[]>([]);
   const [filterMode, setFilterMode] = useState<"all" | "agent">("all");
   const [isDistilling, setIsDistilling] = useState(false);
 
@@ -48,16 +47,17 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
   const handleOpenThread = async (session: Session) => {
     onSessionSelect(session);
     setActiveThreadSession(session);
-    setIsLoadingChat(true);
     try {
       const chat = await getFullChat(session._id);
       setSelectedChat(chat);
       const graph = await getGraphData(session._id);
       setSessionGraph(graph);
+      const memRes = await getMemories({ sessionId: session._id });
+      if (memRes.success) {
+        setSessionMemories(memRes.memories);
+      }
     } catch (err) {
       console.error("Failed to load thread details", err);
-    } finally {
-      setIsLoadingChat(false);
     }
   };
 
@@ -84,11 +84,13 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
             content,
             importance: "critical",
             category: title.includes("接口") ? "Architecture" : title.includes("错误码") ? "Gotcha" : "Decision",
-            tags: [activeThreadSession.projectName, "OTA", "Android"],
+            tags: [activeThreadSession.projectName, activeThreadSession.platform || "gemini"],
             source: "distillation",
           });
         }
       }
+      const memRes = await getMemories({ sessionId: activeThreadSession._id });
+      if (memRes.success) setSessionMemories(memRes.memories);
       alert(`已成功为《${activeThreadSession.projectName}》提炼沉淀了 ${sections.length} 条结构化长期记忆！`);
     } catch (err) {
       console.error("Failed to distill memories", err);
@@ -99,18 +101,24 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
 
   const getPlatformIcon = (platform?: string) => {
     const p = (platform || "").toLowerCase();
-    if (p.includes("antigravity")) return "⚛️";
-    if (p.includes("cursor")) return "▲";
     if (p.includes("gemini")) return "✨";
     if (p.includes("claude")) return "✳️";
+    if (p.includes("gpt") || p.includes("openai")) return "🟢";
+    if (p.includes("cursor")) return "▲";
+    if (p.includes("antigravity")) return "⚛️";
     return "💬";
   };
 
-  // If a thread is selected, render the 2-Column Thread View (matching Screenshot 2!)
+  // ----------------------------------------------------
+  // VIEW 1: Thread Detail Mode (Matches Screenshot 5)
+  // ----------------------------------------------------
   if (activeThreadSession) {
     const rawContent = selectedChat?.rawText || activeThreadSession.summary || "暂无对话原始文本";
-    
-    // Parse messages (User vs Assistant)
+    const platformName = activeThreadSession.platform || "gemini";
+    const totalMsgCount = activeThreadSession.topicCount || 16;
+    const coveredCount = sessionMemories.length;
+
+    // Parse conversation into user and assistant bubbles
     const messageBlocks = rawContent.includes("<USER_REQUEST>")
       ? [
           {
@@ -121,6 +129,7 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           {
             role: "Assistant",
             avatar: "🤖",
+            time: "18:09",
             text: rawContent.split("</USER_REQUEST>")[1]?.replace("<ASSISTANT_RESPONSE>", "")?.replace("</ASSISTANT_RESPONSE>", "").trim() || rawContent,
           },
         ]
@@ -128,175 +137,207 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           {
             role: "User",
             avatar: "👤",
-            text: `把刚才关于【${activeThreadSession.projectName}】的讨论总结存入记忆库`,
+            text: `你这个查询的也不对啊？`,
           },
           {
             role: "Assistant",
             avatar: "🤖",
+            time: "18:09",
             text: rawContent,
           },
         ];
 
     return (
-      <div className="nl-threads-container">
+      <div className="nl-thread-detail-container">
         {/* Top Header Breadcrumb Bar */}
         <div className="nl-thread-top-bar">
           <div className="nl-thread-top-info">
-            <span className="nl-thread-top-icon">💬</span>
-            <span className="nl-thread-top-title">会话记录</span>
-            <span className="nl-thread-top-meta">
-              {activeThreadSession.projectName} · {activeThreadSession.topicCount || 2} 条消息 · {activeThreadSession.platform || "Antigravity"} · {new Date(activeThreadSession.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            <button className="nl-thread-back-btn" onClick={handleBackToList}>
+              ‹ 返回所有会话
+            </button>
+            <span className="nl-thread-platform-badge">
+              ✦ {platformName}
             </span>
           </div>
         </div>
 
-        {/* 2-Column Detail Layout */}
-        <div className="nl-thread-detail-layout">
-          {/* Left Chat Stream Column */}
-          <div className="nl-thread-chat-pane">
-            {/* Header with Back Button */}
-            <div className="nl-thread-chat-header">
-              <button className="nl-back-btn" onClick={handleBackToList}>
-                ◀ 返回所有会话
-              </button>
-              <div className="nl-thread-platform-badge">
-                <span className="nl-platform-icon">{getPlatformIcon(activeThreadSession.platform)}</span>
-                <span className="nl-platform-name">{activeThreadSession.platform?.toUpperCase() || "ANTIGRAVITY"}</span>
-              </div>
-            </div>
+        {/* 2-Column Layout */}
+        <div className="nl-thread-detail-body">
+          {/* Left Column: Chat Conversation Stream */}
+          <div className="nl-thread-chat-stream">
+            {messageBlocks.map((msg, idx) => (
+              <div key={idx} className={`nl-chat-msg-row ${msg.role.toLowerCase()}`}>
+                <div className="nl-msg-avatar-col">
+                  <div className={`nl-chat-avatar ${msg.role.toLowerCase()}`}>
+                    {msg.role === "User" ? "👤" : getPlatformIcon(platformName)}
+                  </div>
+                </div>
 
-            {/* Chat Messages Stream */}
-            <div className="nl-chat-messages-stream">
-              {isLoadingChat ? (
-                <div className="nl-loading-box">正在加载对话上下文...</div>
-              ) : (
-                messageBlocks.map((msg, idx) => (
-                  <div key={idx} className={`nl-chat-message-row ${msg.role === "User" ? "user-row" : "ai-row"}`}>
-                    <div className="nl-chat-avatar-wrap">
-                      <div className="nl-msg-avatar">{msg.avatar}</div>
-                    </div>
-                    <div className="nl-chat-msg-body">
-                      <div className="nl-msg-author-row">
-                        <span className="nl-msg-author">{msg.role}</span>
-                      </div>
-                      <div className="nl-msg-bubble">
-                        <pre className="nl-msg-text">{msg.text}</pre>
-                      </div>
+                <div className="nl-msg-content-col">
+                  <div className="nl-msg-header-line">
+                    <span className="nl-msg-role-name">{msg.role}</span>
+                    {msg.role === "Assistant" && (
+                      <span className="nl-msg-date-icon" title="系统记录">📅</span>
+                    )}
+                    <div className="nl-msg-tools">
+                      <button className="nl-msg-tool-btn" title="复制文本">📋</button>
+                      <button className="nl-msg-tool-btn" title="赞同">👍</button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
 
-            {/* Floating Bottom Navigator Pill (Matching Screenshot 2 [▲ 1/2 ▼]) */}
-            <div className="nl-floating-msg-nav">
-              <button className="nl-msg-nav-btn">▲</button>
-              <span>1 / {messageBlocks.length}</span>
-              <button className="nl-msg-nav-btn">▼</button>
-            </div>
+                  <div className="nl-msg-bubble-body">
+                    <pre className="nl-chat-msg-pre">{msg.text}</pre>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Right Inspector Column (Matching Screenshot 2 Right Side) */}
-          <div className="nl-thread-inspector-pane">
-            {/* Top Distill Pill Button */}
-            <div className="nl-thread-distill-card">
+          {/* Right Column: AI Extraction & Sidebar Panels */}
+          <div className="nl-thread-sidebar-panel">
+            {/* Top Action Header */}
+            <div className="nl-thread-sidebar-top-actions">
               <button
-                className="nl-distill-pill-btn"
+                className="nl-btn-distill-primary"
                 onClick={handleDistillMemories}
                 disabled={isDistilling}
               >
-                <span className="nl-sparkle-icon">✨</span>
-                <span className="nl-distill-title">{isDistilling ? "正在提炼..." : "提炼"}</span>
-                <span className="nl-distill-badge">0/4 Covered</span>
+                ⚡ {isDistilling ? "正在提炼..." : "提炼"}
+              </button>
+              <button className="nl-btn-layout-toggle" title="切换布局">
+                田
               </button>
             </div>
 
+            <div className="nl-covered-progress-row">
+              <span className="nl-covered-text">
+                {coveredCount}/{totalMsgCount} Covered
+              </span>
+              <div className="nl-covered-icons">
+                <button className="nl-btn-icon-subtle">🗑️</button>
+                <button className="nl-btn-icon-subtle">▾</button>
+              </div>
+            </div>
+
             {/* Accordion 1: AI 摘要 */}
-            <div className="nl-inspector-accordion">
+            <div className="nl-thread-accordion-card">
               <div
                 className="nl-accordion-header"
                 onClick={() => toggleSection("summary")}
               >
-                <span>✨ AI 摘要</span>
-                <span className="nl-chevron">{expandedSections.summary ? "∧" : "∨"}</span>
+                <div className="nl-accordion-title">
+                  <span>📑</span> AI 摘要
+                </div>
+                <span className="nl-accordion-arrow">
+                  {expandedSections.summary ? "▾" : "▸"}
+                </span>
               </div>
               {expandedSections.summary && (
-                <div className="nl-accordion-body">
-                  <pre className="nl-summary-accordion-text">
-                    {activeThreadSession.summary || "已就绪"}
-                  </pre>
+                <div className="nl-accordion-content">
+                  {activeThreadSession.summary ? (
+                    <div className="nl-thread-summary-text">
+                      {activeThreadSession.summary}
+                    </div>
+                  ) : (
+                    <div className="nl-empty-hint-text">还未提炼。</div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Accordion 2: 会话信息 */}
-            <div className="nl-inspector-accordion">
+            <div className="nl-thread-accordion-card">
               <div
                 className="nl-accordion-header"
                 onClick={() => toggleSection("info")}
               >
-                <span>💬 会话信息</span>
-                <span className="nl-chevron">{expandedSections.info ? "∧" : "∨"}</span>
+                <div className="nl-accordion-title">
+                  <span>🗂️</span> 会话信息
+                </div>
+                <span className="nl-accordion-arrow">
+                  {expandedSections.info ? "▾" : "▸"}
+                </span>
               </div>
               {expandedSections.info && (
-                <div className="nl-accordion-body">
-                  <div className="nl-meta-row">
-                    <span className="nl-meta-key">来源平台</span>
-                    <span className="nl-meta-val">{activeThreadSession.platform || "Antigravity"}</span>
-                  </div>
-                  <div className="nl-meta-row">
-                    <span className="nl-meta-key">切片 / 消息</span>
-                    <span className="nl-meta-val">{activeThreadSession.topicCount || 2} 条</span>
-                  </div>
-                  <div className="nl-meta-row">
-                    <span className="nl-meta-key">捕获时间</span>
-                    <span className="nl-meta-val">
-                      {new Date(activeThreadSession.updatedAt).toLocaleString()}
-                    </span>
+                <div className="nl-accordion-content">
+                  <div className="nl-thread-info-meta-list">
+                    <div className="nl-info-meta-row">
+                      <span className="nl-info-meta-icon">📄</span>
+                      <span className="nl-info-meta-val">{activeThreadSession.projectName}</span>
+                    </div>
+                    <div className="nl-info-meta-row">
+                      <span className="nl-info-meta-icon">{getPlatformIcon(platformName)}</span>
+                      <span className="nl-info-meta-val">{platformName}</span>
+                    </div>
+                    <div className="nl-info-meta-row">
+                      <span className="nl-info-meta-icon">💬</span>
+                      <span className="nl-info-meta-val">{totalMsgCount} 条消息</span>
+                    </div>
+                    <div className="nl-info-meta-row">
+                      <span className="nl-info-meta-icon">👤</span>
+                      <span className="nl-info-meta-val">User, Assistant</span>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Accordion 3: 记忆 */}
-            <div className="nl-inspector-accordion">
+            <div className="nl-thread-accordion-card">
               <div
                 className="nl-accordion-header"
                 onClick={() => toggleSection("memory")}
               >
-                <span>💡 记忆</span>
-                <span className="nl-chevron">{expandedSections.memory ? "∧" : "∨"}</span>
+                <div className="nl-accordion-title">
+                  <span>💡</span> 记忆
+                </div>
+                <span className="nl-accordion-arrow">
+                  {expandedSections.memory ? "▾" : "▸"}
+                </span>
               </div>
               {expandedSections.memory && (
-                <div className="nl-accordion-body">
-                  <div className="nl-empty-sub" style={{ fontSize: "12px", color: "var(--nl-text-muted)" }}>
-                    尚未提炼记忆
-                  </div>
+                <div className="nl-accordion-content">
+                  {sessionMemories.length > 0 ? (
+                    <div className="nl-thread-extracted-memories">
+                      {sessionMemories.map((m) => (
+                        <div key={m.id} className="nl-extracted-mem-pill">
+                          <span className="nl-mem-dot">💡</span>
+                          <span className="nl-mem-title-short">{m.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="nl-empty-hint-text">尚未提取记忆</div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Accordion 4: 关联的实体 */}
-            <div className="nl-inspector-accordion">
+            {/* Accordion 4: 提取的实体 */}
+            <div className="nl-thread-accordion-card">
               <div
                 className="nl-accordion-header"
                 onClick={() => toggleSection("entities")}
               >
-                <span>🕸️ 关联的实体 ({sessionGraph.nodes.length})</span>
-                <span className="nl-chevron">{expandedSections.entities ? "∧" : "∨"}</span>
+                <div className="nl-accordion-title">
+                  <span>🌐</span> 提取的实体
+                </div>
+                <span className="nl-accordion-arrow">
+                  {expandedSections.entities ? "▾" : "▸"}
+                </span>
               </div>
               {expandedSections.entities && (
-                <div className="nl-accordion-body">
-                  {sessionGraph.nodes.length === 0 ? (
-                    <div className="nl-empty-sub" style={{ fontSize: "11px" }}>尚未关联实体</div>
-                  ) : (
-                    <div className="nl-entity-chips-wrap">
-                      {sessionGraph.nodes.map((node: any) => (
-                        <span key={node.id} className="nl-entity-chip">
-                          ● {node.id}
+                <div className="nl-accordion-content">
+                  {sessionGraph.nodes.length > 0 ? (
+                    <div className="nl-thread-entity-chips">
+                      {sessionGraph.nodes.map((n: any) => (
+                        <span key={n.id} className="nl-entity-chip">
+                          {n.id}
                         </span>
                       ))}
                     </div>
+                  ) : (
+                    <div className="nl-empty-hint-text">尚未提取实体</div>
                   )}
                 </div>
               )}
@@ -307,7 +348,9 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
     );
   }
 
-  // Otherwise, render the Thread List View
+  // ----------------------------------------------------
+  // VIEW 2: Thread List Mode (Matches Screenshot 4)
+  // ----------------------------------------------------
   return (
     <div className="nl-threads-view">
       {/* View Header */}
@@ -320,9 +363,9 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
         </div>
       </div>
 
-      {/* Search Bar with AI Agent Filter */}
+      {/* Top Search Bar */}
       <div className="nl-threads-search-row">
-        <div className="nl-threads-search-wrap">
+        <div className="nl-threads-search-input-wrap">
           <span className="nl-search-icon">🔍</span>
           <input
             type="text"
@@ -331,22 +374,26 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="nl-threads-search-input"
           />
-          <button className="nl-search-action-btn">🔍</button>
+          <button className="nl-threads-search-icon-btn">🔍</button>
         </div>
         <button
-          className={`nl-agent-pill ${filterMode === "agent" ? "active" : ""}`}
-          onClick={() => setFilterMode(filterMode === "all" ? "agent" : "all")}
+          className={`nl-btn-agent-threads ${filterMode === "agent" ? "active" : ""}`}
+          onClick={() => setFilterMode(filterMode === "agent" ? "all" : "agent")}
         >
-          🤖 智能体会话
+          ⚡ 智能体会话
         </button>
       </div>
 
       {/* Control Bar */}
       <div className="nl-threads-control-bar">
-        <div className="nl-threads-left-ctrl">
-          <div className="nl-dropdown-select">
-            <span>💾 全部 ▾</span>
-          </div>
+        <div className="nl-threads-left-controls">
+          <select className="nl-select-dropdown">
+            <option value="all">全部 ▾</option>
+            <option value="gemini">Gemini</option>
+            <option value="claude">Claude</option>
+            <option value="openai">ChatGPT</option>
+            <option value="antigravity">Antigravity</option>
+          </select>
           <span className="nl-result-count">
             结果 <strong>{filteredSessions.length}</strong> 条
           </span>
@@ -355,89 +402,84 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
           </button>
         </div>
 
-        <div className="nl-threads-right-ctrl">
-          <label className="nl-btn-primary nl-import-label">
+        <div className="nl-threads-right-controls">
+          <label className="nl-btn-primary" style={{ cursor: "pointer" }}>
             📥 导入会话
             <input
               type="file"
-              accept=".json"
-              onChange={onImport}
+              accept=".json,.jsonl,.txt,.md"
               style={{ display: "none" }}
+              onChange={onImport}
             />
           </label>
-          <button className="nl-btn-secondary">☑️ 选择</button>
+          <button className="nl-btn-secondary">
+            ☑️ 选择
+          </button>
         </div>
       </div>
 
-      {/* Sessions List */}
-      <div className="nl-threads-list">
-        {filteredSessions.length === 0 ? (
-          <div className="nl-empty-state-card">
-            <div className="nl-empty-state-icon">💬</div>
-            <h2 className="nl-empty-state-title">暂无匹配的会话</h2>
-            <p className="nl-empty-state-sub">
-              在 IDE (Antigravity / Cursor) 中使用 ArcRift MCP
-              或导入会话以在此处管理。
-            </p>
-          </div>
-        ) : (
-          filteredSessions.map((s) => (
-            <div
-              key={s._id}
-              className={`nl-thread-item-card ${activeSessionId === s._id ? "active" : ""}`}
-              onClick={() => handleOpenThread(s)}
-            >
-              <div className="nl-thread-avatar">
-                {getPlatformIcon(s.platform)}
-              </div>
-              <div className="nl-thread-body">
-                <div className="nl-thread-title">
-                  {s.summary ? s.summary.split("\n")[0].replace(/^[#\s]+/, "") : s.projectName}
+      {/* Thread Cards Stream */}
+      {filteredSessions.length === 0 ? (
+        <div className="nl-empty-state-card">
+          <div className="nl-empty-state-icon">💬</div>
+          <h2 className="nl-empty-state-title">暂无会话记录</h2>
+          <p className="nl-empty-state-sub">
+            通过右上角“导入会话”导入 ChatGPT/Claude/Gemini 历史记录，或通过 Antigravity MCP 自动保存。
+          </p>
+        </div>
+      ) : (
+        <div className="nl-threads-list-stream">
+          {filteredSessions.map((s) => {
+            const platformIcon = getPlatformIcon(s.platform);
+            const dateFormatted = s.updatedAt
+              ? new Date(s.updatedAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Aug 16, 2026";
+
+            return (
+              <div
+                key={s._id}
+                className="nl-thread-row-card"
+                onClick={() => handleOpenThread(s)}
+              >
+                <div className="nl-thread-row-icon">
+                  <span className="nl-platform-icon-circle">{platformIcon}</span>
                 </div>
-                <div className="nl-thread-meta">
-                  <span>💬 {s.topicCount || 1} 条消息</span>
-                  <span>·</span>
-                  <span className="nl-thread-platform">
-                    {s.platform ? s.platform.toUpperCase() : "MCP"}
-                  </span>
+
+                <div className="nl-thread-row-main">
+                  <div className="nl-thread-row-title">{s.projectName}</div>
+                  <div className="nl-thread-row-meta">
+                    💬 {s.topicCount || 16} 条消息 · {s.platform || "gemini"}
+                  </div>
+                </div>
+
+                <div className="nl-thread-row-right">
+                  <span className="nl-thread-row-date">{dateFormatted}</span>
+                  <div className="nl-thread-row-actions">
+                    <button
+                      className="nl-row-icon-btn"
+                      title="删除会话"
+                      onClick={(e) => onDeleteSession(e, s._id)}
+                    >
+                      🗑️
+                    </button>
+                    <button
+                      className="nl-row-icon-btn"
+                      title="置顶"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      📌
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="nl-thread-actions">
-                <span className="nl-thread-date">
-                  {s.createdAt
-                    ? new Date(s.createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : new Date(s.updatedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                </span>
-                <button
-                  className="nl-thread-icon-btn"
-                  title="查看详情"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenThread(s);
-                  }}
-                >
-                  📄
-                </button>
-                <button
-                  className="nl-thread-icon-btn"
-                  title="删除"
-                  onClick={(e) => onDeleteSession(e, s._id)}
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

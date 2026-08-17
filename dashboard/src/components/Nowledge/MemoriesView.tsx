@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import type { Session, Memory, ImportanceLevel, MemoryCategory } from "../../types";
-import { getMemories, createMemory, deleteMemory } from "../../api/ArcRift";
+import type { Session, Memory, ImportanceLevel, MemoryCategory, UnitType } from "../../types";
+import { getMemories, createMemory, deleteMemory, updateMemory } from "../../api/ArcRift";
 
 interface MemoriesViewProps {
   activeSession?: Session;
@@ -17,14 +17,20 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<"active" | "archived" | "all">("active");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
 
   // New Memory Form
   const [formTitle, setFormTitle] = useState("");
   const [formContent, setFormContent] = useState("");
   const [formImportance, setFormImportance] = useState<ImportanceLevel>("high");
   const [formCategory, setFormCategory] = useState<MemoryCategory>("Decision");
+  const [formUnitType, setFormUnitType] = useState<UnitType>("decision");
   const [formTags, setFormTags] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [newTagInput, setNewTagInput] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -38,6 +44,11 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       });
       if (res.success) {
         setMemories(res.memories);
+        // If an active memory is selected, refresh it
+        if (selectedMemory) {
+          const updated = res.memories.find((m: Memory) => m.id === selectedMemory.id);
+          if (updated) setSelectedMemory(updated);
+        }
       }
     } catch (err) {
       console.error("Failed to load memories", err);
@@ -87,13 +98,353 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     if (!window.confirm("确定要删除这条记忆吗？")) return;
     try {
       await deleteMemory(id);
-      if (selectedMemory?.id === id) setSelectedMemory(null);
+      if (selectedMemory?.id === id) {
+        setSelectedMemory(null);
+        setIsEditing(false);
+      }
       await loadData();
     } catch (err) {
       console.error("Failed to delete memory", err);
     }
   };
 
+  const handleSetImportance = async (e: React.MouseEvent, memory: Memory, starIndex: number) => {
+    e.stopPropagation();
+    const impValues: ImportanceLevel[] = ["low", "low", "medium", "high", "critical"];
+    const newImp = impValues[starIndex - 1] || "medium";
+    try {
+      await updateMemory(memory.id, { importance: newImp });
+      await loadData();
+    } catch (err) {
+      console.error("Failed to update memory importance", err);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedMemory) return;
+    try {
+      await updateMemory(selectedMemory.id, {
+        title: editTitle,
+        content: editContent,
+      });
+      setIsEditing(false);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to save memory edit", err);
+    }
+  };
+
+  const handleAddTagToSelected = async () => {
+    if (!selectedMemory || !newTagInput.trim()) return;
+    const currentTags = selectedMemory.tags || [];
+    if (!currentTags.includes(newTagInput.trim())) {
+      const updatedTags = [...currentTags, newTagInput.trim()];
+      try {
+        await updateMemory(selectedMemory.id, { tags: updatedTags });
+        setNewTagInput("");
+        setIsAddingTag(false);
+        await loadData();
+      } catch (err) {
+        console.error("Failed to add tag", err);
+      }
+    }
+  };
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    if (!selectedMemory) return;
+    const updatedTags = (selectedMemory.tags || []).filter((t) => t !== tagToRemove);
+    try {
+      await updateMemory(selectedMemory.id, { tags: updatedTags });
+      await loadData();
+    } catch (err) {
+      console.error("Failed to remove tag", err);
+    }
+  };
+
+  const getStarCount = (importance?: string | number): number => {
+    if (typeof importance === "number") {
+      if (importance >= 0.9) return 5;
+      if (importance >= 0.75) return 4;
+      if (importance >= 0.5) return 3;
+      if (importance >= 0.3) return 2;
+      return 1;
+    }
+    if (importance === "critical") return 5;
+    if (importance === "high") return 4;
+    if (importance === "medium") return 3;
+    return 2;
+  };
+
+  const getUnitTypeLabel = (unitType?: string, category?: string) => {
+    const type = unitType || category || "fact";
+    const map: Record<string, string> = {
+      decision: "决策",
+      fact: "事实",
+      learning: "学习",
+      preference: "偏好",
+      procedure: "流程",
+      plan: "规划",
+      context: "上下文",
+      event: "事件",
+      Decision: "决策",
+      Architecture: "架构",
+      Gotcha: "避坑",
+      Rule: "规范",
+      Tech: "技术",
+      Note: "笔记",
+    };
+    return map[type] || type;
+  };
+
+  const getTimeAgo = (dateStr?: string | Date) => {
+    if (!dateStr) return "刚刚";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
+    if (diffMin < 1) return "刚刚";
+    if (diffMin < 60) return `${diffMin}分钟前`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}小时前`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}天前`;
+  };
+
+  // ----------------------------------------------------
+  // VIEW 1: Memory Detail Mode (Matches Screenshot 3)
+  // ----------------------------------------------------
+  if (selectedMemory) {
+    const stars = getStarCount(selectedMemory.importance);
+    return (
+      <div className="nl-memory-detail-layout">
+        {/* Top Breadcrumb Bar */}
+        <div className="nl-mem-detail-top-bar">
+          <button
+            className="nl-back-breadcrumb-btn"
+            onClick={() => {
+              setSelectedMemory(null);
+              setIsEditing(false);
+            }}
+          >
+            ‹ 返回记忆列表
+          </button>
+          <div className="nl-detail-header-actions">
+            <button
+              className="nl-btn-ghost"
+              onClick={() => {
+                if (!isEditing) {
+                  setEditTitle(selectedMemory.title);
+                  setEditContent(selectedMemory.content);
+                  setIsEditing(true);
+                } else {
+                  handleSaveEdit();
+                }
+              }}
+            >
+              {isEditing ? "💾 完成编辑" : "✎ 编辑"}
+            </button>
+          </div>
+        </div>
+
+        <div className="nl-mem-detail-body">
+          {/* Main Markdown Content Area (Left Column) */}
+          <div className="nl-mem-detail-main">
+            {isEditing ? (
+              <div className="nl-mem-edit-form">
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="nl-mem-edit-title-input"
+                  placeholder="记忆标题"
+                />
+                <textarea
+                  rows={15}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="nl-mem-edit-content-textarea"
+                  placeholder="记忆 Markdown 正文..."
+                />
+              </div>
+            ) : (
+              <div className="nl-mem-rendered-article">
+                <h1 className="nl-mem-article-title">{selectedMemory.title}</h1>
+                <div className="nl-mem-article-content">
+                  <pre className="nl-markdown-pre">{selectedMemory.content}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Inspector / Metadata Panel (Right Column) */}
+          <div className="nl-mem-detail-sidebar">
+            <div className="nl-detail-sidebar-card">
+              <div className="nl-sidebar-header-row">
+                <span className="nl-sidebar-section-title">&#123;&#125; 详细信息</span>
+              </div>
+
+              {/* Pin Switch */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">📌 收藏记忆</span>
+                <input
+                  type="checkbox"
+                  className="nl-toggle-switch"
+                  checked={selectedMemory.importance === "critical" || (selectedMemory.importance as any) >= 0.9}
+                  onChange={(e) => {
+                    handleSetImportance(
+                      e as any,
+                      selectedMemory,
+                      e.target.checked ? 5 : 3
+                    );
+                  }}
+                />
+              </div>
+
+              {/* Source */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">来源:</span>
+                <span className="nl-field-value">来自 {selectedMemory.source || "MCP"}</span>
+              </div>
+
+              {/* Unit Type */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">类型:</span>
+                <select
+                  className="nl-field-select"
+                  value={selectedMemory.unitType || selectedMemory.category || "decision"}
+                  onChange={async (e) => {
+                    await updateMemory(selectedMemory.id, {
+                      unitType: e.target.value as any,
+                      category: e.target.value as any,
+                    });
+                    await loadData();
+                  }}
+                >
+                  <option value="decision">决策 ▾</option>
+                  <option value="fact">事实 ▾</option>
+                  <option value="learning">学习 ▾</option>
+                  <option value="procedure">流程 ▾</option>
+                  <option value="plan">计划 ▾</option>
+                  <option value="context">上下文 ▾</option>
+                </select>
+              </div>
+
+              {/* Space */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">存放于:</span>
+                <span className="nl-field-value nl-space-badge">
+                  {selectedMemory.sessionId === "default" || !selectedMemory.sessionId
+                    ? "Default"
+                    : selectedMemory.sessionId}
+                </span>
+              </div>
+
+              {/* Created At */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">创建于:</span>
+                <span className="nl-field-value">{getTimeAgo(selectedMemory.createdAt)}</span>
+              </div>
+
+              {/* Importance 5-Star Rating */}
+              <div className="nl-sidebar-field-row">
+                <span className="nl-field-label">重要度:</span>
+                <div className="nl-star-rating-row">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <span
+                      key={star}
+                      className={`nl-star ${star <= stars ? "filled" : "empty"}`}
+                      onClick={(e) => handleSetImportance(e, selectedMemory, star)}
+                    >
+                      ★
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Knowledge Graph Button */}
+              <button
+                className="nl-btn-graph-shortcut"
+                onClick={() => onNavigateTab("graph")}
+              >
+                🌐 知识图谱
+              </button>
+
+              {/* Export & Delete Actions */}
+              <div className="nl-sidebar-actions-row">
+                <button
+                  className="nl-sidebar-action-btn"
+                  onClick={() => {
+                    const blob = new Blob([`# ${selectedMemory.title}\n\n${selectedMemory.content}`], { type: "text/markdown" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${selectedMemory.title}.md`;
+                    a.click();
+                  }}
+                >
+                  📥 导出
+                </button>
+                <button
+                  className="nl-sidebar-action-btn danger"
+                  onClick={(e) => handleDelete(e, selectedMemory.id)}
+                >
+                  🗑️ 删除
+                </button>
+              </div>
+
+              {/* Tags Panel */}
+              <div className="nl-sidebar-tags-section">
+                <div className="nl-tags-header">
+                  <span>🏷️ 标签</span>
+                  <button className="nl-btn-icon-tiny" title="管理标签">⚙️</button>
+                </div>
+                <div className="nl-tags-chip-list">
+                  {(selectedMemory.tags || []).map((t) => (
+                    <span key={t} className="nl-detail-tag-chip">
+                      {t}
+                      <button
+                        className="nl-tag-remove-x"
+                        onClick={() => handleRemoveTag(t)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+
+                  {isAddingTag ? (
+                    <div className="nl-new-tag-input-wrap">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddTagToSelected();
+                          if (e.key === "Escape") setIsAddingTag(false);
+                        }}
+                        className="nl-tag-inline-input"
+                        placeholder="输入新标签..."
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      className="nl-add-tag-chip-btn"
+                      onClick={() => setIsAddingTag(true)}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // VIEW 2: Memory List Mode (Matches Screenshot 2)
+  // ----------------------------------------------------
   return (
     <div className="nl-memories-view">
       {/* View Header */}
@@ -133,7 +484,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           </div>
         </div>
         <button type="submit" className="nl-mem-search-submit">
-          🔍 搜索
+          搜索
         </button>
       </form>
 
@@ -184,7 +535,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Memory Horizontal List Stream (Matching Screenshot 2) */}
       {memories.length === 0 ? (
         <div className="nl-empty-state-card">
           <div className="nl-empty-state-icon">💡</div>
@@ -206,48 +557,85 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="nl-memory-grid">
-          {memories.map((m) => (
-            <div
-              key={m.id}
-              className={`nl-memory-card ${selectedMemory?.id === m.id ? "selected" : ""}`}
-              onClick={() => setSelectedMemory(m)}
-            >
-              <div className="nl-memory-card-header">
-                <span className={`nl-badge nl-badge-${m.importance}`}>
-                  {m.importance === "critical" ? "🔥 关键" : m.importance === "high" ? "📌 重要" : "💡 提示"}
-                </span>
-                <span className="nl-category-tag">{m.category}</span>
-                <button
-                  className="nl-card-del-btn"
-                  onClick={(e) => handleDelete(e, m.id)}
-                  title="删除"
-                >
-                  🗑️
-                </button>
-              </div>
+        <div className="nl-memory-list-stream">
+          {memories.map((m) => {
+            const stars = getStarCount(m.importance);
+            const unitLabel = getUnitTypeLabel(m.unitType, m.category);
+            const timeAgo = getTimeAgo(m.createdAt);
 
-              <h3 className="nl-memory-card-title">{m.title}</h3>
-              <p className="nl-memory-card-content">{m.content}</p>
-
-              {m.tags && m.tags.length > 0 && (
-                <div className="nl-memory-tags">
-                  {m.tags.map((t) => (
-                    <span key={t} className="nl-tag-pill">
-                      #{t}
-                    </span>
-                  ))}
+            return (
+              <div
+                key={m.id}
+                className="nl-memory-row-card"
+                onClick={() => setSelectedMemory(m)}
+              >
+                <div className="nl-memory-row-left-icon">
+                  <span className="nl-mem-type-bubble">💬</span>
                 </div>
-              )}
 
-              <div className="nl-memory-card-footer">
-                <span className="nl-card-date">
-                  {new Date(m.createdAt).toLocaleDateString()}
-                </span>
-                <span className="nl-card-source">源: {m.source}</span>
+                <div className="nl-memory-row-content">
+                  <div className="nl-memory-row-title-line">
+                    <span className="nl-mem-row-title">{m.title}</span>
+                  </div>
+
+                  <div className="nl-memory-row-snippet">
+                    {m.content.slice(0, 110)}
+                    {m.content.length > 110 ? "..." : ""}
+                  </div>
+
+                  <div className="nl-memory-row-badges">
+                    <span className="nl-row-badge-type">{unitLabel}</span>
+                    <span className="nl-row-badge-source">{m.source || "MCP"} · {timeAgo}</span>
+                  </div>
+
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="nl-memory-row-tags">
+                      {m.tags.map((tag) => (
+                        <span key={tag} className="nl-row-tag-chip">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Star Rating and Actions */}
+                <div className="nl-memory-row-right">
+                  <div className="nl-row-stars">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`nl-star-icon ${star <= stars ? "lit" : "dim"}`}
+                        onClick={(e) => handleSetImportance(e, m, star)}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="nl-row-action-buttons">
+                    <button
+                      className="nl-row-icon-btn"
+                      title="删除"
+                      onClick={(e) => handleDelete(e, m.id)}
+                    >
+                      🗑️
+                    </button>
+                    <button
+                      className="nl-row-icon-btn"
+                      title="置顶/收藏"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSetImportance(e, m, stars === 5 ? 3 : 5);
+                      }}
+                    >
+                      📌
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -280,25 +668,29 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                     value={formImportance}
                     onChange={(e) => setFormImportance(e.target.value as ImportanceLevel)}
                   >
-                    <option value="critical">🔥 关键 (Critical)</option>
-                    <option value="high">📌 重要 (High)</option>
-                    <option value="medium">💡 普通 (Medium)</option>
-                    <option value="low">📝 备注 (Low)</option>
+                    <option value="critical">🔥 关键 (Critical - 5星)</option>
+                    <option value="high">📌 重要 (High - 4星)</option>
+                    <option value="medium">💡 普通 (Medium - 3星)</option>
+                    <option value="low">📝 备注 (Low - 2星)</option>
                   </select>
                 </div>
 
                 <div className="nl-form-group">
-                  <label>知识分类</label>
+                  <label>知识类型 (Unit Type)</label>
                   <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value as MemoryCategory)}
+                    value={formUnitType}
+                    onChange={(e) => {
+                      setFormUnitType(e.target.value as UnitType);
+                      setFormCategory(e.target.value as any);
+                    }}
                   >
-                    <option value="Decision">决策 (Decision)</option>
-                    <option value="Architecture">架构 (Architecture)</option>
-                    <option value="Gotcha">避坑 (Gotcha)</option>
-                    <option value="Rule">规范 (Rule)</option>
-                    <option value="Tech">技术 (Tech)</option>
-                    <option value="Note">笔记 (Note)</option>
+                    <option value="decision">💡 决策 (Decision)</option>
+                    <option value="fact">🏛️ 事实 (Fact)</option>
+                    <option value="procedure">⚡ 流程 (Procedure)</option>
+                    <option value="learning">🎓 学习 (Learning)</option>
+                    <option value="preference">⚙️ 偏好 (Preference)</option>
+                    <option value="plan">🎯 计划 (Plan)</option>
+                    <option value="context">📑 上下文 (Context)</option>
                   </select>
                 </div>
               </div>

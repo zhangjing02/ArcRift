@@ -64,6 +64,7 @@ export interface JobStatus {
 
 export type ImportanceLevel = "critical" | "high" | "medium" | "low";
 export type MemoryCategory = "Architecture" | "Decision" | "Gotcha" | "Rule" | "Tech" | "Note";
+export type UnitType = "fact" | "preference" | "decision" | "plan" | "procedure" | "learning" | "context" | "event";
 
 export interface Memory {
   id: string;
@@ -72,6 +73,7 @@ export interface Memory {
   content: string;
   importance: ImportanceLevel;
   category: MemoryCategory;
+  unitType?: UnitType;
   tags: string[];
   source?: string;
   createdAt: string;
