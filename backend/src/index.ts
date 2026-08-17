@@ -26,7 +26,7 @@ import toolsRoutes from "./routes/tools";
 
 // ── #9: .env validation — fail fast with a clear message ──────────
 function validateEnv() {
-  const STORAGE_MODE = (process.env.ARCRIFT_STORAGE_MODE || "docker").toLowerCase();
+  const STORAGE_MODE = (process.env.ARCRIFT_STORAGE_MODE || "sqlite").toLowerCase();
 
   if (STORAGE_MODE === "docker") {
     // NEO4J, MONGO are only required in Docker mode

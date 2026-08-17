@@ -76,8 +76,15 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
     svg.attr("viewBox", [0, 0, width, height] as any);
 
-    const nodes = sessionGraph.nodes.slice(0, 10).map((d: any) => ({ ...d }));
-    const links = sessionGraph.links.slice(0, 12).map((d: any) => ({ ...d }));
+    const nodes = sessionGraph.nodes.map((d: any) => ({ ...d }));
+    const nodeIds = new Set(nodes.map((n: any) => n.id));
+    const links = sessionGraph.links
+      .filter((l: any) => {
+        const src = typeof l.source === "object" ? l.source.id : l.source;
+        const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        return nodeIds.has(src) && nodeIds.has(tgt);
+      })
+      .map((d: any) => ({ ...d }));
 
     const simulation = d3
       .forceSimulation(nodes as any)

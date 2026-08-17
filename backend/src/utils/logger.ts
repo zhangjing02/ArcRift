@@ -7,23 +7,40 @@ function isMcpMode(): boolean {
   );
 }
 
-const stderrLogger = pino({ level: process.env.LOG_LEVEL || "info" }, pino.destination(2));
-const stdoutLogger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  transport:
-    process.env.NODE_ENV !== "production"
-      ? { target: "pino-pretty", options: { colorize: true } }
-      : undefined,
-});
-
-function getActiveLogger() {
-  return isMcpMode() ? stderrLogger : stdoutLogger;
+let activeLogger: any;
+try {
+  activeLogger = isMcpMode()
+    ? pino({ level: process.env.LOG_LEVEL || "info" }, pino.destination({ fd: 2, sync: true }))
+    : pino({
+        level: process.env.LOG_LEVEL || "info",
+        transport:
+          process.env.NODE_ENV !== "production"
+            ? { target: "pino-pretty", options: { colorize: true } }
+            : undefined,
+      });
+} catch {
+  activeLogger = {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  };
 }
 
 export const logger = {
-  info: (msg: string, ...args: any[]) => getActiveLogger().info(msg, ...args),
-  warn: (msg: string, ...args: any[]) => getActiveLogger().warn(msg, ...args),
-  error: (msg: string, ...args: any[]) => getActiveLogger().error(msg, ...args),
-  debug: (msg: string, ...args: any[]) => getActiveLogger().debug(msg, ...args),
-  success: (msg: string, ...args: any[]) => getActiveLogger().info({ success: true }, msg, ...args),
+  info: (msg: string, ...args: any[]) => {
+    try { activeLogger.info(msg, ...args); } catch {}
+  },
+  warn: (msg: string, ...args: any[]) => {
+    try { activeLogger.warn(msg, ...args); } catch {}
+  },
+  error: (msg: string, ...args: any[]) => {
+    try { activeLogger.error(msg, ...args); } catch {}
+  },
+  debug: (msg: string, ...args: any[]) => {
+    try { activeLogger.debug(msg, ...args); } catch {}
+  },
+  success: (msg: string, ...args: any[]) => {
+    try { activeLogger.info({ success: true }, msg, ...args); } catch {}
+  },
 };

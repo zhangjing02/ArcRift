@@ -1,2 +1,3 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "cmd.exe /c ""d:\Devs\ArcRift\ChronosMind.bat""", 0, False
+WshShell.CurrentDirectory = "d:\Devs\ArcRift"
+WshShell.Run """d:\Devs\ArcRift\desktop\node_modules\electron\dist\electron.exe"" ""d:\Devs\ArcRift\desktop\main.js""", 1, False

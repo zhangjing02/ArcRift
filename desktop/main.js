@@ -1,58 +1,52 @@
+/**
+ * ChronosMind Electron Main Process
+ * Manages background API lifecycle, system tray, and main dashboard window.
+ */
+
 const { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut } = require("electron");
-const path = require("path");
-const fs = require("fs");
 const { spawn } = require("child_process");
+const path = require("path");
 const http = require("http");
-
-const logFile = path.resolve(__dirname, "desktop.log");
-function log(msg) {
-  try {
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-  } catch {}
-}
-
-log("Starting Electron main.js...");
+const fs = require("fs");
 
 let mainWindow = null;
 let tray = null;
-let backendProcess = null;
 let isQuitting = false;
+let isPageLoaded = false;
+let backendProcess = null;
 
-const BACKEND_DIR = path.resolve(__dirname, "../backend");
-const BACKEND_SCRIPT = path.resolve(BACKEND_DIR, "dist/index.js");
-const DB_PATH = path.resolve(BACKEND_DIR, "ArcRift.db");
 const PORT = 3001;
+const LOG_FILE = path.resolve(__dirname, "desktop.log");
 
-function getNodePath() {
-  const candidates = [
-    "C:\\Program Files\\nodejs\\node.exe",
-    "C:\\Program Files (x86)\\nodejs\\node.exe",
-    path.resolve(process.env.APPDATA || "", "npm/node.exe"),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return "node";
+function log(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  try {
+    fs.appendFileSync(LOG_FILE, line);
+  } catch {}
 }
 
-function startBackend() {
-  if (backendProcess) return;
-  const nodeBin = getNodePath();
-  log("Spawning backend with node: " + nodeBin + " -> " + BACKEND_SCRIPT);
+log("Starting ChronosMind Electron main.js...");
 
-  const env = {
-    ...process.env,
-    PORT: String(PORT),
-    ARCRIFT_STORAGE_MODE: "sqlite",
-    SQLITE_DB_PATH: DB_PATH,
-    NODE_ENV: "production",
-  };
+function startBackend() {
+  const backendDir = path.resolve(__dirname, "../backend");
+  const backendEntry = path.resolve(backendDir, "dist/index.js");
+
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.ELECTRON_RUN_AS_NODE;
+  delete cleanEnv.ELECTRON_NO_ASAR;
+  delete cleanEnv.NODE_OPTIONS;
+  delete cleanEnv.ATOM_SHELL_INTERNAL_RUN_AS_NODE;
+  cleanEnv.PORT = String(PORT);
+  cleanEnv.NODE_ENV = "production";
+  cleanEnv.ARCRIFT_STORAGE_MODE = "sqlite";
+
+  log(`Spawning backend: node "${backendEntry}" (cwd: ${backendDir})`);
 
   try {
-    backendProcess = spawn(nodeBin, [BACKEND_SCRIPT], {
-      cwd: BACKEND_DIR,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
+    backendProcess = spawn("node", [backendEntry], {
+      cwd: backendDir,
+      env: cleanEnv,
+      shell: true,
       windowsHide: true,
     });
 
@@ -60,65 +54,94 @@ function startBackend() {
       log(`[Backend Spawn ERR] ${err?.message || String(err)}`);
     });
 
-    backendProcess.stdout?.on("data", (data) => {
-      log(`[Backend] ${data.toString().trim()}`);
+    backendProcess.stdout?.on("data", (chunk) => {
+      const msg = chunk.toString();
+      log("[Backend OUT] " + msg.trim());
+      if (msg.includes("3001") || msg.includes("running on port")) {
+        loadFrontendInWindow();
+      }
     });
 
-    backendProcess.stderr?.on("data", (data) => {
-      log(`[Backend ERR] ${data.toString().trim()}`);
+    backendProcess.stderr?.on("data", (chunk) => {
+      log("[Backend ERR] " + chunk.toString().trim());
     });
 
-    backendProcess.on("exit", (code) => {
-      log(`[Backend] Exited with code ${code}`);
+    backendProcess.on("exit", (code, signal) => {
+      log(`[Backend Exit] code=${code} signal=${signal}`);
       backendProcess = null;
     });
   } catch (err) {
-    log(`[Backend Spawn Catch] ${err?.message || String(err)}`);
+    log(`[Backend Spawn Catch] ${err?.stack || err}`);
   }
 }
 
 function stopBackend() {
   if (backendProcess) {
     log("Stopping backend...");
-    backendProcess.kill();
+    try {
+      backendProcess.kill();
+    } catch {}
     backendProcess = null;
   }
 }
 
-function checkServerReady(callback) {
+function loadFrontendInWindow() {
+  if (!mainWindow || mainWindow.isDestroyed() || isPageLoaded) return;
+  const targetUrl = `http://127.0.0.1:${PORT}`;
+  log("Loading frontend in window: " + targetUrl);
+  mainWindow.loadURL(targetUrl).catch((err) => {
+    log("loadURL error: " + err);
+  });
+}
+
+function ensureBackendAndLoad() {
+  // Check if backend is already listening
   const req = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
     if (res.statusCode === 200) {
-      callback(true);
+      log("Backend already active on port 3001! Loading window.");
+      loadFrontendInWindow();
     } else {
-      callback(false);
+      startBackend();
     }
   });
 
-  req.on("error", () => callback(false));
+  req.on("error", () => {
+    log("Backend not active, starting new instance...");
+    startBackend();
+  });
   req.end();
-}
 
-function waitForServer(maxAttempts, interval, onReady) {
+  // Poll until backend is healthy, then load ONCE
   let attempts = 0;
-  const timer = setInterval(() => {
+  const maxAttempts = 60;
+  const pollTimer = setInterval(() => {
+    if (isPageLoaded) {
+      clearInterval(pollTimer);
+      return;
+    }
     attempts++;
-    checkServerReady((ready) => {
-      if (ready) {
-        clearInterval(timer);
-        log(`Server became ready after ${attempts} attempts`);
-        onReady();
-      } else if (attempts >= maxAttempts) {
-        clearInterval(timer);
-        log(`Server wait timed out after ${attempts} attempts, loading window anyway`);
-        onReady();
+    const testReq = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
+      if (res.statusCode === 200) {
+        clearInterval(pollTimer);
+        log(`Backend ready on attempt ${attempts}. Loading frontend.`);
+        loadFrontendInWindow();
       }
     });
-  }, interval);
+    testReq.on("error", () => {
+      if (attempts >= maxAttempts) {
+        clearInterval(pollTimer);
+        log("Poll reached maxAttempts, attempting final load.");
+        loadFrontendInWindow();
+      }
+    });
+    testReq.end();
+  }, 400);
 }
 
 function createWindow() {
-  log("Creating BrowserWindow immediately...");
+  log("Creating BrowserWindow...");
   const iconPath = path.resolve(__dirname, "icon.ico");
+
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -135,21 +158,22 @@ function createWindow() {
     },
   });
 
-  const targetUrl = `http://127.0.0.1:${PORT}`;
-  log("Loading URL: " + targetUrl);
-  mainWindow.loadURL(targetUrl).catch(() => {
-    log("Initial loadURL failed, retrying in 1s...");
-    setTimeout(() => {
-      mainWindow?.loadURL(targetUrl).catch(() => {});
-    }, 1500);
+  mainWindow.webContents.on("did-finish-load", () => {
+    isPageLoaded = true;
+    log("Renderer did-finish-load successfully! UI is live.");
   });
 
-  // Handle load failure (e.g. backend still booting up)
-  mainWindow.webContents.on("did-fail-load", () => {
-    log("did-fail-load, retrying in 1.5s...");
+  mainWindow.webContents.on("console-message", (event, level, message, line, sourceId) => {
+    log(`[Renderer Console] [${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {
+    if (errorCode === -3) return; // Ignore net::ERR_ABORTED
+    log(`did-fail-load: ${errorCode} ${errorDescription}, retrying in 1.5s...`);
+    isPageLoaded = false;
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(targetUrl).catch(() => {});
+        loadFrontendInWindow();
       }
     }, 1500);
   });
@@ -160,6 +184,8 @@ function createWindow() {
       mainWindow.hide();
     }
   });
+
+  ensureBackendAndLoad();
 }
 
 function createTray() {
@@ -172,7 +198,7 @@ function createTray() {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip("ChronosMind - AI Memory & Knowledge Graph Engine");
+  tray.setToolTip("ChronosMind - AI Memory & Knowledge Graph");
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -185,13 +211,10 @@ function createTray() {
       },
     },
     {
-      label: "重启服务 (Restart Server)",
+      label: "重新加载 (Reload)",
       click: () => {
-        stopBackend();
-        setTimeout(() => {
-          startBackend();
-          if (mainWindow) mainWindow.reload();
-        }, 1000);
+        isPageLoaded = false;
+        if (mainWindow) mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
       },
     },
     { type: "separator" },
@@ -209,9 +232,10 @@ function createTray() {
   tray.on("double-click", () => {
     if (mainWindow) {
       if (mainWindow.isVisible()) {
-        mainWindow.focus();
+        mainWindow.hide();
       } else {
         mainWindow.show();
+        mainWindow.focus();
       }
     }
   });
@@ -221,25 +245,8 @@ log("Registering app lifecycle events...");
 
 app.whenReady().then(() => {
   log("app.whenReady fired!");
-  try {
-    startBackend();
-  } catch (e) {
-    log("startBackend error: " + e.message);
-  }
-
-  try {
-    createTray();
-    log("createTray done");
-  } catch (e) {
-    log("createTray error: " + e.message);
-  }
-
-  try {
-    createWindow();
-    log("createWindow done");
-  } catch (e) {
-    log("createWindow error: " + e.message);
-  }
+  createTray();
+  createWindow();
 
   try {
     globalShortcut.register("Alt+M", () => {
@@ -274,5 +281,4 @@ app.on("before-quit", () => {
 
 app.on("window-all-closed", () => {
   log("window-all-closed event (kept alive in tray)");
-  // Don't call app.quit(), keep alive in tray
 });

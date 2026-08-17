@@ -110,11 +110,18 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     if (filteredData.nodes.length === 0) return;
 
     const nodes: any[] = filteredData.nodes.map((d: any) => ({ ...d }));
-    const links: any[] = filteredData.links.map((d: any) => ({ ...d }));
+    const nodeIds = new Set(nodes.map((n: any) => n.id));
+    const validLinks: any[] = filteredData.links
+      .filter((l: any) => {
+        const src = typeof l.source === "object" ? l.source.id : l.source;
+        const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        return nodeIds.has(src) && nodeIds.has(tgt);
+      })
+      .map((d: any) => ({ ...d }));
 
     const simulation = d3
       .forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(120))
+      .force("link", d3.forceLink(validLinks).id((d: any) => d.id).distance(120))
       .force("charge", d3.forceManyBody().strength(-280))
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collision", d3.forceCollide().radius(40));
@@ -133,14 +140,14 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .attr("stroke", "rgba(148, 163, 184, 0.25)")
       .attr("stroke-width", 1.5)
       .selectAll("line")
-      .data(links)
+      .data(validLinks)
       .join("line");
 
     // Link Labels (Relations)
     const linkText = g
       .append("g")
       .selectAll("text")
-      .data(links)
+      .data(validLinks)
       .join("text")
       .attr("font-size", "10px")
       .attr("fill", "#64748b")
