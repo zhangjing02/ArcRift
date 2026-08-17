@@ -21,6 +21,8 @@ import {
   exportKnowledgeBackup,
   importSettingsBackup,
   importKnowledgeBackup,
+  fetchSessions,
+  createSpace,
 } from "../../api/ArcRift";
 
 interface ModelItem {
@@ -176,6 +178,23 @@ export const NowledgeSettingsView: React.FC = () => {
   const [remoteConnectUrl, setRemoteConnectUrl] = useState<string>("");
   const [remoteConnectKey, setRemoteConnectKey] = useState<string>("");
   const [remoteToast, setRemoteToast] = useState<string | null>(null);
+
+  // ── Preferences (偏好设置) State ────────────────────────────────
+  const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">("dark");
+  const [uiLanguage, setUiLanguage] = useState<string>("auto");
+  const [fontSizeScale, setFontSizeScale] = useState<"small" | "normal" | "medium" | "large">("normal");
+  const [launchAtLogin, setLaunchAtLogin] = useState<boolean>(false);
+  const [enableMultiSpaces, setEnableMultiSpaces] = useState<boolean>(true);
+  const [spacesList, setSpacesList] = useState<any[]>([]);
+  const [showCreateSpaceModal, setShowCreateSpaceModal] = useState<boolean>(false);
+  const [newSpaceName, setNewSpaceName] = useState<string>("");
+  const [newSpacePlatform, setNewSpacePlatform] = useState<string>("desktop");
+  const [shortcutLauncher, setShortcutLauncher] = useState<boolean>(true);
+  const [shortcutSummary, setShortcutSummary] = useState<boolean>(true);
+  const [shortcutHints, setShortcutHints] = useState<boolean>(false);
+  const [cliDetailOpen, setCliDetailOpen] = useState<boolean>(false);
+  const [browseNowDetailOpen, setBrowseNowDetailOpen] = useState<boolean>(false);
+  const [prefToast, setPrefToast] = useState<string | null>(null);
 
   // Models State
   const [models, setModels] = useState<ModelItem[]>([]);
@@ -355,9 +374,66 @@ export const NowledgeSettingsView: React.FC = () => {
           if (data.remoteAccess.publicUrl) setRemotePublicUrl(data.remoteAccess.publicUrl);
           if (data.remoteAccess.ipWhitelist) setIpWhitelist(data.remoteAccess.ipWhitelist);
         }
+
+        if (data.preferences) {
+          if (data.preferences.themeMode) setThemeMode(data.preferences.themeMode);
+          if (data.preferences.uiLanguage) setUiLanguage(data.preferences.uiLanguage);
+          if (data.preferences.fontSizeScale) setFontSizeScale(data.preferences.fontSizeScale);
+          if (typeof data.preferences.launchAtLogin === "boolean") setLaunchAtLogin(data.preferences.launchAtLogin);
+          if (typeof data.preferences.enableMultiSpaces === "boolean") setEnableMultiSpaces(data.preferences.enableMultiSpaces);
+          if (typeof data.preferences.shortcutLauncher === "boolean") setShortcutLauncher(data.preferences.shortcutLauncher);
+          if (typeof data.preferences.shortcutSummary === "boolean") setShortcutSummary(data.preferences.shortcutSummary);
+          if (typeof data.preferences.shortcutHints === "boolean") setShortcutHints(data.preferences.shortcutHints);
+        }
+
+        try {
+          const sessRes = await fetchSessions();
+          if (sessRes?.sessions) {
+            setSpacesList(sessRes.sessions);
+          }
+        } catch {}
       }
     } catch (err) {
       console.error("Failed to load settings", err);
+    }
+  };
+
+  const handleSavePreferences = async (newPrefs: any) => {
+    try {
+      await saveAppSettings({
+        preferences: {
+          themeMode,
+          uiLanguage,
+          fontSizeScale,
+          launchAtLogin,
+          enableMultiSpaces,
+          shortcutLauncher,
+          shortcutSummary,
+          shortcutHints,
+          ...newPrefs,
+        },
+      });
+      setPrefToast("✓ 偏好设置已更新！");
+      setTimeout(() => setPrefToast(null), 2500);
+    } catch (e) {
+      console.error("Failed to save preferences", e);
+    }
+  };
+
+  const handleCreateSpace = async () => {
+    if (!newSpaceName.trim()) return alert("请输入空间名称");
+    try {
+      await createSpace(newSpaceName.trim(), newSpacePlatform);
+      setShowCreateSpaceModal(false);
+      setNewSpaceName("");
+      const sessRes = await fetchSessions();
+      if (sessRes?.sessions) {
+        setSpacesList(sessRes.sessions);
+      }
+      setPrefToast("✓ 记忆空间创建成功！");
+      setTimeout(() => setPrefToast(null), 3000);
+    } catch (e: any) {
+      alert("创建空间失败: " + e.message);
     }
   };
 
@@ -2241,10 +2317,561 @@ export const NowledgeSettingsView: React.FC = () => {
           </div>
         )}
 
+        {/* ── 8. 偏好设置 (Preferences) ── */}
         {activeSubTab === "preferences" && (
           <div className="nl-set-panel">
-            <h2>偏好设置</h2>
-            <p className="nl-set-desc">自定义界面主题、快捷键与编辑器偏好。</p>
+            <div className="nl-set-panel-header" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--nl-text-primary)", margin: 0 }}>偏好设置</h2>
+                  <p className="nl-set-desc" style={{ marginTop: 4 }}>
+                    自定义外观、快捷键和应用行为。
+                  </p>
+                </div>
+                {prefToast && (
+                  <div style={{ padding: "6px 14px", background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6, color: "#34d399", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                    {prefToast}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 卡片 1: 外观 (Appearance) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                <span style={{ fontSize: 18 }}>🔆</span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>外观</span>
+              </div>
+
+              {/* 1. 主题 */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>主题</div>
+                <div className="nl-theme-segmented" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, background: "rgba(255,255,255,0.04)", padding: 3, borderRadius: 8, border: "1px solid var(--nl-border)" }}>
+                  <button
+                    type="button"
+                    className={`nl-seg-btn ${themeMode === "light" ? "active" : ""}`}
+                    onClick={() => {
+                      setThemeMode("light");
+                      handleSavePreferences({ themeMode: "light" });
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      border: "none",
+                      background: themeMode === "light" ? "var(--nl-card-bg)" : "transparent",
+                      color: themeMode === "light" ? "#f8fafc" : "var(--nl-text-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span>☀️</span> 浅色
+                  </button>
+                  <button
+                    type="button"
+                    className={`nl-seg-btn ${themeMode === "dark" ? "active" : ""}`}
+                    onClick={() => {
+                      setThemeMode("dark");
+                      handleSavePreferences({ themeMode: "dark" });
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      border: "none",
+                      background: themeMode === "dark" ? "rgba(255,255,255,0.08)" : "transparent",
+                      color: themeMode === "dark" ? "#f8fafc" : "var(--nl-text-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      boxShadow: themeMode === "dark" ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span>🌙</span> 深色
+                  </button>
+                  <button
+                    type="button"
+                    className={`nl-seg-btn ${themeMode === "system" ? "active" : ""}`}
+                    onClick={() => {
+                      setThemeMode("system");
+                      handleSavePreferences({ themeMode: "system" });
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      border: "none",
+                      background: themeMode === "system" ? "rgba(255,255,255,0.08)" : "transparent",
+                      color: themeMode === "system" ? "#f8fafc" : "var(--nl-text-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    跟随系统
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. 界面语言 */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>界面语言</div>
+                <div style={{ position: "relative" }}>
+                  <select
+                    className="nl-select"
+                    value={uiLanguage}
+                    onChange={(e) => {
+                      setUiLanguage(e.target.value);
+                      handleSavePreferences({ uiLanguage: e.target.value });
+                    }}
+                    style={{ width: "100%", padding: "9px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--nl-border)", borderRadius: 8, color: "#f8fafc" }}
+                  >
+                    <option value="auto">跟随系统 (当前使用: 简体中文)</option>
+                    <option value="zh-CN">简体中文 (Simplified Chinese)</option>
+                    <option value="zh-TW">繁體中文 (Traditional Chinese)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="ja-JP">日本語 (Japanese)</option>
+                  </select>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 6 }}>
+                  总以此设定显示界面。AI 回复语言请到 个人资料 里的 输出语言 设定。
+                </p>
+              </div>
+
+              {/* 3. 字号尺寸 */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>字号尺寸</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  {[
+                    { id: "small", label: "A", size: 12, title: "小" },
+                    { id: "normal", label: "A", size: 14, title: "标准" },
+                    { id: "medium", label: "A", size: 16, title: "中" },
+                    { id: "large", label: "A", size: 18, title: "大" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => {
+                        setFontSizeScale(f.id as any);
+                        handleSavePreferences({ fontSizeScale: f.id });
+                      }}
+                      style={{
+                        padding: "10px 0",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 2,
+                        background: fontSizeScale === f.id ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                        border: fontSizeScale === f.id ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--nl-border)",
+                        borderRadius: 8,
+                        color: fontSizeScale === f.id ? "#f8fafc" : "var(--nl-text-muted)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span style={{ fontSize: f.size, fontWeight: 600 }}>{f.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 卡片 2: 启动 (Startup) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <span style={{ fontSize: 18, marginTop: 2 }}>🖥️</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--nl-text-primary)" }}>登录时自动启动</div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                      登录系统后自动启动 Nowledge。
+                    </div>
+                  </div>
+                </div>
+                <label className="nl-switch">
+                  <input
+                    type="checkbox"
+                    checked={launchAtLogin}
+                    onChange={(e) => {
+                      setLaunchAtLogin(e.target.checked);
+                      handleSavePreferences({ launchAtLogin: e.target.checked });
+                    }}
+                  />
+                  <span className="nl-slider round"></span>
+                </label>
+              </div>
+            </div>
+
+            {/* 卡片 3: 记忆空间 (Memory Spaces) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>🗂️</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>记忆空间</span>
+                </div>
+                <label className="nl-switch">
+                  <input
+                    type="checkbox"
+                    checked={enableMultiSpaces}
+                    onChange={(e) => {
+                      setEnableMultiSpaces(e.target.checked);
+                      handleSavePreferences({ enableMultiSpaces: e.target.checked });
+                    }}
+                  />
+                  <span className="nl-slider round"></span>
+                </label>
+              </div>
+
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", lineHeight: 1.6, margin: "0 0 8px 0" }}>
+                只在空间内部查找和消费记忆。时间线、记忆、对话、信源和工作记忆都会跟随当前空间；附随默认仍然是全局的，除非你主动隐藏。
+              </p>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "0 0 16px 0" }}>
+                你现在仍然只有一个共享空间。只有在需要独立记忆隔离时，再创建新的空间。
+              </p>
+
+              {/* 生效原理说明 Callout */}
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--nl-border)",
+                  borderRadius: 8,
+                  padding: "12px 14px",
+                  marginBottom: 16,
+                  fontSize: 12,
+                  color: "var(--nl-text-secondary)",
+                  lineHeight: 1.7,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--nl-text-primary)", marginBottom: 4 }}>
+                  <span>💡</span> 这些设置是如何生效的
+                </div>
+                <div>• 默认约束决定了哪些空间开始隔离，第一步自动归类会优先落到更大范围。</div>
+                <div>• 共享上下文的愿景以让“过去连起空间”，它不会偷看隐私记录，也不会把不同空间合并。</div>
+                <div>• 空间规则是 AI Now、Feed 和后台任务在这个空间的本地工作规则。</div>
+              </div>
+
+              {/* 空间列表卡片 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                {spacesList.length > 0 ? (
+                  spacesList.map((sp) => (
+                    <div
+                      key={sp._id}
+                      style={{
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid var(--nl-border)",
+                        borderRadius: 8,
+                        padding: "14px 16px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 14 }}>🔘</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>{sp.projectName || "Default"}</span>
+                          <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
+                            {sp._id === "default" || sp.projectName === "default" ? "共享" : "独立空间"}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
+                          当前
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
+                        {sp.tripleCount || 0} 条事实 · {sp.topicCount || 1} 个对话 · 0 个信源
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
+                        General memory space for everything not explicitly separated yet.
+                      </div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                        只能在这个空间 · 没有共享空间
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid var(--nl-border)",
+                      borderRadius: 8,
+                      padding: "14px 16px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 14 }}>🔘</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>Default</span>
+                        <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
+                          共享
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
+                        当前
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
+                      24 条记忆 · 1 个对话 · 0 个信源
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
+                      General memory space for everything not explicitly separated yet.
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                      只能在这个空间 · 没有共享空间
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="nl-btn-secondary"
+                onClick={() => setShowCreateSpaceModal(true)}
+                style={{ width: "100%", padding: "10px", borderRadius: 8, fontSize: 13, fontWeight: 500, marginBottom: 12 }}
+              >
+                + 创建新的空间
+              </button>
+
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0, textAlign: "center" }}>
+                只要最后只剩共享的 Default 空间，你之后随时都可以再把它关掉。
+              </p>
+            </div>
+
+            {/* 卡片 4: 全局热键 (Global Shortcuts) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 18 }}>⌨️</span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>全局热键</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "0 0 16px 0" }}>
+                系统全局有效，即使 Nowledge 在后台运行
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* 1. 启动器搜索 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#f8fafc" }}>启动器搜索</div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>从任意应用打开浮动搜索</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <kbd style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--nl-border)", padding: "3px 8px", borderRadius: 4, fontSize: 12, color: "#e2e8f0", fontFamily: "inherit" }}>
+                      Ctrl + Shift + K
+                    </kbd>
+                    <label className="nl-switch">
+                      <input
+                        type="checkbox"
+                        checked={shortcutLauncher}
+                        onChange={(e) => {
+                          setShortcutLauncher(e.target.checked);
+                          handleSavePreferences({ shortcutLauncher: e.target.checked });
+                        }}
+                      />
+                      <span className="nl-slider round"></span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 2. 记忆摘要 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#f8fafc" }}>记忆摘要</div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>打开主窗口并摘要预览</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <kbd style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--nl-border)", padding: "3px 8px", borderRadius: 4, fontSize: 12, color: "#e2e8f0", fontFamily: "inherit" }}>
+                      Ctrl + Shift + Space
+                    </kbd>
+                    <label className="nl-switch">
+                      <input
+                        type="checkbox"
+                        checked={shortcutSummary}
+                        onChange={(e) => {
+                          setShortcutSummary(e.target.checked);
+                          handleSavePreferences({ shortcutSummary: e.target.checked });
+                        }}
+                      />
+                      <span className="nl-slider round"></span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 3. 快捷键提示 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#f8fafc" }}>快捷键提示</div>
+                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>按住 Ctrl 在应用内预览快捷键</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <kbd style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--nl-border)", padding: "3px 8px", borderRadius: 4, fontSize: 12, color: "#e2e8f0", fontFamily: "inherit" }}>
+                      Ctrl
+                    </kbd>
+                    <label className="nl-switch">
+                      <input
+                        type="checkbox"
+                        checked={shortcutHints}
+                        onChange={(e) => {
+                          setShortcutHints(e.target.checked);
+                          handleSavePreferences({ shortcutHints: e.target.checked });
+                        }}
+                      />
+                      <span className="nl-slider round"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 卡片 5: 键盘快捷键 (Keyboard Shortcuts Master Reference) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--nl-text-secondary)", marginBottom: 14 }}>
+                键盘快捷键
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 16 }}>
+                {/* 左列: 通用 */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--nl-text-muted)", marginBottom: 10 }}>通用</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      { name: "聚焦搜索", keys: "Ctrl + K" },
+                      { name: "启动器 (从任意应用呼出)", keys: "Ctrl + Shift + K" },
+                      { name: "记忆摘要 (全局)", keys: "Ctrl + Shift + Space" },
+                      { name: "切换侧边栏", keys: "Ctrl + \\" },
+                      { name: "统计", keys: "Ctrl + ." },
+                      { name: "设置", keys: "Ctrl + ," },
+                      { name: "退出应用", keys: "Ctrl + Q" },
+                    ].map((it) => (
+                      <div key={it.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                        <span style={{ color: "var(--nl-text-secondary)" }}>{it.name}</span>
+                        <kbd style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--nl-border)", padding: "2px 6px", borderRadius: 4, color: "#e2e8f0", fontFamily: "inherit" }}>
+                          {it.keys}
+                        </kbd>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 右列: 导航 */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--nl-text-muted)", marginBottom: 10 }}>导航</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      { name: "收集流", keys: "Ctrl + 1" },
+                      { name: "记忆", keys: "Ctrl + 2" },
+                      { name: "对话", keys: "Ctrl + 3" },
+                      { name: "AI Now", keys: "Ctrl + 4" },
+                      { name: "附着", keys: "Ctrl + 5" },
+                      { name: "资料库", keys: "Ctrl + 6" },
+                      { name: "技能", keys: "Ctrl + 7" },
+                      { name: "上下文", keys: "Ctrl + 8" },
+                    ].map((it) => (
+                      <div key={it.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                        <span style={{ color: "var(--nl-text-secondary)" }}>{it.name}</span>
+                        <kbd style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--nl-border)", padding: "2px 6px", borderRadius: 4, color: "#e2e8f0", fontFamily: "inherit" }}>
+                          {it.keys}
+                        </kbd>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--nl-border)",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  color: "var(--nl-text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span>💡</span> 开启快捷键提示，按住 Ctrl 预览快捷键
+              </div>
+            </div>
+
+            {/* 卡片 6: 开发者工具 (Developer Tools) */}
+            <div className="nl-card" style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--nl-text-secondary)", marginBottom: 14 }}>
+                开发者工具
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* 1. 命令行界面 */}
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--nl-border)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 14, fontFamily: "monospace", background: "rgba(255,255,255,0.06)", padding: "3px 6px", borderRadius: 4 }}>&gt;_</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>命令行界面</div>
+                        <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>从任意终端访问你的知识库</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "#34d399", border: "1px solid rgba(16,185,129,0.3)", padding: "2px 8px", borderRadius: 4 }}>
+                        已安装
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCliDetailOpen(!cliDetailOpen)}
+                        style={{ background: "transparent", border: "none", color: "var(--nl-text-secondary)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        详情 {cliDetailOpen ? "▴" : "▾"}
+                      </button>
+                    </div>
+                  </div>
+                  {cliDetailOpen && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--nl-border)", fontSize: 12, color: "var(--nl-text-secondary)", lineHeight: 1.6 }}>
+                      <p style={{ margin: "0 0 6px 0" }}>在终端中运行 <code>nmem --help</code> 或 <code>arcrift --help</code> 即可调起命令行交互：</p>
+                      <pre style={{ background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: 6, margin: 0, overflowX: "auto" }}>
+                        <code>{`nmem search "React Router"\nnmem memory add "新的关键决策"\nnmem stats`}</code>
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Browse Now */}
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--nl-border)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 16 }}>🌐</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>Browse Now</div>
+                        <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>面向 AI 智能体的浏览器自动化 CLI</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "#34d399", border: "1px solid rgba(16,185,129,0.3)", padding: "2px 8px", borderRadius: 4 }}>
+                        自动安装
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setBrowseNowDetailOpen(!browseNowDetailOpen)}
+                        style={{ background: "transparent", border: "none", color: "var(--nl-text-secondary)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        详情 {browseNowDetailOpen ? "▴" : "▾"}
+                      </button>
+                    </div>
+                  </div>
+                  {browseNowDetailOpen && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--nl-border)", fontSize: 12, color: "var(--nl-text-secondary)", lineHeight: 1.6 }}>
+                      <p style={{ margin: "0 0 6px 0" }}>无头浏览器 MCP 与智能体页面抓取服务已自动就绪，支持通过 <code>fetch_url</code> 与 <code>browse</code> 自动将网页知识解析并摄入到当前记忆空间。</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2546,6 +3173,54 @@ export const NowledgeSettingsView: React.FC = () => {
                 }}
               >
                 测试并连接
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 5: 创建新的空间 ── */}
+      {showCreateSpaceModal && (
+        <div className="nl-modal-overlay" onClick={() => setShowCreateSpaceModal(false)}>
+          <div className="nl-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 6 }}>🗂️ 创建新的记忆空间</h3>
+            <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
+              创建独立的记忆空间以隔离时间线、记忆卡片与信源资料。
+            </p>
+
+            <div className="nl-form-group" style={{ marginBottom: 12 }}>
+              <label>空间名称 (Project / Space Name)</label>
+              <input
+                type="text"
+                placeholder="例如: Mobile App / Web Portal"
+                value={newSpaceName}
+                onChange={(e) => setNewSpaceName(e.target.value)}
+                className="nl-input"
+              />
+            </div>
+
+            <div className="nl-form-group" style={{ marginBottom: 16 }}>
+              <label>平台类别 (Platform)</label>
+              <select
+                className="nl-select"
+                value={newSpacePlatform}
+                onChange={(e) => setNewSpacePlatform(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--nl-border)", borderRadius: 6, color: "#f8fafc" }}
+              >
+                <option value="desktop">🖥️ 桌面 (Desktop)</option>
+                <option value="web">🌐 网页 (Web)</option>
+                <option value="chrome">🧭 浏览器插件 (Chrome Extension)</option>
+                <option value="mobile">📱 移动端 (Mobile)</option>
+                <option value="cli">⌨️ 命令行 (CLI)</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button className="nl-btn-secondary" onClick={() => setShowCreateSpaceModal(false)}>
+                取消
+              </button>
+              <button className="nl-btn-primary" onClick={handleCreateSpace}>
+                确认创建
               </button>
             </div>
           </div>

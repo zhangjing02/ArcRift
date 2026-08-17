@@ -266,6 +266,18 @@ export interface Settings {
     ipWhitelist?: string;
   };
 
+  // 偏好设置 (Preferences)
+  preferences?: {
+    themeMode?: "light" | "dark" | "system";
+    uiLanguage?: string;
+    fontSizeScale?: "small" | "normal" | "medium" | "large";
+    launchAtLogin?: boolean;
+    enableMultiSpaces?: boolean;
+    shortcutLauncher?: boolean;
+    shortcutSummary?: boolean;
+    shortcutHints?: boolean;
+  };
+
   // Legacy / Ollama-specific backwards compatibility
   ollamaEmbeddingModel?: string;
   ollamaExtractionModel?: string;

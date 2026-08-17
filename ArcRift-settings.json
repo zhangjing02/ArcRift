@@ -33,20 +33,14 @@
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
   "ollamaExtractionModel": "deepseek-chat",
-  "userProfile": {
-    "name": "Neo",
-    "aliases": "@neo, The One",
-    "outputLanguage": "zh-CN",
-    "aboutYou": "AI & Fullstack Engineer",
-    "profileInstructions": "Follow TypeScript Strict and Clean Architecture"
-  },
-  "remoteAccess": {
-    "allowLan": true,
-    "requireLocalAuth": false,
-    "apiKey": "ak_live_test_123456",
-    "tunnelType": "quick",
-    "tunnelStatus": "running",
-    "publicUrl": "https://mem-test.trycloudflare.com",
-    "ipWhitelist": "192.168.1.*"
+  "preferences": {
+    "themeMode": "dark",
+    "uiLanguage": "zh-CN",
+    "fontSizeScale": "normal",
+    "launchAtLogin": true,
+    "enableMultiSpaces": true,
+    "shortcutLauncher": true,
+    "shortcutSummary": true,
+    "shortcutHints": false
   }
 }

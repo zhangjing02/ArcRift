@@ -451,5 +451,10 @@ export async function importKnowledgeBackup(data: any, mode: "merge" | "skip" | 
   return res.data;
 }
 
+export async function createSpace(projectName: string, platform: string = "desktop"): Promise<any> {
+  const res = await apiClient.post("/api/context/session", { projectName, platform });
+  return res.data;
+}
+
 export { extractErrorMessage, apiClient };
 
