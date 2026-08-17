@@ -74,6 +74,18 @@ graph TD
 - 支持多项目/多空间的物理隔离，数据互不交叉。
 - `get_space_profile` 自动聚合项目的记忆数、图谱事实数、信源数、知识社区以及最新的 Working Memory 每日简报。
 
+### 5. 🌲 知识树与项目第一顺位分类体系 (Knowledge Tree & Project 1st Order)
+- **🚀 项目第一顺位 (By Project)**：
+  - 针对开发者与 Agent 真实 Coding 场景，将「项目 (Projects)」确立为第一顺位组织维度。
+  - Agent 在 IDE (Antigravity, Cursor, Claude Code) 中捕获或沉淀记忆时，系统自动识别 Workspace、仓库名或会话标题，将项目标签置顶注入 (`labels[0]`)。
+- **5 大记忆核心子维度**：
+  - `💡 全部记忆 (All Memories)`：扁平精选流，支持快速抽屉探查。
+  - `🚀 按项目 (By Project)`：各 Coding 项目专属卡片流与独立记忆库。
+  - `📅 按日期 (By Date)`：内嵌 30 天 5 级活动热力日历，按时间回溯沉淀。
+  - `🏷️ 标签 (Tags)`：项目标签置顶高亮 + 概念技术标签 2 列聚合卡片网格。
+  - `💎 结晶 (Crystals)`：高重要度（Critical/High）关键架构决策与技术结晶。
+  - `💡 按类型 (By Type)`：8 大认知类型（事实、偏好、决策、计划、流程、学习、上下文、事件）分类专页。
+
 ---
 
 ## 🔌 完整 MCP 工具协议清单
