@@ -305,14 +305,10 @@ export async function llm(prompt: string, maxTokens = 1000): Promise<string> {
 // ── Step 1: Compress raw chat into ALL meaningful facts ────────────
 export async function summarizeChunk(text: string): Promise<string> {
   const prompt = `You are a precision fact extractor. Read this conversation and extract ALL meaningful facts.
+IMPORTANT: If the conversation is in Chinese, extract and write the facts in Chinese (中文).
 
 CRITICAL RULES:
-- Preserve the EXACT nature of every relationship. Examples:
-  * "I am a student at X" → fact: "User is a STUDENT at X" (NOT an employee)
-  * "I work at X" → fact: "User WORKS AT X" (employee)
-  * "I study X" → fact: "User STUDIES X"
-  * "I am in semester N" → fact: "User is in semester N"
-  * "I am building X" → fact: "User IS BUILDING X"
+- Preserve the EXACT nature of every relationship.
 - Extract ALL of the following:
   * Academic facts: institution name, degree, semester/year, field of study, courses
   * Professional facts: job title, employer, projects, tech stack, decisions made
@@ -508,19 +504,22 @@ export async function generateProjectSummary(
     .map(t => `${t.subject} (${t.subjectType}) ${t.relation} ${t.object} (${t.objectType})`)
     .join("\n");
 
-  const prompt = `Convert these knowledge graph triples into a concise, structured project context summary.
-Format it as clean markdown that an AI assistant can quickly understand.
-Be specific and technical. No fluff.
+  const prompt = `将以下知识图谱实体三元组转换为清晰、结构化的项目上下文摘要（请使用中文输出）。
+格式为 Markdown，包含以下版块：
+- # ${projectName} 项目核心上下文
+- ## 架构与技术栈
+- ## 核心决策与规范约定
+- ## 功能特性与业务逻辑
+- ## 避坑与注意事项 (如有)
 
-Project name: ${projectName}
-Triples:
+项目名称: ${projectName}
+三元组事实:
 ${tripleText}
 
-Generate a structured summary with sections: Stack, Key Decisions, Features, and any other relevant sections.
-Keep it under 200 words total.`;
+请输出严谨、专业的技术中文摘要，总字数保持在 300 字以内。`;
 
   try {
-    return await llm(prompt, 400);
+    return await llm(prompt, 600);
   } catch {
     return triples
       .map(t => `- ${t.subject} ${t.relation.toLowerCase().replace(/_/g, " ")} ${t.object}`)
@@ -604,11 +603,8 @@ export async function summarizeContext(
   if (chunks.length === 0 && facts.length === 0) return "";
 
   const prompt = `You are a highly capable summarization assistant for a memory-augmented AI.
-The user is asking a query. You have retrieved several raw memory chunks and knowledge graph facts that might contain the answer.
-Your job is to read these raw fragments and synthesize a single, cohesive, highly-condensed prose summary that directly answers or relates to the user's query.
-Do NOT just list the facts. Weave them into a tight narrative paragraph.
-Exclude any fragments that are completely irrelevant to the query.
-If none of the fragments are relevant to the query, simply reply "No relevant context found."
+The user is asking a query. Synthesize a single, cohesive, highly-condensed prose summary that directly answers or relates to the user's query.
+IMPORTANT: If the query or context is in Chinese, provide the summary in Chinese (中文).
 
 USER QUERY:
 "${query}"
