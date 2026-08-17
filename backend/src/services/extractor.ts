@@ -86,6 +86,24 @@ async function getBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "
   return resolvedBackend;
 }
 
+function getProxyConfig(targetUrl: string) {
+  if (targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
+    return false;
+  }
+  const proxyStr = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || "http://127.0.0.1:7897";
+  if (!proxyStr) return false;
+  try {
+    const u = new URL(proxyStr);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port, 10),
+      protocol: u.protocol.replace(":", ""),
+    };
+  } catch {
+    return false;
+  }
+}
+
 // ── Generic OpenAI-Compatible Chat Call ─────────────────────────────
 async function callOpenAICompatible(
   prompt: string,
@@ -106,6 +124,8 @@ async function callOpenAICompatible(
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  const proxy = getProxyConfig(endpoint);
+
   const response = await axios.post(
     endpoint,
     {
@@ -117,6 +137,7 @@ async function callOpenAICompatible(
     {
       headers,
       timeout: 90000,
+      ...(proxy ? { proxy } : {}),
     }
   );
 
@@ -131,6 +152,8 @@ async function callOpenAICompatible(
 async function callGemini(prompt: string, apiKey: string, model: string, maxTokens = 1000): Promise<string> {
   const modelName = model.replace(/^models\//, "");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  const proxy = getProxyConfig(url);
+
   const response = await axios.post(
     url,
     {
@@ -140,7 +163,7 @@ async function callGemini(prompt: string, apiKey: string, model: string, maxToke
         temperature: 0.1,
       },
     },
-    { timeout: 60000 }
+    { timeout: 60000, ...(proxy ? { proxy } : {}) }
   );
 
   const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;

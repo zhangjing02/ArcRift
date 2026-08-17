@@ -28,6 +28,24 @@ export function normalizeAndFitDimension(vec: number[], targetDim = 768): number
   return padded;
 }
 
+function getProxyConfig(targetUrl: string) {
+  if (targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
+    return false;
+  }
+  const proxyStr = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || "http://127.0.0.1:7897";
+  if (!proxyStr) return false;
+  try {
+    const u = new URL(proxyStr);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port, 10),
+      protocol: u.protocol.replace(":", ""),
+    };
+  } catch {
+    return false;
+  }
+}
+
 // ── 1. OpenAI-Compatible & SiliconFlow Embeddings ─────────────────────
 async function callOpenAICompatibleEmbedding(
   texts: string[],
@@ -58,9 +76,12 @@ async function callOpenAICompatibleEmbedding(
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  const proxy = getProxyConfig(endpoint);
+
   const response = await axios.post(endpoint, payload, {
     headers,
     timeout: 60000,
+    ...(proxy ? { proxy } : {}),
   });
 
   if (response.data && Array.isArray(response.data.data)) {
@@ -84,12 +105,13 @@ async function callGeminiEmbedding(
 
   if (texts.length === 1) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:embedContent?key=${apiKey}`;
+    const proxy = getProxyConfig(url);
     const response = await axios.post(
       url,
       {
         content: { parts: [{ text: texts[0] }] },
       },
-      { timeout: 30000 }
+      { timeout: 30000, ...(proxy ? { proxy } : {}) }
     );
     const values = response.data?.embedding?.values;
     if (Array.isArray(values)) {
@@ -100,12 +122,13 @@ async function callGeminiEmbedding(
 
   // Batch embedding for Gemini
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:batchEmbedContents?key=${apiKey}`;
+  const proxy = getProxyConfig(url);
   const requests = texts.map(text => ({
     model: `models/${modelName}`,
     content: { parts: [{ text }] },
   }));
 
-  const response = await axios.post(url, { requests }, { timeout: 60000 });
+  const response = await axios.post(url, { requests }, { timeout: 60000, ...(proxy ? { proxy } : {}) });
   if (response.data && Array.isArray(response.data.embeddings)) {
     return response.data.embeddings.map((e: any) =>
       normalizeAndFitDimension(e.values || [], targetDim)

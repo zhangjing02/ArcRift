@@ -10,7 +10,7 @@ import * as mongoService from "./mongo";
 import * as neo4jService from "./neo4j";
 import * as chromaService from "./chroma";
 
-const STORAGE_MODE = (process.env.ARCRIFT_STORAGE_MODE || "docker").toLowerCase();
+const STORAGE_MODE = (process.env.ARCRIFT_STORAGE_MODE || "sqlite").toLowerCase();
 
 class DockerSessionStore implements ISessionStore {
   private mapMongoSession(doc: any): any {

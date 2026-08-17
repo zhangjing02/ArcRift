@@ -86,6 +86,24 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+function getProxyConfig(targetUrl: string) {
+  if (targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
+    return false;
+  }
+  const proxyStr = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY || "http://127.0.0.1:7897";
+  if (!proxyStr) return false;
+  try {
+    const u = new URL(proxyStr);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port, 10),
+      protocol: u.protocol.replace(":", ""),
+    };
+  } catch {
+    return false;
+  }
+}
+
 // POST /api/settings/test-connection
 router.post("/test-connection", async (req: Request, res: Response) => {
   const settings = getSettings();
@@ -108,11 +126,12 @@ router.post("/test-connection", async (req: Request, res: Response) => {
     const apiKey = req.body.apiKey !== undefined ? req.body.apiKey : (settings.apiKey || "");
 
     try {
-      // Direct call to test target endpoint with specified parameters
       const cleanBase = apiBaseUrl.replace(/\/+$/, "");
       const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
+      const proxy = getProxyConfig(endpoint);
 
       const resp = await axios.post(
         endpoint,
@@ -122,7 +141,7 @@ router.post("/test-connection", async (req: Request, res: Response) => {
           max_tokens: 10,
           temperature: 0.1,
         },
-        { headers, timeout: 20000 }
+        { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
       );
 
       const latencyMs = Date.now() - startTime;
@@ -163,22 +182,52 @@ router.post("/test-connection", async (req: Request, res: Response) => {
         : (settings.embeddingApiKey || settings.apiKey || "");
 
     try {
-      const cleanBase = embeddingBaseUrl.replace(/\/+$/, "");
-      const endpoint = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (embeddingApiKey) headers["Authorization"] = `Bearer ${embeddingApiKey}`;
+      let latencyMs = 0;
+      let dim = 768;
 
-      const resp = await axios.post(
-        endpoint,
-        {
-          model: embeddingModel,
-          input: "ArcRift Embedding Connection Test",
-        },
-        { headers, timeout: 20000 }
-      );
+      const isGemini =
+        embeddingBaseUrl.includes("googleapis.com") ||
+        embeddingModel.includes("text-embedding-004") ||
+        req.body.chatProvider === "gemini" ||
+        settings.chatProvider === "gemini";
 
-      const latencyMs = Date.now() - startTime;
-      const dim = resp.data?.data?.[0]?.embedding?.length || 768;
+      if (isGemini) {
+        // Native Gemini EmbedContent endpoint
+        const modelName = embeddingModel.replace(/^models\//, "");
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:embedContent?key=${embeddingApiKey}`;
+        const proxy = getProxyConfig(endpoint);
+
+        const resp = await axios.post(
+          endpoint,
+          {
+            content: { parts: [{ text: "ArcRift Embedding Connection Test" }] },
+          },
+          { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
+        );
+
+        latencyMs = Date.now() - startTime;
+        const vals = resp.data?.embedding?.values;
+        dim = Array.isArray(vals) ? vals.length : 768;
+      } else {
+        // OpenAI-compatible endpoint
+        const cleanBase = embeddingBaseUrl.replace(/\/+$/, "");
+        const endpoint = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (embeddingApiKey) headers["Authorization"] = `Bearer ${embeddingApiKey}`;
+        const proxy = getProxyConfig(endpoint);
+
+        const resp = await axios.post(
+          endpoint,
+          {
+            model: embeddingModel,
+            input: "ArcRift Embedding Connection Test",
+          },
+          { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
+        );
+
+        latencyMs = Date.now() - startTime;
+        dim = resp.data?.data?.[0]?.embedding?.length || 768;
+      }
 
       results.embedding = {
         success: true,
