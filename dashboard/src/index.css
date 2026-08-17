@@ -4324,5 +4324,34 @@ body {
   color: #94a3b8;
 }
 
+.nl-tag-overview-card.project-card {
+  border-color: rgba(56, 189, 248, 0.2);
+  background: linear-gradient(135deg, #12141a 0%, #172033 100%);
+}
+
+.nl-tag-overview-card.project-card:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+}
+
+.nl-project-badge-tag {
+  font-size: 10px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.nl-tree-projects-list {
+  padding-left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+
 
 

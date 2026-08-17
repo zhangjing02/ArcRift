@@ -10,6 +10,8 @@ interface KnowledgeTreeViewProps {
 type TreeBranchKey =
   | "none"
   | "all_memories"
+  | "by_project_root"
+  | "project_item"
   | "by_date_root"
   | "date_item"
   | "tags_root"
@@ -34,7 +36,8 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
 }) => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState<TreeBranchKey>("none");
+  const [selectedBranch, setSelectedBranch] = useState<TreeBranchKey>("by_project_root");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTag, setSelectedTag] = useState<string>("");
   const [selectedType, setSelectedType] = useState<UnitType | string>("");
@@ -43,6 +46,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   // Tree nodes expanded states
   const [expandedNodes, setExpandedNodes] = useState<{
     memories: boolean;
+    byProject: boolean;
     byDate: boolean;
     tags: boolean;
     byType: boolean;
@@ -50,6 +54,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
     happenedAt: boolean;
   }>({
     memories: true,
+    byProject: true,
     byDate: false,
     tags: false,
     byType: false,
@@ -76,6 +81,8 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
     }
   };
 
+  // Group memories by Project
+  const projectGroupsMap = new Map<string, Memory[]>();
   // Group memories by date
   const dateGroupsMap = new Map<string, Memory[]>();
   // Group memories by tags
@@ -84,13 +91,23 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   const typeGroupsMap = new Map<string, Memory[]>();
 
   memories.forEach((m) => {
-    // 1. By Date
+    // 1. By Project (First-order priority)
+    // Extract project from first tag, session, or bracket title
+    const pTag =
+      (m.tags && m.tags.length > 0 ? m.tags[0] : null) ||
+      (m.sessionId && m.sessionId !== "default" ? m.sessionId : null) ||
+      "ArcRift";
+    
+    if (!projectGroupsMap.has(pTag)) projectGroupsMap.set(pTag, []);
+    projectGroupsMap.get(pTag)!.push(m);
+
+    // 2. By Date
     const d = new Date(m.createdAt);
     const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
     if (!dateGroupsMap.has(dateStr)) dateGroupsMap.set(dateStr, []);
     dateGroupsMap.get(dateStr)!.push(m);
 
-    // 2. By Tags
+    // 3. By Tags
     (m.tags || []).forEach((t) => {
       const tagClean = t.trim();
       if (tagClean) {
@@ -98,14 +115,20 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
       }
     });
 
-    // 3. By Unit Type
+    // 4. By Unit Type
     const uType = m.unitType || m.category || "fact";
     if (!typeGroupsMap.has(uType)) typeGroupsMap.set(uType, []);
     typeGroupsMap.get(uType)!.push(m);
   });
 
+  const sortedProjects = Array.from(projectGroupsMap.entries()).sort((a, b) => b[1].length - a[1].length);
   const sortedTags = Array.from(tagCountMap.entries()).sort((a, b) => b[1] - a[1]);
   const sortedDates = Array.from(dateGroupsMap.keys());
+
+  // Distinguish project tags vs concept tags
+  const knownProjectNames = new Set(sortedProjects.map(([p]) => p.toLowerCase()));
+  const projectTagsList = sortedTags.filter(([t]) => knownProjectNames.has(t.toLowerCase()));
+  const conceptTagsList = sortedTags.filter(([t]) => !knownProjectNames.has(t.toLowerCase()));
 
   // Unit Types configuration
   const unitTypeDefinitions: { key: string; name: string; desc: string; icon: string }[] = [
@@ -121,6 +144,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
 
   const getMemoriesForBranch = (): Memory[] => {
     if (selectedBranch === "all_memories") return memories;
+    if (selectedBranch === "project_item" && selectedProject) {
+      return projectGroupsMap.get(selectedProject) || [];
+    }
     if (selectedBranch === "date_item" && selectedDate) {
       return dateGroupsMap.get(selectedDate) || [];
     }
@@ -151,7 +177,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   return (
     <div className="nl-knowledge-tree-layout">
       {/* ─────────────────────────────────────────────────────────────
-          LEFT: Virtual Knowledge Tree Sidebar (Screenshots 1 - 5)
+          LEFT: Virtual Knowledge Tree Sidebar (With Project as 1st Class)
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-tree-sidebar-col">
         {/* Search in Tree */}
@@ -171,7 +197,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           {/* ROOT 1: 记忆 (Memories) */}
           <div className="nl-tree-node-group">
             <div
-              className={`nl-tree-node-row root ${selectedBranch === "all_memories" ? "active" : ""}`}
+              className={`nl-tree-node-row root ${selectedBranch === "all_memories" || selectedBranch === "by_project_root" ? "active" : ""}`}
               onClick={() => {
                 toggleNode("memories");
                 setSelectedBranch("all_memories");
@@ -198,7 +224,44 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   <span className="nl-tree-count-badge">{memories.length}</span>
                 </div>
 
-                {/* 1.2 按日期 */}
+                {/* 1.2 🚀 按项目 (First-order classification for Coding!) */}
+                <div className="nl-tree-sub-group">
+                  <div
+                    className={`nl-tree-node-row ${selectedBranch === "by_project_root" ? "selected" : ""}`}
+                    onClick={() => {
+                      toggleNode("byProject");
+                      setSelectedBranch("by_project_root");
+                      setSelectedMemoryDetail(null);
+                    }}
+                  >
+                    <span className="nl-tree-arrow">{expandedNodes.byProject ? "▾" : "▸"}</span>
+                    <span className="nl-tree-icon">🚀</span>
+                    <span className="nl-tree-label">按项目 (Projects)</span>
+                    <span className="nl-tree-count-badge">{sortedProjects.length}</span>
+                  </div>
+
+                  {expandedNodes.byProject && (
+                    <div className="nl-tree-projects-list">
+                      {sortedProjects.map(([projName, pMems]) => (
+                        <div
+                          key={projName}
+                          className={`nl-tree-node-row leaf ${selectedBranch === "project_item" && selectedProject === projName ? "selected" : ""}`}
+                          onClick={() => {
+                            setSelectedProject(projName);
+                            setSelectedBranch("project_item");
+                            setSelectedMemoryDetail(null);
+                          }}
+                        >
+                          <span className="nl-tree-icon">📦</span>
+                          <span className="nl-tree-label">{projName}</span>
+                          <span className="nl-tree-count-badge">{pMems.length}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 1.3 📅 按日期 */}
                 <div className="nl-tree-sub-group">
                   <div
                     className={`nl-tree-node-row ${selectedBranch === "by_date_root" ? "selected" : ""}`}
@@ -259,7 +322,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   )}
                 </div>
 
-                {/* 1.3 标签 */}
+                {/* 1.4 🏷️ 标签 */}
                 <div className="nl-tree-sub-group">
                   <div
                     className={`nl-tree-node-row ${selectedBranch === "tags_root" ? "selected" : ""}`}
@@ -277,26 +340,29 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
 
                   {expandedNodes.tags && (
                     <div className="nl-tree-tags-list">
-                      {sortedTags.map(([tag, count]) => (
-                        <div
-                          key={tag}
-                          className={`nl-tree-node-row leaf ${selectedBranch === "tag_item" && selectedTag === tag ? "selected" : ""}`}
-                          onClick={() => {
-                            setSelectedTag(tag);
-                            setSelectedBranch("tag_item");
-                            setSelectedMemoryDetail(null);
-                          }}
-                        >
-                          <span className="nl-tree-icon">🏷️</span>
-                          <span className="nl-tree-label">{tag}</span>
-                          <span className="nl-tree-count-badge">{count}</span>
-                        </div>
-                      ))}
+                      {sortedTags.map(([tag, count]) => {
+                        const isProj = knownProjectNames.has(tag.toLowerCase());
+                        return (
+                          <div
+                            key={tag}
+                            className={`nl-tree-node-row leaf ${selectedBranch === "tag_item" && selectedTag === tag ? "selected" : ""}`}
+                            onClick={() => {
+                              setSelectedTag(tag);
+                              setSelectedBranch("tag_item");
+                              setSelectedMemoryDetail(null);
+                            }}
+                          >
+                            <span className="nl-tree-icon">{isProj ? "🚀" : "🏷️"}</span>
+                            <span className="nl-tree-label">{tag}</span>
+                            <span className="nl-tree-count-badge">{count}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
-                {/* 1.4 结晶 */}
+                {/* 1.5 💎 结晶 */}
                 <div
                   className={`nl-tree-node-row ${selectedBranch === "crystals" ? "selected" : ""}`}
                   onClick={() => {
@@ -311,7 +377,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   </span>
                 </div>
 
-                {/* 1.5 按类型 */}
+                {/* 1.6 💡 按类型 */}
                 <div className="nl-tree-sub-group">
                   <div
                     className={`nl-tree-node-row ${selectedBranch === "by_type_root" ? "selected" : ""}`}
@@ -352,7 +418,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   )}
                 </div>
 
-                {/* 1.6 记录于 */}
+                {/* 1.7 记录于 */}
                 <div
                   className="nl-tree-node-row"
                   onClick={() => toggleNode("recordedIn")}
@@ -362,7 +428,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   <span className="nl-tree-label">记录于</span>
                 </div>
 
-                {/* 1.7 发生于 */}
+                {/* 1.8 发生于 */}
                 <div
                   className="nl-tree-node-row"
                   onClick={() => toggleNode("happenedAt")}
@@ -482,21 +548,101 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          RIGHT: Branch Content View (Matches Screenshots 1 - 5)
+          RIGHT: Branch Content View
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-tree-content-col">
-        {/* STATE 0: Empty Placeholder (Screenshot 1) */}
+        {/* STATE 0: Empty Placeholder */}
         {selectedBranch === "none" && (
           <div className="nl-tree-empty-state">
             <div className="nl-tree-empty-icon">🌿</div>
             <h2 className="nl-tree-empty-title">选择一个分支</h2>
             <p className="nl-tree-empty-sub">
-              从左侧树中查询 Mem 的结构：长期记忆、保存的会话、图谱 Wiki、上下文、工作记录、动态、产物和技能。
+              从左侧树中查询 Mem 的结构：按项目分类、长期记忆、保存的会话、图谱 Wiki、上下文、工作记录、动态、产物和技能。
             </p>
           </div>
         )}
 
-        {/* STATE 1: 全部记忆 (Screenshot 2) */}
+        {/* STATE 1: 🚀 按项目查看全部项目 (Projects Overview - First-order priority) */}
+        {selectedBranch === "by_project_root" && (
+          <div className="nl-tree-branch-panel">
+            <div className="nl-tree-panel-header">
+              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆 / 🚀 项目分类</div>
+              <h1 className="nl-tree-panel-title">🚀 按项目查看记忆 (Coding Projects)</h1>
+              <p className="nl-tree-panel-desc">
+                项目是 Coding 与 Agent 开发的第一顺位组织单元。系统自动识别当前代码仓库与上下文，将经验、决策、避坑与规范按项目精准沉淀。
+              </p>
+            </div>
+
+            <div className="nl-tree-tags-grid-section">
+              <div className="nl-tree-list-subheading">活跃项目 ({sortedProjects.length})</div>
+              <div className="nl-tags-2col-grid">
+                {sortedProjects.map(([pName, pMems]) => (
+                  <div
+                    key={pName}
+                    className="nl-tag-overview-card project-card"
+                    onClick={() => {
+                      setSelectedProject(pName);
+                      setSelectedBranch("project_item");
+                    }}
+                  >
+                    <div className="nl-tag-card-header">
+                      <span className="nl-tag-icon">🚀</span>
+                      <span className="nl-tag-name">{pName}</span>
+                      <span className="nl-project-badge-tag">项目</span>
+                    </div>
+                    <div className="nl-tag-card-desc">
+                      该项目已沉淀 {pMems.length} 条长期记忆与架构决策。
+                    </div>
+                    <div className="nl-tag-card-count" style={{ color: "#38bdf8", fontWeight: 600 }}>
+                      {pMems.length} 条记忆 · 点击展开
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STATE 2: 🚀 具体某个项目 (Project Memories View) */}
+        {selectedBranch === "project_item" && (
+          <div className="nl-tree-branch-panel">
+            <div className="nl-tree-panel-header">
+              <div className="nl-tree-panel-breadcrumb">
+                <span
+                  className="nl-crumb-link"
+                  onClick={() => setSelectedBranch("by_project_root")}
+                >
+                  🗂️ 记忆 / 🚀 项目分类
+                </span>
+              </div>
+              <h1 className="nl-tree-panel-title">🚀 项目: {selectedProject}</h1>
+              <p className="nl-tree-panel-desc">
+                《{selectedProject}》项目的专属知识记忆、架构经验与避坑约定（共 {branchMemories.length} 条）。
+              </p>
+            </div>
+
+            <div className="nl-tree-memories-list-stream">
+              {branchMemories.map((m) => (
+                <div
+                  key={m.id}
+                  className="nl-tree-memory-card"
+                  onClick={() => setSelectedMemoryDetail(m)}
+                >
+                  <span className="nl-tree-card-icon">🚀</span>
+                  <div className="nl-tree-card-main">
+                    <div className="nl-tree-card-title">{m.title}</div>
+                    <div className="nl-tree-card-date">
+                      {new Date(m.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <span className="nl-tree-mem-badge">记忆</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* STATE 3: 全部记忆 */}
         {selectedBranch === "all_memories" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -529,7 +675,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 2: 按日期查看记忆 (Screenshot 3) */}
+        {/* STATE 4: 按日期查看记忆 */}
         {selectedBranch === "by_date_root" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -564,7 +710,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 3: 具体某一天 (Selected Date View) */}
+        {/* STATE 5: 具体某一天 */}
         {selectedBranch === "date_item" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -603,21 +749,53 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 4: 标签 (Screenshot 4) */}
+        {/* STATE 6: 🏷️ 标签 (With Projects Featured First) */}
         {selectedBranch === "tags_root" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
               <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
               <h1 className="nl-tree-panel-title">标签</h1>
               <p className="nl-tree-panel-desc">
-                标签是你自己的归纳方式。这里把最常用的概念放在最容易抵达的位置。
+                标签是你自己的归纳方式。这里将<strong>项目标签</strong>置于第一顺位，把最常用的概念放在最容易抵达的位置。
               </p>
             </div>
 
-            <div className="nl-tree-tags-grid-section">
-              <div className="nl-tree-list-subheading">最常用</div>
+            {/* Section 1: 🚀 项目标签 (First-order) */}
+            {projectTagsList.length > 0 && (
+              <div className="nl-tree-tags-grid-section">
+                <div className="nl-tree-list-subheading" style={{ color: "#38bdf8" }}>
+                  🚀 项目标签 (第一顺位)
+                </div>
+                <div className="nl-tags-2col-grid">
+                  {projectTagsList.map(([tag, count]) => (
+                    <div
+                      key={tag}
+                      className="nl-tag-overview-card project-card"
+                      onClick={() => {
+                        setSelectedTag(tag);
+                        setSelectedBranch("tag_item");
+                      }}
+                    >
+                      <div className="nl-tag-card-header">
+                        <span className="nl-tag-icon">🚀</span>
+                        <span className="nl-tag-name">{tag}</span>
+                        <span className="nl-project-badge-tag">项目</span>
+                      </div>
+                      <div className="nl-tag-card-desc">按此项目聚类的长期记忆与开发经验。</div>
+                      <div className="nl-tag-card-count" style={{ color: "#38bdf8" }}>
+                        {count} memories
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section 2: 🏷️ 概念与技术标签 */}
+            <div className="nl-tree-tags-grid-section" style={{ marginTop: 16 }}>
+              <div className="nl-tree-list-subheading">🏷️ 技术与概念标签</div>
               <div className="nl-tags-2col-grid">
-                {sortedTags.map(([tag, count]) => (
+                {conceptTagsList.map(([tag, count]) => (
                   <div
                     key={tag}
                     className="nl-tag-overview-card"
@@ -630,7 +808,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                       <span className="nl-tag-icon">🏷️</span>
                       <span className="nl-tag-name">{tag}</span>
                     </div>
-                    <div className="nl-tag-card-desc">按这个标签聚合的记忆。</div>
+                    <div className="nl-tag-card-desc">按这个概念聚合的记忆。</div>
                     <div className="nl-tag-card-count">{count} memories</div>
                   </div>
                 ))}
@@ -639,7 +817,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 5: 具体某个标签 (Selected Tag View) */}
+        {/* STATE 7: 具体某个标签 */}
         {selectedBranch === "tag_item" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -678,7 +856,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 6: 结晶 (Crystals) */}
+        {/* STATE 8: 💎 结晶 */}
         {selectedBranch === "crystals" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -710,7 +888,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* STATE 7: 按类型与具体类型 (Screenshot 5) */}
+        {/* STATE 9: 按类型与具体类型 */}
         {(selectedBranch === "by_type_root" || selectedBranch === "type_item") && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -760,7 +938,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* Other Root Branches Shortcuts */}
+        {/* Other Root Branches */}
         {selectedBranch === "working_memory" && (
           <div className="nl-tree-branch-panel">
             <div className="nl-tree-panel-header">
@@ -793,7 +971,7 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           </div>
         )}
 
-        {/* Selected Memory Quick Modal / Drawer */}
+        {/* Selected Memory Quick Modal */}
         {selectedMemoryDetail && (
           <div
             className="nl-modal-backdrop"

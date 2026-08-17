@@ -50,6 +50,22 @@ export class SqliteMemoryStore implements IMemoryStore {
 
     const mergedLabels = Array.from(new Set([...parsedLabels, ...parsedTags]));
 
+    // Auto-detect project tag from bracket prefix in title [Project]
+    const titleMatch = (row.title || "").match(/^\[([^\]]+)\]/);
+    if (titleMatch) {
+      const pTag = titleMatch[1].trim();
+      if (pTag && !mergedLabels.some(l => l.toLowerCase() === pTag.toLowerCase())) {
+        mergedLabels.unshift(pTag);
+      }
+    }
+
+    if (row.sessionId && row.sessionId !== "default" && row.sessionId !== "singleton") {
+      const sTag = row.sessionId.replace(/^(test_|sess_)/, "");
+      if (sTag && !mergedLabels.some(l => l.toLowerCase() === sTag.toLowerCase())) {
+        mergedLabels.unshift(sTag);
+      }
+    }
+
     return {
       id: row.id,
       sessionId: row.sessionId,
@@ -79,11 +95,40 @@ export class SqliteMemoryStore implements IMemoryStore {
     const importance = normalizeImportance(memory.importance);
     const category = memory.category || "Note";
     const unitType = memory.unitType || "context";
-    const labels = Array.isArray(memory.labels)
+    // Auto-detect and prepend Project label (First-order priority)
+    const rawLabels = Array.isArray(memory.labels)
       ? memory.labels
       : Array.isArray(memory.tags)
       ? memory.tags
       : [];
+
+    const detectedProjectLabels: string[] = [];
+    if ((memory as any).project) {
+      detectedProjectLabels.push(String((memory as any).project).trim());
+    }
+
+    if (sessionId && sessionId !== "default") {
+      const cleanName = sessionId.replace(/^(test_|sess_)/, "");
+      detectedProjectLabels.push(cleanName);
+    }
+
+    const sessionRow = this.db.prepare("SELECT projectName FROM sessions WHERE id = ?").get(sessionId) as any;
+    if (sessionRow && sessionRow.projectName && sessionRow.projectName !== "default" && sessionRow.projectName !== "singleton") {
+      detectedProjectLabels.push(sessionRow.projectName);
+    }
+
+    const titleMatch = (memory.title || "").match(/^\[([^\]]+)\]/);
+    if (titleMatch) {
+      detectedProjectLabels.push(titleMatch[1].trim());
+    }
+
+    const labels = [...rawLabels];
+    for (const pLabel of detectedProjectLabels) {
+      if (pLabel && !labels.some(l => l.toLowerCase() === pLabel.toLowerCase())) {
+        labels.unshift(pLabel);
+      }
+    }
+
     const labelsJson = JSON.stringify(labels);
     const claimStatus = memory.claimStatus || "asserted";
     const evolvesFromId = memory.evolvesFromId || null;
