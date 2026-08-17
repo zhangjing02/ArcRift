@@ -1,6 +1,36 @@
 import { getSqlite } from "./sqlite";
-import { IMemoryStore, Memory, WorkingMemory, ImportanceLevel, MemoryCategory } from "./storage.types";
+import {
+  IMemoryStore,
+  Memory,
+  WorkingMemory,
+  MemorySearchFilters,
+  UnitType,
+  ClaimStatus,
+  EvolvesRelation,
+} from "./storage.types";
 import { v4 as uuidv4 } from "uuid";
+
+function normalizeImportance(val: any): number {
+  if (typeof val === "number") {
+    return Math.max(0.1, Math.min(1.0, val));
+  }
+  if (typeof val === "string") {
+    switch (val.toLowerCase()) {
+      case "critical":
+        return 1.0;
+      case "high":
+        return 0.8;
+      case "medium":
+        return 0.5;
+      case "low":
+        return 0.2;
+      default:
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? 0.5 : Math.max(0.1, Math.min(1.0, parsed));
+    }
+  }
+  return 0.5;
+}
 
 export class SqliteMemoryStore implements IMemoryStore {
   private get db() {
@@ -8,57 +38,158 @@ export class SqliteMemoryStore implements IMemoryStore {
   }
 
   private mapMemory(row: any): Memory {
+    let parsedLabels: string[] = [];
+    try {
+      if (row.labels) parsedLabels = JSON.parse(row.labels);
+    } catch {}
+
+    let parsedTags: string[] = [];
+    try {
+      if (row.tags) parsedTags = JSON.parse(row.tags);
+    } catch {}
+
+    const mergedLabels = Array.from(new Set([...parsedLabels, ...parsedTags]));
+
     return {
       id: row.id,
       sessionId: row.sessionId,
       title: row.title,
       content: row.content,
-      importance: (row.importance || "medium") as ImportanceLevel,
-      category: (row.category || "Note") as MemoryCategory,
-      tags: row.tags ? JSON.parse(row.tags) : [],
+      importance: typeof row.importance === "number" ? row.importance : normalizeImportance(row.importance),
+      category: row.category || "Note",
+      unitType: (row.unit_type || "context") as UnitType,
+      labels: mergedLabels,
+      tags: mergedLabels,
+      claimStatus: (row.claim_status || "asserted") as ClaimStatus,
+      evolvesFromId: row.evolves_from_id || undefined,
+      evolvesRelation: row.evolves_relation ? (row.evolves_relation as EvolvesRelation) : undefined,
+      isLatest: row.is_latest === 1 || row.is_latest === true,
       source: row.source || "manual",
+      sourceApp: row.source_app || undefined,
+      temporalContext: row.temporal_context || "timeless",
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt),
     };
   }
 
-  async createMemory(memory: Omit<Memory, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Memory> {
+  async createMemory(memory: Partial<Memory> & { content: string; sessionId?: string; spaceId?: string }): Promise<Memory> {
     const id = memory.id || `mem_${uuidv4()}`;
     const now = new Date().toISOString();
-    const tagsJson = JSON.stringify(memory.tags || []);
+    const sessionId = memory.sessionId || memory.spaceId || "default";
+    const importance = normalizeImportance(memory.importance);
+    const category = memory.category || "Note";
+    const unitType = memory.unitType || "context";
+    const labels = Array.isArray(memory.labels)
+      ? memory.labels
+      : Array.isArray(memory.tags)
+      ? memory.tags
+      : [];
+    const labelsJson = JSON.stringify(labels);
+    const claimStatus = memory.claimStatus || "asserted";
+    const evolvesFromId = memory.evolvesFromId || null;
+    const evolvesRelation = memory.evolvesRelation || null;
+    const isLatest = memory.isLatest !== false ? 1 : 0;
+    const source = memory.source || "manual";
+    const sourceApp = memory.sourceApp || null;
+    const temporalContext = memory.temporalContext || "timeless";
+    const title = memory.title || (memory.content.slice(0, 50) + (memory.content.length > 50 ? "..." : ""));
 
+    // Ensure session exists to satisfy Foreign Key
+    const sessionExists = this.db.prepare("SELECT id FROM sessions WHERE id = ?").get(sessionId);
+    if (!sessionExists) {
+      this.db.prepare(`
+        INSERT OR IGNORE INTO sessions (id, projectName, platform, createdAt, updatedAt)
+        VALUES (?, ?, 'default', ?, ?)
+      `).run(sessionId, sessionId, now, now);
+    }
+
+    // Check if memory already exists (Upsert support)
+    const existing = await this.getMemory(id);
+    if (existing) {
+      await this.updateMemory(id, {
+        title,
+        content: memory.content,
+        importance,
+        category,
+        unitType,
+        labels,
+        claimStatus,
+        evolvesFromId: evolvesFromId || undefined,
+        evolvesRelation: evolvesRelation || undefined,
+        source,
+        sourceApp: sourceApp || undefined,
+        temporalContext,
+      });
+      return (await this.getMemory(id))!;
+    }
+
+    // Insert into memories table
     this.db.prepare(`
-      INSERT INTO memories (id, sessionId, title, content, importance, category, tags, source, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memories (
+        id, sessionId, title, content, importance, category, unit_type,
+        labels, tags, claim_status, evolves_from_id, evolves_relation,
+        is_latest, source, source_app, temporal_context, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
-      memory.sessionId,
-      memory.title || "Untitled Memory",
+      sessionId,
+      title,
       memory.content,
-      memory.importance || "medium",
-      memory.category || "Note",
-      tagsJson,
-      memory.source || "manual",
+      importance,
+      category,
+      unitType,
+      labelsJson,
+      labelsJson,
+      claimStatus,
+      evolvesFromId,
+      evolvesRelation,
+      isLatest,
+      source,
+      sourceApp,
+      temporalContext,
       now,
       now
     );
+
+    // If this memory replaces another memory, mark the older one as not latest
+    if (evolvesFromId && evolvesRelation === "replaces") {
+      this.db.prepare("UPDATE memories SET is_latest = 0 WHERE id = ?").run(evolvesFromId);
+    }
+
+    // Synchronize to FTS5
+    try {
+      this.db.prepare(`
+        INSERT INTO fts_memories (memory_id, title, content, labels)
+        VALUES (?, ?, ?, ?)
+      `).run(id, title, memory.content, labels.join(" "));
+    } catch {}
 
     const created = await this.getMemory(id);
     return created!;
   }
 
-  async getMemories(sessionId?: string, filters?: { importance?: ImportanceLevel; category?: string; query?: string }): Promise<Memory[]> {
+  async getMemories(
+    sessionId?: string,
+    filters?: {
+      importance?: string | number;
+      category?: string;
+      query?: string;
+      unitType?: string;
+      labels?: string[];
+      limit?: number;
+    }
+  ): Promise<Memory[]> {
     let sql = "SELECT * FROM memories WHERE 1=1";
     const params: any[] = [];
 
-    if (sessionId) {
-      sql += " AND sessionId = ?";
+    if (sessionId && sessionId !== "all") {
+      sql += " AND (sessionId = ? OR sessionId = 'default')";
       params.push(sessionId);
     }
 
-    if (filters?.importance) {
-      sql += " AND importance = ?";
-      params.push(filters.importance);
+    if (filters?.unitType) {
+      sql += " AND unit_type = ?";
+      params.push(filters.unitType);
     }
 
     if (filters?.category) {
@@ -66,15 +197,92 @@ export class SqliteMemoryStore implements IMemoryStore {
       params.push(filters.category);
     }
 
-    if (filters?.query) {
-      sql += " AND (title LIKE ? OR content LIKE ?)";
-      params.push(`%${filters.query}%`, `%${filters.query}%`);
+    if (filters?.importance !== undefined) {
+      const minImp = normalizeImportance(filters.importance);
+      sql += " AND importance >= ?";
+      params.push(minImp);
     }
 
-    sql += " ORDER BY CASE importance WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END, updatedAt DESC";
+    if (filters?.query) {
+      sql += " AND (title LIKE ? OR content LIKE ? OR labels LIKE ?)";
+      params.push(`%${filters.query}%`, `%${filters.query}%`, `%${filters.query}%`);
+    }
+
+    sql += " ORDER BY importance DESC, updatedAt DESC";
+
+    if (filters?.limit) {
+      sql += " LIMIT ?";
+      params.push(filters.limit);
+    }
 
     const rows = this.db.prepare(sql).all(...params) as any[];
     return rows.map(r => this.mapMemory(r));
+  }
+
+  async searchMemories(filters: MemorySearchFilters): Promise<Array<Memory & { score?: number }>> {
+    const { query, spaceId, sessionId, filterLabels, unitType, category, limit = 10, confidenceThreshold = 0 } = filters;
+    const targetSpace = spaceId || sessionId;
+
+    // 1. If query is provided, run FTS5 search
+    if (query && query.trim()) {
+      const cleanQuery = query.replace(/[^\w\s\u4e00-\u9fa5]/g, " ").trim();
+      const ftsTokens = cleanQuery.split(/\s+/).filter(Boolean).map(t => `"${t}"*`).join(" OR ");
+
+      let rows: any[] = [];
+      if (ftsTokens) {
+        try {
+          let ftsSql = `
+            SELECT m.*, fts.rank as fts_rank
+            FROM fts_memories fts
+            JOIN memories m ON m.id = fts.memory_id
+            WHERE fts_memories MATCH ?
+          `;
+          const params: any[] = [ftsTokens];
+
+          if (targetSpace && targetSpace !== "all") {
+            ftsSql += " AND (m.sessionId = ? OR m.sessionId = 'default')";
+            params.push(targetSpace);
+          }
+          if (unitType) {
+            ftsSql += " AND m.unit_type = ?";
+            params.push(unitType);
+          }
+          if (category) {
+            ftsSql += " AND m.category = ?";
+            params.push(category);
+          }
+
+          ftsSql += " ORDER BY fts.rank ASC, m.importance DESC LIMIT ?";
+          params.push(limit);
+
+          rows = this.db.prepare(ftsSql).all(...params) as any[];
+        } catch {
+          // Fallback to LIKE if FTS expression parsing fails
+          rows = [];
+        }
+      }
+
+      // If FTS returned results, return them
+      if (rows.length > 0) {
+        return rows.map(r => ({
+          ...this.mapMemory(r),
+          score: Math.max(0.5, Math.min(1.0, 1.0 / (1.0 + Math.abs(r.fts_rank || 1)))),
+        })).filter(m => (m.score || 1) >= confidenceThreshold);
+      }
+    }
+
+    // 2. Default fallback: query by standard filters sorted by recency & importance
+    const regularMemories = await this.getMemories(targetSpace, {
+      query,
+      unitType,
+      category,
+      limit,
+    });
+
+    return regularMemories.map(m => ({
+      ...m,
+      score: m.importance,
+    })).filter(m => (m.score || 1) >= confidenceThreshold);
   }
 
   async getMemory(id: string): Promise<Memory | null> {
@@ -90,10 +298,18 @@ export class SqliteMemoryStore implements IMemoryStore {
     const now = new Date().toISOString();
     const title = update.title !== undefined ? update.title : existing.title;
     const content = update.content !== undefined ? update.content : existing.content;
-    const importance = update.importance !== undefined ? update.importance : existing.importance;
+    const importance = update.importance !== undefined ? normalizeImportance(update.importance) : existing.importance;
     const category = update.category !== undefined ? update.category : existing.category;
-    const tagsJson = update.tags !== undefined ? JSON.stringify(update.tags) : JSON.stringify(existing.tags);
+    const unitType = update.unitType !== undefined ? update.unitType : existing.unitType;
+    const labels = update.labels !== undefined ? update.labels : (update.tags !== undefined ? update.tags : existing.labels);
+    const labelsJson = JSON.stringify(labels);
+    const claimStatus = update.claimStatus !== undefined ? update.claimStatus : existing.claimStatus;
+    const evolvesFromId = update.evolvesFromId !== undefined ? update.evolvesFromId : existing.evolvesFromId;
+    const evolvesRelation = update.evolvesRelation !== undefined ? update.evolvesRelation : existing.evolvesRelation;
+    const isLatest = update.isLatest !== undefined ? (update.isLatest ? 1 : 0) : (existing.isLatest ? 1 : 0);
     const source = update.source !== undefined ? update.source : existing.source;
+    const sourceApp = update.sourceApp !== undefined ? update.sourceApp : existing.sourceApp;
+    const temporalContext = update.temporalContext !== undefined ? update.temporalContext : existing.temporalContext;
 
     this.db.prepare(`
       UPDATE memories SET
@@ -101,17 +317,54 @@ export class SqliteMemoryStore implements IMemoryStore {
         content = ?,
         importance = ?,
         category = ?,
+        unit_type = ?,
+        labels = ?,
         tags = ?,
+        claim_status = ?,
+        evolves_from_id = ?,
+        evolves_relation = ?,
+        is_latest = ?,
         source = ?,
+        source_app = ?,
+        temporal_context = ?,
         updatedAt = ?
       WHERE id = ?
-    `).run(title, content, importance, category, tagsJson, source, now, id);
+    `).run(
+      title,
+      content,
+      importance,
+      category,
+      unitType,
+      labelsJson,
+      labelsJson,
+      claimStatus,
+      evolvesFromId || null,
+      evolvesRelation || null,
+      isLatest,
+      source,
+      sourceApp || null,
+      temporalContext,
+      now,
+      id
+    );
+
+    // Update FTS5 entry
+    try {
+      this.db.prepare("DELETE FROM fts_memories WHERE memory_id = ?").run(id);
+      this.db.prepare(`
+        INSERT INTO fts_memories (memory_id, title, content, labels)
+        VALUES (?, ?, ?, ?)
+      `).run(id, title, content, labels.join(" "));
+    } catch {}
 
     return this.getMemory(id);
   }
 
   async deleteMemory(id: string): Promise<boolean> {
     const result = this.db.prepare("DELETE FROM memories WHERE id = ?").run(id);
+    try {
+      this.db.prepare("DELETE FROM fts_memories WHERE memory_id = ?").run(id);
+    } catch {}
     return result.changes > 0;
   }
 
@@ -138,7 +391,11 @@ export class SqliteMemoryStore implements IMemoryStore {
     const focusAreas = JSON.stringify(workingMemory.focusAreas !== undefined ? workingMemory.focusAreas : (existing?.focusAreas || []));
     const activeDecisions = JSON.stringify(workingMemory.activeDecisions !== undefined ? workingMemory.activeDecisions : (existing?.activeDecisions || []));
     const blockers = JSON.stringify(workingMemory.blockers !== undefined ? workingMemory.blockers : (existing?.blockers || []));
-    const lastGeneratedAt = workingMemory.lastGeneratedAt ? workingMemory.lastGeneratedAt.toISOString() : (existing?.lastGeneratedAt ? existing.lastGeneratedAt.toISOString() : now);
+    const lastGeneratedAt = workingMemory.lastGeneratedAt
+      ? workingMemory.lastGeneratedAt.toISOString()
+      : existing?.lastGeneratedAt
+      ? existing.lastGeneratedAt.toISOString()
+      : now;
 
     this.db.prepare(`
       INSERT INTO working_memory (sessionId, briefing, focusAreas, activeDecisions, blockers, lastGeneratedAt, updatedAt)
@@ -154,5 +411,203 @@ export class SqliteMemoryStore implements IMemoryStore {
 
     const saved = await this.getWorkingMemory(workingMemory.sessionId);
     return saved!;
+  }
+
+  // ── Memory Relations (P1) ──────────────────────────────────────────
+  private mapRelation(row: any) {
+    return {
+      id: row.id,
+      sourceMemoryId: row.source_memory_id,
+      targetMemoryId: row.target_memory_id,
+      relationType: row.relation_type,
+      reason: row.reason || undefined,
+      strength: typeof row.strength === "number" ? row.strength : 1.0,
+      confidence: typeof row.confidence === "number" ? row.confidence : 1.0,
+      bidirectional: row.bidirectional === 1,
+      status: (row.status || "active") as any,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
+    };
+  }
+
+  async addRelation(relation: {
+    sourceMemoryId: string;
+    targetMemoryId: string;
+    relationType: string;
+    reason?: string;
+    strength?: number;
+    confidence?: number;
+    bidirectional?: boolean;
+    status?: "active" | "suggested";
+  }) {
+    const id = `rel_${uuidv4()}`;
+    const now = new Date().toISOString();
+    const strength = relation.strength !== undefined ? relation.strength : 1.0;
+    const confidence = relation.confidence !== undefined ? relation.confidence : 1.0;
+    const bidirectional = relation.bidirectional ? 1 : 0;
+    const status = relation.status || "active";
+
+    this.db.prepare(`
+      INSERT INTO memory_relations (
+        id, source_memory_id, target_memory_id, relation_type,
+        reason, strength, confidence, bidirectional, status, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      relation.sourceMemoryId,
+      relation.targetMemoryId,
+      relation.relationType,
+      relation.reason || null,
+      strength,
+      confidence,
+      bidirectional,
+      status,
+      now,
+      now
+    );
+
+    const row = this.db.prepare("SELECT * FROM memory_relations WHERE id = ?").get(id) as any;
+    return this.mapRelation(row);
+  }
+
+  async listRelations(
+    memoryId: string,
+    options?: { direction?: "out" | "in" | "both"; relationTypes?: string[]; status?: string; limit?: number }
+  ) {
+    const direction = options?.direction || "both";
+    const status = options?.status || "active";
+    const limit = options?.limit || 50;
+
+    let sql = "SELECT * FROM memory_relations WHERE status = ?";
+    const params: any[] = [status];
+
+    if (direction === "out") {
+      sql += " AND source_memory_id = ?";
+      params.push(memoryId);
+    } else if (direction === "in") {
+      sql += " AND (target_memory_id = ? OR (source_memory_id = ? AND bidirectional = 1))";
+      params.push(memoryId, memoryId);
+    } else {
+      sql += " AND (source_memory_id = ? OR target_memory_id = ?)";
+      params.push(memoryId, memoryId);
+    }
+
+    if (options?.relationTypes && options.relationTypes.length > 0) {
+      const placeholders = options.relationTypes.map(() => "?").join(",");
+      sql += ` AND relation_type IN (${placeholders})`;
+      params.push(...options.relationTypes);
+    }
+
+    sql += " ORDER BY strength DESC, updatedAt DESC LIMIT ?";
+    params.push(limit);
+
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map(r => this.mapRelation(r));
+  }
+
+  async deleteRelation(relationId: string): Promise<boolean> {
+    const res = this.db.prepare("DELETE FROM memory_relations WHERE id = ?").run(relationId);
+    return res.changes > 0;
+  }
+
+  // ── Memory Evolution Chain & Supersede (P2) ────────────────────────
+  async getEvolutionChain(memoryId: string, maxDepth: number = 10): Promise<{
+    chain: Array<{
+      id: string;
+      title: string;
+      unitType: string;
+      isLatest: boolean;
+      createdAt: string;
+      evolvesFromId?: string;
+      evolvesRelation?: string;
+    }>;
+    position: number;
+    totalVersions: number;
+  }> {
+    const root = await this.getMemory(memoryId);
+    if (!root) throw new Error(`Memory ${memoryId} not found`);
+
+    // 1. Trace backwards (ancestors)
+    const ancestors: any[] = [];
+    let currentId = root.evolvesFromId;
+    let depth = 0;
+
+    while (currentId && depth < maxDepth) {
+      const ancestor = await this.getMemory(currentId);
+      if (!ancestor) break;
+      ancestors.unshift(ancestor);
+      currentId = ancestor.evolvesFromId;
+      depth++;
+    }
+
+    // 2. Trace forwards (descendants)
+    const descendants: any[] = [];
+    currentId = root.id;
+    depth = 0;
+
+    while (currentId && depth < maxDepth) {
+      const row = this.db.prepare("SELECT * FROM memories WHERE evolves_from_id = ?").get(currentId) as any;
+      if (!row) break;
+      const descendant = this.mapMemory(row);
+      descendants.push(descendant);
+      currentId = descendant.id;
+      depth++;
+    }
+
+    const fullChain = [...ancestors, root, ...descendants];
+    const position = ancestors.length;
+
+    return {
+      chain: fullChain.map(m => ({
+        id: m.id,
+        title: m.title,
+        unitType: m.unitType,
+        isLatest: m.isLatest || false,
+        createdAt: m.createdAt.toISOString(),
+        evolvesFromId: m.evolvesFromId,
+        evolvesRelation: m.evolvesRelation,
+      })),
+      position,
+      totalVersions: fullChain.length,
+    };
+  }
+
+  async supersedeMemory(oldMemoryId: string, newMemoryId: string, reason?: string): Promise<{
+    status: string;
+    oldMemory: { id: string; isLatest: boolean };
+    newMemory: { id: string; isLatest: boolean; evolvesFromId: string };
+  }> {
+    const oldMem = await this.getMemory(oldMemoryId);
+    const newMem = await this.getMemory(newMemoryId);
+
+    if (!oldMem) throw new Error(`Old memory ${oldMemoryId} not found`);
+    if (!newMem) throw new Error(`New memory ${newMemoryId} not found`);
+
+    // Mark old as outdated
+    await this.updateMemory(oldMemoryId, { isLatest: false });
+
+    // Link new memory to old memory
+    await this.updateMemory(newMemoryId, {
+      evolvesFromId: oldMemoryId,
+      evolvesRelation: "replaces",
+      isLatest: true,
+    });
+
+    // Record semantic link
+    await this.addRelation({
+      sourceMemoryId: newMemoryId,
+      targetMemoryId: oldMemoryId,
+      relationType: "replaces",
+      reason: reason || "Memory superseded by newer version",
+      strength: 1.0,
+      confidence: 1.0,
+      bidirectional: false,
+    });
+
+    return {
+      status: "superseded",
+      oldMemory: { id: oldMemoryId, isLatest: false },
+      newMemory: { id: newMemoryId, isLatest: true, evolvesFromId: oldMemoryId },
+    };
   }
 }

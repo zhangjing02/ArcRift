@@ -1,68 +1,239 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { Session } from "../../types";
+import { fetchSources, createSource, deleteSource } from "../../api/ArcRift";
 
-// 📚 资料库 (Library)
-export const LibraryView: React.FC<{ activeSession?: Session }> = () => {
-  const [folderPath, setFolderPath] = useState("");
-  const [isIndexing, setIsIndexing] = useState(false);
-  const [indexedFiles, setIndexedFiles] = useState<string[]>([
-    "src/mcp/server.ts (MCP 协议服务定义)",
-    "src/services/sqlite.ts (SQLite 向量存储与表定义)",
-    "src/services/extractor.ts (实体三元组提取引擎)",
-  ]);
+// 📚 资料库 (Library / Source Management)
+export const LibraryView: React.FC<{ activeSession?: Session }> = ({ activeSession }) => {
+  const [sources, setSources] = useState<any[]>([]);
+  const [name, setName] = useState("");
+  const [sourceType, setSourceType] = useState<"url" | "file" | "document" | "note">("document");
+  const [url, setUrl] = useState("");
+  const [summary, setSummary] = useState("");
+  const [rawContent, setRawContent] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<any | null>(null);
+
+  useEffect(() => {
+    loadSources();
+  }, [activeSession?._id]);
+
+  const loadSources = async () => {
+    try {
+      const res = await fetchSources(activeSession?._id);
+      if (res.success) {
+        setSources(res.sources);
+      }
+    } catch (e) {
+      console.error("Failed to load sources", e);
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    try {
+      const res = await createSource({
+        sessionId: activeSession?._id,
+        name: name.trim(),
+        sourceType,
+        url: url.trim() || undefined,
+        summary: summary.trim() || undefined,
+        rawContent: rawContent.trim() || undefined,
+        labels: [sourceType],
+      });
+      if (res.success) {
+        setName("");
+        setUrl("");
+        setSummary("");
+        setRawContent("");
+        setIsAdding(false);
+        loadSources();
+      }
+    } catch (err) {
+      console.error("Failed to add source", err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除此信源资料吗？")) return;
+    try {
+      await deleteSource(id);
+      loadSources();
+      if (selectedSource?.id === id) setSelectedSource(null);
+    } catch (e) {
+      console.error("Delete source error", e);
+    }
+  };
 
   return (
     <div className="nl-view-container">
       <div className="nl-view-header">
         <div className="nl-view-title-group">
           <h1 className="nl-view-title">资料库</h1>
-          <p className="nl-view-subtitle">管理本地源码库索引、技术文档与外部资料</p>
+          <p className="nl-view-subtitle">管理本地源码库索引、技术文档、网页信源与外部资料</p>
         </div>
+        <button
+          className="nl-btn-primary"
+          onClick={() => setIsAdding(!isAdding)}
+          style={{ padding: "8px 16px", fontSize: 13 }}
+        >
+          {isAdding ? "取消" : "+ 新增信源资料"}
+        </button>
       </div>
 
-      <div className="nl-card" style={{ marginBottom: 20 }}>
-        <h3 style={{ marginBottom: 12 }}>📁 索引本地源码库到项目图谱</h3>
-        <p style={{ color: "#8b909a", fontSize: 13, marginBottom: 16 }}>
-          输入本地代码库的绝对路径，ArcRift 将扫描并提取 AST 结构、类型定义与架构依赖，自动融合进知识图谱。
-        </p>
-        <div style={{ display: "flex", gap: 10 }}>
-          <input
-            type="text"
-            placeholder="例如: d:\Devs\BeBeBus_Android002"
-            value={folderPath}
-            onChange={(e) => setFolderPath(e.target.value)}
-            className="nl-input"
-            style={{ flex: 1 }}
-          />
-          <button
-            className="nl-btn-primary"
-            disabled={!folderPath.trim() || isIndexing}
-            onClick={() => {
-              setIsIndexing(true);
-              setTimeout(() => {
-                setIndexedFiles((prev) => [...prev, `${folderPath} (已建立索引)`]);
-                setFolderPath("");
-                setIsIndexing(false);
-              }, 1200);
-            }}
-          >
-            {isIndexing ? "正在索引..." : "开始索引"}
-          </button>
-        </div>
-      </div>
+      {isAdding && (
+        <form onSubmit={handleAddSubmit} className="nl-card" style={{ marginBottom: 20, animation: "fadeIn 0.2s ease" }}>
+          <h3 style={{ marginBottom: 14 }}>📥 添加新信源 / 文档资料</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: "#8b909a", marginBottom: 4 }}>资料名称 *</label>
+              <input
+                type="text"
+                placeholder="例如: OAuth2 架构白皮书 / API 设计指南"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="nl-input"
+                style={{ width: "100%" }}
+                required
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: "#8b909a", marginBottom: 4 }}>信源类型</label>
+              <select
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value as any)}
+                className="nl-input"
+                style={{ width: "100%" }}
+              >
+                <option value="document">技术文档 / Markdown (document)</option>
+                <option value="url">网页链接 / URL (url)</option>
+                <option value="file">本地代码库 / 源码 (file)</option>
+                <option value="note">参考备忘 (note)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#8b909a", marginBottom: 4 }}>URL 或文件路径（可选）</label>
+            <input
+              type="text"
+              placeholder="https://... 或 D:\Workspace\Project"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="nl-input"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#8b909a", marginBottom: 4 }}>概要摘要（可选）</label>
+            <input
+              type="text"
+              placeholder="一两句话说明该信源的核心要点"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              className="nl-input"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#8b909a", marginBottom: 4 }}>正文内容（可选，供大模型检索与引用）</label>
+            <textarea
+              placeholder="在此粘贴文档全文、Markdown 或核心内容..."
+              value={rawContent}
+              onChange={(e) => setRawContent(e.target.value)}
+              className="nl-input"
+              style={{ width: "100%", height: 100, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button type="button" className="nl-btn-secondary" onClick={() => setIsAdding(false)}>取消</button>
+            <button type="submit" className="nl-btn-primary">保存入库</button>
+          </div>
+        </form>
+      )}
 
       <div className="nl-card">
-        <h3 style={{ marginBottom: 14 }}>已索引的代码库与资料</h3>
-        <div className="nl-list">
-          {indexedFiles.map((file, idx) => (
-            <div key={idx} className="nl-list-item" style={{ display: "flex", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-              <span style={{ marginRight: 10 }}>📄</span>
-              <span style={{ flex: 1 }}>{file}</span>
-              <span className="nl-tag-pill">已同步</span>
-            </div>
-          ))}
-        </div>
+        <h3 style={{ marginBottom: 14 }}>已归档的信源与资料清单 ({sources.length})</h3>
+        {sources.length === 0 ? (
+          <div style={{ padding: "30px 0", textAlign: "center", color: "#8b909a" }}>
+            暂无信源资料。点击右上角「+ 新增信源资料」添加文档、URL 或源码索引。
+          </div>
+        ) : (
+          <div className="nl-list">
+            {sources.map((src) => (
+              <div
+                key={src.id}
+                className="nl-list-item"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "12px 10px",
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  cursor: "pointer",
+                  borderRadius: 6,
+                  transition: "background 0.15s ease",
+                }}
+                onClick={() => setSelectedSource(src)}
+              >
+                <span style={{ fontSize: 18, marginRight: 12 }}>
+                  {src.sourceType === "url" ? "🌐" : src.sourceType === "file" ? "📁" : "📄"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 500, fontSize: 14, color: "#f8fafc" }}>{src.name}</span>
+                    <span className="nl-tag-pill" style={{ fontSize: 11 }}>{src.sourceType}</span>
+                    <span style={{ fontSize: 11, color: "#10b981", background: "rgba(16,185,129,0.1)", padding: "1px 6px", borderRadius: 4 }}>
+                      {src.lifecycleState || "indexed"}
+                    </span>
+                  </div>
+                  {src.summary && <p style={{ fontSize: 12, color: "#8b909a", marginTop: 2 }}>{src.summary}</p>}
+                </div>
+                <button
+                  className="nl-btn-icon"
+                  style={{ color: "#ef4444", padding: "4px 8px" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(src.id);
+                  }}
+                  title="删除信源"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {selectedSource && (
+        <div className="nl-modal-backdrop" onClick={() => setSelectedSource(null)}>
+          <div className="nl-modal-card" style={{ maxWidth: 650 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3>📄 信源详情: {selectedSource.name}</h3>
+              <button className="nl-btn-icon" onClick={() => setSelectedSource(null)}>✕</button>
+            </div>
+            <div style={{ fontSize: 13, color: "#8b909a", marginBottom: 12 }}>
+              <div>类型: <strong>{selectedSource.sourceType}</strong> | 状态: <strong>{selectedSource.lifecycleState}</strong></div>
+              {selectedSource.url && <div style={{ marginTop: 4 }}>地址: <a href={selectedSource.url} target="_blank" rel="noreferrer" style={{ color: "#6366f1" }}>{selectedSource.url}</a></div>}
+            </div>
+            {selectedSource.summary && (
+              <div style={{ background: "rgba(255,255,255,0.03)", padding: 10, borderRadius: 6, marginBottom: 12 }}>
+                <strong>摘要:</strong> {selectedSource.summary}
+              </div>
+            )}
+            <div style={{ maxHeight: 250, overflowY: "auto", background: "#0b0e14", padding: 12, borderRadius: 6, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
+              {selectedSource.rawContent || "（无原始正文内容）"}
+            </div>
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <button className="nl-btn-secondary" onClick={() => setSelectedSource(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

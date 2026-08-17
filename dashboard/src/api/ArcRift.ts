@@ -316,5 +316,43 @@ export async function getFullChat(sessionId: string): Promise<import("../types")
   }
 }
 
+export async function fetchSources(sessionId?: string, query?: string): Promise<{ success: boolean; sources: any[] }> {
+  try {
+    const res = await apiClient.get("/api/sources", { params: { sessionId, query } });
+    return res.data;
+  } catch {
+    return { success: false, sources: [] };
+  }
+}
+
+export async function createSource(data: { name: string; sessionId?: string; sourceType?: string; url?: string; filePath?: string; summary?: string; rawContent?: string; labels?: string[] }): Promise<{ success: boolean; source?: any }> {
+  const res = await apiClient.post("/api/sources", data);
+  return res.data;
+}
+
+export async function deleteSource(id: string): Promise<{ success: boolean }> {
+  const res = await apiClient.delete(`/api/sources/${id}`);
+  return res.data;
+}
+
+export async function addMemoryRelation(data: { sourceMemoryId: string; targetMemoryId: string; relationType: string; reason?: string }): Promise<{ success: boolean; relation?: any }> {
+  const res = await apiClient.post("/api/memories/relations", data);
+  return res.data;
+}
+
+export async function fetchMemoryRelations(memoryId: string): Promise<{ success: boolean; relations: any[] }> {
+  try {
+    const res = await apiClient.get(`/api/memories/${memoryId}/relations`);
+    return res.data;
+  } catch {
+    return { success: false, relations: [] };
+  }
+}
+
+export async function deleteMemoryRelation(relationId: string): Promise<{ success: boolean }> {
+  const res = await apiClient.delete(`/api/memories/relations/${relationId}`);
+  return res.data;
+}
+
 export { extractErrorMessage, apiClient };
 

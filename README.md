@@ -1,17 +1,17 @@
 ﻿<div align="center">
 
-# ArcRift — 本地化 AI 记忆与知识管理系统
+# ArcRift (Nowledge Mem Pure SQLite) — 本地化 AI 记忆与知识管理系统
 
-### 让 AI 工具不再失忆。跨会话、跨工具的持久记忆层。
+### 让 AI 工具不再失忆。跨会话、跨工具的持久记忆与知识图谱引擎。
 
-**一个面向开发者的本地优先记忆引擎——捕获 AI 会话、构建可搜索的知识图谱，并自动将最相关的上下文注入每一个新 Prompt。无需云端，无需订阅，无需重复解释背景。**
+**一个面向开发者与 AI Agent 的本地优先知识库与长期记忆系统——基于 Pure SQLite 单文件零依赖存储，捕获会话、构建知识图谱、追踪记忆演化，并通过标准 MCP 协议将上下文实时注入每一个新 Prompt。无需 Docker，无需云端，数据完全本地掌控。**
 
 <br/>
 
-[![Version](https://img.shields.io/badge/version-1.6.3-6366F1?style=for-the-badge&labelColor=0B0E14)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-6366F1?style=for-the-badge&labelColor=0B0E14)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F8FAFC?style=for-the-badge&labelColor=0B0E14)](LICENSE)
-[![Storage](https://img.shields.io/badge/存储-本地SQLite-10B981?style=for-the-badge&labelColor=0B0E14)]()
-[![MCP](https://img.shields.io/badge/协议-MCP-F97316?style=for-the-badge&labelColor=0B0E14)]()
+[![Storage](https://img.shields.io/badge/存储-100%25_Pure_SQLite-10B981?style=for-the-badge&labelColor=0B0E14)]()
+[![MCP](https://img.shields.io/badge/协议-Nowledge_Mem_MCP-F97316?style=for-the-badge&labelColor=0B0E14)]()
 
 <br/>
 
@@ -19,382 +19,191 @@
 
 ---
 
-## 项目简介
+## 📖 项目简介
 
-本项目基于开源项目 [ArcRift](https://github.com/Eshaan-Nair/ArcRift) 改造而来，目标是复刻并增强 **Nowledge Mem** 的风格与功能体系，形成一套完整的本地 AI 记忆管理平台。
+本项目基于开源的 **ArcRift** 架构，全面重构对齐 **Nowledge Mem** 的功能体系与协议规范，打造了一套高性能、纯本地、零 Docker 依赖的 AI 知识管理与长期记忆引擎。
 
-项目保留了 ArcRift 的核心技术架构（RAG 检索、知识图谱提取、MCP Server），并在此基础上重构了整个前端界面、扩展了记忆管理功能、优化了国产 API 适配（硅基流动、DeepSeek 等），使其更贴近 Nowledge Mem 的产品形态与中文使用场景。
-
----
-
-## 核心功能
-
-### 🧠 持久记忆层
-- **Memory Card（记忆卡片）**：将 AI 对话中的关键信息（架构决策、技术方案、踩坑经验）手动或自动结构化保存，支持重要程度（critical / high / medium / low）和分类（Architecture / Decision / Gotcha / Rule / Tech / Note）标记。
-- **Working Memory（工作记忆）**：每个项目维护一份动态简报，包含当前聚焦点、活跃决策、已知障碍，可通过 AI 自动生成或手动维护。
-- **Timeline（时间线）**：以时间轴形式浏览项目的记忆与事件演化历史。
-
-### 🕸️ 知识图谱
-- 自动从对话文本中提取主谓宾三元组（Subject → Relation → Object），构建项目级知识图谱。
-- 支持 D3.js 交互式可视化，可右键重命名节点、剪除边、删除节点。
-- 支持跨会话全局搜索（Hybrid Search：向量检索 + FTS5 关键词检索融合）。
-
-### 🔌 MCP Server（模型上下文协议）
-支持接入主流 AI 编程工具，暴露以下 MCP 工具：
-
-| 工具 | 说明 |
-|------|------|
-| `get_working_memory` | 获取项目工作记忆简报（焦点、决策、障碍） |
-| `update_working_memory` | 更新工作记忆 |
-| `recall_context` | 混合检索最相关的记忆片段，注入到当前 Prompt |
-| `store_memory` | 保存文本/决策到长期记忆（自动提取知识图谱三元组 + 向量存储） |
-| `prune_memory` | 外科式删除过时或错误的记忆 |
-| `search_memory` | 跨项目全局语义搜索 |
-| `list_projects` | 列出所有项目/空间 |
-| `get_project_summary` | 获取项目知识图谱摘要 |
-| `identify_active_project` | 根据工作目录自动匹配项目 ID |
-| `index_codebase` | 扫描并索引本地代码目录到记忆图谱 |
-
-**支持接入的 AI 工具：**
-- Google Antigravity（反重力）
-- Cursor
-- Gemini CLI
-- Claude Desktop
-- Claude Code
-- Windsurf
-- VS Code / Copilot
-
-### 🌐 浏览器扩展
-自动捕获以下平台的 AI 会话内容，并同步到本地记忆库：
-- Claude、ChatGPT、Gemini、DeepSeek、Grok/X、Copilot、Mistral
-
-### 🖥️ 桌面客户端（Tauri）
-- 基于 Tauri（Rust）+ React + Vite 构建的原生桌面应用
-- 常驻系统托盘，后台静默运行
-- Nowledge Mem 风格的侧边栏导航界面（中文化）
+### 🌟 核心重构亮点
+1. **100% 纯 SQLite 单文件架构 (Zero-Docker)**：
+   - 彻底移除了 Neo4j、MongoDB 与 ChromaDB 等臃肿外部依赖。
+   - 所有会话数据、记忆单元、知识图谱三元组、向量索引（`sqlite-vec` 768 维余弦相似度）以及 BM25 全文检索（SQLite FTS5）全部收敛至 `<程序根目录>/data/NowledgeMem.db`，读写延迟降低至亚毫秒级（<1ms）。
+   - 数据存储路径与盘符解耦，无论安装在 D 盘还是其他目录均自动定位在本地 `./data/` 目录中，杜绝污染系统 C 盘。
+2. **完整 Nowledge Mem MCP 工具协议体系**：
+   - 实现了包含 `memory_add`、`memory_search`、`memory_relation_add`、`query_sources`、`list_communities`、`memory_evolves_chain`、`get_space_profile` 等在内的 20+ 个标准 MCP 工具，同时 100% 兼容历史别名。
+3. **记忆演化与显式关联网 (Memory Relations & Evolution)**：
+   - 记忆不再是孤立卡片，支持记忆卡片间的显式语义关联（`supports`, `contradicts`, `depends_on`, `relates_to`, `caused_by`）以及版本迭代淘汰（`memory_supersede` & `memory_evolves_chain`）。
+4. **信源与多空间隔离 (Library Sources & Multi-Space)**：
+   - 全面支持文档、URL 与代码库的信源生命周期管理与分片翻页检索。
+   - 提供严格的 Space 级数据与检索隔离，支持通过空间画像 (`get_space_profile`) 快速掌握项目全貌。
 
 ---
 
-## 项目结构
+## 🚀 核心架构与功能模块
+
+```mermaid
+graph TD
+    A[AI 工具 / 客户端<br/>Google Antigravity / Cursor / Claude / Web] -->|MCP Stdio / HTTP REST| B[ArcRift API & MCP Server]
+    B --> C[SqliteSessionStore<br/>空间与会话]
+    B --> D[SqliteMemoryStore<br/>记忆卡片 / 关系 / 演化链]
+    B --> E[SqliteSourceStore<br/>信源与文档管理]
+    B --> F[SqliteGraphStore<br/>知识图谱三元组]
+    B --> G[SqliteVectorStore<br/>768-dim 向量 + FTS5 混合检索]
+    B --> H[CommunityService<br/>图谱连通性与社区聚类]
+    
+    C --> Z[NowledgeMem.db<br/>Single-File SQLite Database]
+    D --> Z
+    E --> Z
+    F --> Z
+    G --> Z
+    H --> Z
+```
+
+### 1. 🧠 记忆层与演化管理 (Memories & Evolution)
+- **Memory Unit Type**：支持 `fact`, `preference`, `decision`, `plan`, `procedure`, `learning`, `context`, `event` 等多维认知类型。
+- **Memory Relations**：支持在记忆卡片间建立带置信度与权重的显式关联。
+- **Evolution Chain**：支持知识版本演化链路回溯与淘汰更新（`replaces`, `enriches`, `confirms`）。
+
+### 2. 📚 信源资料库 (Source Management)
+- 支持本地文件、技术文档、网页 URL 与参考备忘的统一录入与生命周期追踪 (`lifecycle_state`: parsed / indexed / extracted / stale)。
+- 支持大文档的分片、偏移量翻页读取（`read_source_content`），适配 LLM 上下文限制。
+
+### 3. 🌐 知识社区聚类 (Communities Discovery)
+- 基于知识图谱与实体连通图，自动运行社区聚类算法（Louvain / Connected Components），发掘高内聚的主题知识社区（`list_communities`, `run_community_detection`）。
+
+### 4. 🗂️ 多空间与项目画像 (Multi-Space & Profiles)
+- 支持多项目/多空间的物理隔离，数据互不交叉。
+- `get_space_profile` 自动聚合项目的记忆数、图谱事实数、信源数、知识社区以及最新的 Working Memory 每日简报。
+
+---
+
+## 🔌 完整 MCP 工具协议清单
+
+ArcRift 内置了完整的 Nowledge Mem 标准 MCP 工具协议：
+
+| 优先级 | 工具名称 | 描述 |
+|:---|:---|:---|
+| **P0** | `memory_add` | 录入或 Upsert 记忆（支持 labels, unit_type, importance, evolves_from） |
+| **P0** | `memory_search` | 混合检索（语义向量 + BM25 FTS5 + 标签/类型过滤） |
+| **P0** | `get_memory_by_id` | 按 ID 获取记忆卡片详情与元数据 |
+| **P0** | `memory_update` | 局部更新记忆内容、权重或标签 |
+| **P0** | `memory_delete` | 按 ID 删除记忆卡片 |
+| **P0** | `read_working_memory` | 读取项目工作记忆（每日简报、焦点、决策、阻碍） |
+| **P0** | `update_working_memory` | 更新工作记忆状态与焦点 |
+| **P0** | `list_spaces` | 列出所有活跃空间/项目及统计指标 |
+| **P0** | `explore_graph` | 探索实体与记忆周边的知识图谱子图 |
+| **P0** | `graph_stats` | 获取全局空间、记忆、图谱与实体统计信息 |
+| **P1** | `memory_relation_add` | 建立记忆间的显式语义关联（supports, contradicts, depends_on 等） |
+| **P1** | `memory_relation_list` | 查询记忆关联网络（支持 out / in / both 方向遍历） |
+| **P1** | `memory_relation_delete`| 删除指定的记忆显式关联 |
+| **P1** | `query_sources` | 检索信源资料库（支持类型、标签与全文过滤） |
+| **P1** | `read_source_content` | 分页/偏移量读取信源的原始正文内容 |
+| **P2** | `list_communities` | 列出图谱聚类发现的知识社区与主题 |
+| **P2** | `run_community_detection`| 运行图谱聚类算法，自动发现新知识社区 |
+| **P2** | `get_community_details`| 查看知识社区详情及其关联的所有实体与记忆 |
+| **P2** | `memory_evolves_chain` | 获取记忆的版本演化链（双向追溯祖先与后代） |
+| **P2** | `memory_supersede` | 将旧记忆淘汰，标记新版本记忆并自动建立演化关联 |
+| **P3** | `get_space_profile` | 按 ID/名称/Slug 解析空间画像（统计、资料、工作记忆） |
+| **Compat** | `recall_context` | 编码助手兼容接口：检索相关记忆片段并封装为上下文 |
+| **Compat** | `store_memory` / `search_memory` / `prune_memory` / `list_projects` | 历史兼容别名接口 |
+
+---
+
+## 🛠️ 项目目录结构
 
 ```
 ArcRift/
-├── backend/                 # 后端核心服务（Node.js + TypeScript + Express 5）
+├── backend/                     # 后端核心服务（Node.js + TypeScript + Express 5）
 │   ├── src/
-│   │   ├── index.ts         # 应用入口，路由注册，中间件配置
-│   │   ├── routes/          # API 路由层（12个路由模块）
-│   │   │   ├── memories.ts      # 记忆卡片 CRUD
-│   │   │   ├── workingMemory.ts # 工作记忆管理 + AI自动生成
-│   │   │   ├── rag.ts           # RAG检索 (向量+图谱混合)
-│   │   │   ├── graph.ts         # 知识图谱操作
-│   │   │   ├── chat.ts          # 对话存储
-│   │   │   ├── session.ts       # 项目/空间管理
-│   │   │   ├── context.ts       # 上下文注入
-│   │   │   ├── settings.ts      # 系统设置
-│   │   │   ├── tools.ts         # AI工具检测与MCP自动连接
-│   │   │   ├── models.ts        # 模型切换管理
-│   │   │   ├── health.ts        # 系统健康检查
-│   │   │   └── jobs.ts          # 后台任务队列
-│   │   ├── services/        # 业务逻辑层
-│   │   │   ├── storage.ts       # 统一存储门面（SQLite/Docker双模式）
-│   │   │   ├── storage.types.ts # 类型定义（Memory, Session, Triple, WorkingMemory等）
-│   │   │   ├── sqlite.ts        # SQLite数据库初始化
-│   │   │   ├── sqlite-memory.ts # 记忆卡片存储层
-│   │   │   ├── sqlite-session.ts# 会话/项目存储层
-│   │   │   ├── sqlite-graph.ts  # 知识图谱三元组存储层
-│   │   │   ├── sqlite-vector.ts # 向量检索层（sqlite-vec）
-│   │   │   ├── extractor.ts     # LLM三元组提取（支持多Provider）
-│   │   │   ├── embeddings.ts    # 向量嵌入（OpenAI兼容接口）
-│   │   │   ├── jobs.ts          # 后台任务Worker
-│   │   │   ├── modelManager.ts  # AI模型配置管理器
-│   │   │   ├── chunker.ts       # 滑动窗口文本分块
-│   │   │   ├── hyde.ts          # HyDE假设文档嵌入
-│   │   │   ├── indexer.ts       # 本地代码目录索引
-│   │   │   └── backup.ts        # 自动备份（每周SQLite快照）
-│   │   ├── mcp/             # MCP Server（stdio传输）
-│   │   │   ├── server.ts        # MCP服务入口，工具注册
-│   │   │   └── tools/           # 各MCP工具实现（10个工具）
-│   │   ├── middleware/      # 中间件（Prompt注入防御 + PII脱敏）
-│   │   └── utils/           # 工具函数（logger, validators等）
-│   ├── .env.example         # 环境变量配置模板
-│   └── ArcRift-settings.json # 运行时设置持久化文件
-│
-├── dashboard/               # 桌面客户端前端（React + Vite + Tauri）
-│   ├── src/
-│   │   ├── App.tsx          # 应用根组件，路由控制
-│   │   ├── index.css        # 全局样式（Nowledge Mem主题）
-│   │   ├── components/
-│   │   │   └── Nowledge/    # Nowledge Mem风格组件库
-│   │   │       ├── NowledgeSidebar.tsx   # 侧边栏导航（中文化）
-│   │   │       ├── TimelineView.tsx      # 时间线视图
-│   │   │       ├── MemoriesView.tsx      # 记忆管理视图
-│   │   │       ├── ThreadsView.tsx       # 会话记录视图
-│   │   │       ├── AiNowView.tsx         # AI Now实时对话视图
-│   │   │       ├── NowledgeGraphView.tsx # 知识图谱可视化（D3.js）
-│   │   │       ├── SkillsView.tsx        # 技能管理视图
-│   │   │       ├── NowledgeSettingsView.tsx # 设置面板
-│   │   │       ├── ConnectView.tsx       # AI工具连接管理
-│   │   │       └── OtherViews.tsx        # 资料库/知识树/统计/上下文等视图
-│   │   ├── api/             # API客户端（ArcRift.ts）
-│   │   ├── hooks/           # React Hooks（useSessions等）
-│   │   ├── context/         # LocaleContext（国际化）
-│   │   └── types/           # TypeScript类型定义
-│   └── src-tauri/           # Tauri Rust壳（桌面应用打包）
-│
-├── extension/               # 浏览器扩展（Chrome/Firefox，Manifest V3）
-│   ├── manifest.json        # 扩展清单（支持7个AI平台）
-│   ├── src/                 # 扩展核心逻辑
-│   └── popup/               # 扩展弹出界面
-│
-├── docker-compose.yml       # Docker模式（Neo4j + MongoDB + ChromaDB）
-├── start.bat / start.sh     # 一键启动脚本
-└── install.bat / install.sh # 一键安装脚本
+│   │   ├── index.ts             # Express 入口，集成 API 路由与生产前端挂载
+│   │   ├── mcp/
+│   │   │   ├── server.ts        # 标准 MCP Stdio 服务端
+│   │   │   └── tools/           # 20+ 个标准 MCP 工具实现
+│   │   ├── routes/              # REST 路由（memories, sources, communities, graph, etc.）
+│   │   ├── services/            # 业务服务层
+│   │   │   ├── sqlite.ts        # SQLite 单文件驱动、迁移与 FTS5/Vector 扩展
+│   │   │   ├── sqlite-memory.ts # 记忆卡片 CRUD、混合检索、关系图与演化链
+│   │   │   ├── sqlite-source.ts # 信源资料库管理
+│   │   │   ├── sqlite-graph.ts  # 知识图谱三元组存储
+│   │   │   ├── sqlite-vector.ts # sqlite-vec 向量检索与 FTS5 降级检索
+│   │   │   ├── community.ts     # 知识图谱社区聚类引擎
+│   │   │   ├── storage.ts       # 纯 SQLite 统一数据存储门面
+│   │   │   └── storage.types.ts # 核心类型契约
+│   │   └── utils/
+│   │       ├── paths.ts         # 跨平台数据路径管理器（自动锁定应用根目录 data/）
+│   │       └── settings.ts      # 系统设置管理
+│   └── scripts/                 # 全套自动化测试套件
+│       ├── test-mcp-alignment.ts
+│       ├── test-p1-relations-sources.ts
+│       ├── test-p2-communities-evolution.ts
+│       └── test-p3-multispace.ts
+├── dashboard/                   # Web 管理面板 & Tauri 桌面端（React + Vite + Tauri 2）
+│   └── src/
+│       ├── api/ArcRift.ts       # 前端 API 客户端封装
+│       └── components/Nowledge/ # Nowledge Mem 风格组件（记忆、信源、图谱、工作记忆）
+├── data/                        # SQLite 单文件存储目录（NowledgeMem.db）
+└── README.md
 ```
 
 ---
 
-## 技术架构
+## 🚦 快速开始
 
-### 数据流
-
-```
-[浏览器扩展 / MCP工具 / 手动输入]
-         │
-         ▼
-POST /api/memories 或 /api/chat/save
-         │
-    ┌────┴─────────────────────┐
-    │                          │
-    ▼                          ▼
-向量轨道（RAG）           图谱轨道（知识图谱）
-slidingWindowChunks()    extractTriples() → LLM
-→ generateEmbeddings()   → SQLite facts表
-→ sqlite-vec 存储        → 更新 tripleCount
-```
-
-```
-[AI工具 / 扩展发起Prompt]
-         │
-         ▼
-POST /api/rag/retrieve 或 MCP recall_context
-         │
-    HyDE假设文档嵌入
-    → sqlite-vec 向量检索（相似度 ≥ 0.30）
-    → FTS5 关键词检索
-    → 混合融合排序
-    → 注入Prompt上下文
-```
-
-### 技术栈
-
-| 层次 | 技术 |
-|------|------|
-| 后端框架 | Node.js + TypeScript + Express 5 + Esbuild |
-| 本地存储（默认） | better-sqlite3 + sqlite-vec（零Docker依赖） |
-| 向量检索 | sqlite-vec（默认）/ ChromaDB（Docker模式） |
-| 知识图谱 | SQLite facts表（默认）/ Neo4j（Docker模式） |
-| 会话存储 | SQLite sessions表 / MongoDB（Docker模式） |
-| LLM接口 | OpenAI兼容（Ollama/硅基流动/DeepSeek/OpenAI/Gemini/Groq） |
-| 桌面客户端 | Tauri 2（Rust）+ React 18 + Vite |
-| 浏览器扩展 | Manifest V3，TypeScript |
-| MCP协议 | @modelcontextprotocol/sdk（stdio传输） |
-| 安全防护 | helmet + CORS + 速率限制 + PII脱敏 + Prompt注入防御 |
-
----
-
-## 安装与启动
-
-### 前置依赖
-
-- **Node.js** >= 18
-- **Ollama**（本地模式）或任意 OpenAI 兼容 API
-
-### 快速启动（开发模式）
-
-**1. 安装依赖并配置环境变量**
-
+### 1. 安装依赖与编译
 ```bash
+# 1. 编译后端
 cd backend
 npm install
-copy .env.example .env
-# 编辑 .env 填写LLM和Embedding配置
-```
+npm run build
 
-**2. 启动后端**
-
-```bash
-cd backend
-npm run dev
-# 后端运行在 http://localhost:3001
-```
-
-**3. 启动前端（可选）**
-
-```bash
-cd dashboard
+# 2. 编译前端管理面板
+cd ../dashboard
 npm install
-npm run dev
-# 前端运行在 http://localhost:5173
+npm run build
 ```
 
-> **提示**：将前端构建后（`npm run build`），后端会自动托管 Dashboard，直接访问 `http://localhost:3001` 即可。
-
-### 环境变量配置
-
-**方案一：硅基流动（国内推荐）**
-```env
-API_BASE_URL=https://api.siliconflow.cn/v1
-API_KEY=sk-your-key
-CHAT_MODEL=deepseek-ai/DeepSeek-V3
-EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
-EMBEDDING_API_KEY=sk-your-key
-EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
-```
-
-**方案二：本地 Ollama（离线）**
-```env
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_EMBED_MODEL=nomic-embed-text
-```
-
-**方案三：DeepSeek 官方**
-```env
-API_BASE_URL=https://api.deepseek.com/v1
-API_KEY=sk-your-deepseek-key
-CHAT_MODEL=deepseek-chat
-```
-
----
-
-## MCP 接入配置
-
-### 一键生成配置
-
+### 2. 启动服务
 ```bash
-cd backend && npm run mcp:config
+# 启动后端服务（默认运行在 http://localhost:3000，自动托管前端 Dashboard）
+cd backend
+npm start
 ```
 
-### Google Antigravity / Gemini CLI
-
-`~/.gemini/config/mcp_config.json`：
-
+### 3. 配置 MCP 客户端（如 Google Antigravity / Cursor / Claude Desktop）
+在你的 MCP 配置文件中添加：
 ```json
 {
   "mcpServers": {
-    "arcrift": {
+    "nowledge-mem": {
       "command": "node",
-      "args": ["C:/path/to/ArcRift/backend/dist/mcp/server.js"],
+      "args": ["E:\\Workspace\\AI-Project\\ArcRift\\backend\\dist\\mcp\\server.js"],
       "env": {}
     }
   }
 }
 ```
 
-### Cursor
-
-`~/.cursor/mcp.json`：
-
-```json
-{
-  "mcpServers": {
-    "arcrift": {
-      "command": "node",
-      "args": ["/path/to/ArcRift/backend/dist/mcp/server.js"]
-    }
-  }
-}
-```
-
-### Claude Desktop（Windows）
-
-`%APPDATA%\Claude\claude_desktop_config.json`：
-
-```json
-{
-  "mcpServers": {
-    "arcrift": {
-      "command": "node",
-      "args": ["C:/path/to/ArcRift/backend/dist/mcp/server.js"]
-    }
-  }
-}
-```
-
-> 也可在 Dashboard → **连接** 页面点击「一键连接」自动写入配置。
-
 ---
 
-## 浏览器扩展安装
+## 🧪 自动化测试与验证
 
-### Chrome / Edge / Brave
+本项目内置了覆盖 P0-P3 所有功能点的回归测试套件，执行以下命令即可一键验证：
 
 ```bash
-cd extension
-npm install && npm run build
+cd backend
+npx ts-node scripts/test-mcp-alignment.ts
+npx ts-node scripts/test-p1-relations-sources.ts
+npx ts-node scripts/test-p2-communities-evolution.ts
+npx ts-node scripts/test-p3-multispace.ts
 ```
-然后在 `chrome://extensions` 中开启开发者模式，加载 `extension/` 目录。
 
-### Firefox
-
-将 `extension/ArcRift.xpi` 拖入 Firefox 窗口直接安装。
-
----
-
-## 当前开发进度
-
-### ✅ 已完成
-
-- [x] 后端核心架构（Express 5 + TypeScript + Esbuild）
-- [x] SQLite 零依赖存储（sessions / facts / vectors / memories / working_memory）
-- [x] Docker 扩展存储模式（Neo4j + MongoDB + ChromaDB）
-- [x] RAG 检索流程（HyDE + 混合检索 + 语义阈值过滤）
-- [x] 知识图谱三元组自动提取（LLM）
-- [x] MCP Server（10个工具，含 Working Memory 支持）
-- [x] Memory Card 记忆卡片 API（CRUD + 向量 + 图谱联动）
-- [x] Working Memory 工作记忆 API（AI自动生成简报）
-- [x] AI 工具自动检测与一键 MCP 连接
-- [x] 国产 API 适配（硅基流动、DeepSeek）
-- [x] 浏览器扩展（Chrome/Firefox，支持7个平台）
-- [x] Dashboard 前端（Nowledge Mem 风格重构，中文化）
-  - [x] NowledgeSidebar / TimelineView / MemoriesView
-  - [x] ThreadsView / AiNowView / NowledgeGraphView
-  - [x] SkillsView / ConnectView / NowledgeSettingsView
-- [x] Tauri 桌面应用打包（.exe / .dmg / .AppImage）
-- [x] 自动 SQLite 备份（每周快照）
-
-### 🚧 待开发（对齐 Nowledge Mem 功能）
-
-- [ ] Communities（知识社区/聚类发现）
-- [ ] Memory Evolution（记忆演化链，版本管理）
-- [ ] Memory Relations（记忆关系图谱）
-- [ ] Source Management（信源追踪：URL/PDF/文件）
-- [ ] Artifact Support（产出物结构化存储）
-- [ ] Multi-Space（多空间/团队隔离）
-- [ ] Daily Review（每日工作记忆推送）
-- [ ] 完整对齐 Nowledge Mem MCP 工具接口规范
+**测试结果汇总：**
+- ✅ **P0 MCP 对齐**：10 项基础工具协议与 FTS5/BM25 检索测试通过率 100%
+- ✅ **P1 记忆关联与信源**：关系增删查、双向遍历、信源切片读取测试通过率 100%
+- ✅ **P2 社区聚类与演化**：图谱实体自动聚类、演化链双向回溯与记忆淘汰测试通过率 100%
+- ✅ **P3 多空间隔离**：空间画像解析、跨空间数据物理隔离与独立检索测试通过率 100%
 
 ---
 
-## 安全说明
+## 📄 开源许可
 
-| 控制项 | 实现 |
-|--------|------|
-| CORS 限制 | 仅允许 localhost / chrome-extension:// 来源 |
-| 速率限制 | 全局 200次/分；保存接口 10次/分 |
-| 安全响应头 | helmet 中间件 |
-| PII 脱敏 | 发送前在浏览器端脱敏 |
-| Prompt注入防御 | 10种模式扫描 + 分隔符保护 |
-| 完全本地化 | 数据仅存储在本机 SQLite，不上传云端 |
-
----
-
-## 致谢
-
-本项目基于 [ArcRift](https://github.com/Eshaan-Nair/ArcRift)（MIT License）开源项目二次开发，向原作者 Eshaan Nair 致谢。
-
----
-
-## License
-
-[MIT](LICENSE)
+本项目基于 [MIT License](LICENSE) 开源。

@@ -1,8 +1,9 @@
-﻿import { ISessionStore, IGraphStore, IVectorStore, IMemoryStore } from "./storage.types";
+import { ISessionStore, IGraphStore, IVectorStore, IMemoryStore, ISourceStore } from "./storage.types";
 import { SqliteSessionStore } from "./sqlite-session";
 import { SqliteGraphStore } from "./sqlite-graph";
 import { SqliteVectorStore } from "./sqlite-vector";
 import { SqliteMemoryStore } from "./sqlite-memory";
+import { SqliteSourceStore } from "./sqlite-source";
 import { initSqlite } from "./sqlite";
 import { logger } from "../utils/logger";
 import { getDbPath } from "../utils/paths";
@@ -12,6 +13,7 @@ const sessionStore: ISessionStore = new SqliteSessionStore();
 const graphStore: IGraphStore = new SqliteGraphStore();
 const vectorStore: IVectorStore = new SqliteVectorStore();
 const memoryStore: IMemoryStore = new SqliteMemoryStore();
+const sourceStore: ISourceStore = new SqliteSourceStore();
 
 /**
  * Initializes the unified SQLite database, vector extension, and schemas.
@@ -23,4 +25,4 @@ export async function initStorage(): Promise<void> {
 }
 
 export * from "./storage.types";
-export { sessionStore, graphStore, vectorStore, memoryStore };
+export { sessionStore, graphStore, vectorStore, memoryStore, sourceStore };

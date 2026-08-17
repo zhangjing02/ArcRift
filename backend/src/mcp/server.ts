@@ -1,17 +1,8 @@
 /**
- * mcp/server.ts — ArcRift MCP Server (stdio transport)
+ * mcp/server.ts — Nowledge Mem / ArcRift MCP Server (stdio transport)
  *
- * Transforms ArcRift into a universal memory layer accessible from any
- * MCP-compatible AI tool: Claude Code, Cursor, Windsurf, Claude Desktop.
- *
- * Five tools exposed:
- *   - recall_context      → retrieve relevant memory for a prompt
- *   - store_memory        → save text to ArcRift long-term memory
- *   - search_memory       → semantic search across all sessions
- *   - list_projects       → list all saved project names
- *   - get_project_summary → get knowledge graph summary for a project
- *
- * Updated: v1.6.3
+ * Exposes full Nowledge Mem standard MCP tool protocol + ArcRift coding tool integrations.
+ * Compatible with Google Antigravity, Cursor, Windsurf, Claude Code, Claude Desktop, and VS Code.
  */
 process.env.ARCRIFT_MCP_MODE = "true";
 process.env.DOTENV_QUIET = "true";
@@ -22,10 +13,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import path from "path";
 import fs from "fs";
+
 function loadEnvFile(filePath: string) {
   if (!fs.existsSync(filePath)) return;
   try {
@@ -49,126 +43,434 @@ const envPaths = [
   path.resolve(__dirname, "../../.env"),
   path.resolve(__dirname, "../../../../backend/.env"),
 ];
-
 for (const p of envPaths) {
   loadEnvFile(p);
 }
 
+// ── Tool Handlers ───────────────────────────────────────────────────
+import { memoryAdd } from "./tools/memory_add";
+import { memorySearch } from "./tools/memory_search";
+import { getMemoryById } from "./tools/get_memory_by_id";
+import { memoryUpdate } from "./tools/memory_update";
+import { memoryDelete } from "./tools/memory_delete";
+import { memoryRelationAdd } from "./tools/memory_relation_add";
+import { memoryRelationList } from "./tools/memory_relation_list";
+import { memoryRelationDelete } from "./tools/memory_relation_delete";
+import { memoryEvolvesChain } from "./tools/memory_evolves_chain";
+import { memorySupersede } from "./tools/memory_supersede";
+import { querySources } from "./tools/query_sources";
+import { readSourceContent } from "./tools/read_source_content";
+import { listCommunities } from "./tools/list_communities";
+import { runCommunityDetection } from "./tools/run_community_detection";
+import { getCommunityDetails } from "./tools/get_community_details";
+import { readWorkingMemory } from "./tools/read_working_memory";
+import { listSpaces } from "./tools/list_spaces";
+import { getSpaceProfile } from "./tools/get_space_profile";
+import { exploreGraph } from "./tools/explore_graph";
+import { graphStats } from "./tools/graph_stats";
 import { recall } from "./tools/recall";
-import { store } from "./tools/store";
 import { prune } from "./tools/prune";
-import { search } from "./tools/search";
-import { listProjects } from "./tools/projects";
 import { getSummary } from "./tools/summary";
 import { identifyProject } from "./tools/detector";
 import { indexCodebase } from "./tools/index_codebase";
-import { getWorkingMemoryTool, updateWorkingMemoryTool } from "./tools/working_memory";
+import { updateWorkingMemoryTool } from "./tools/working_memory";
 import { initStorage, sessionStore } from "../services/storage";
 import { logger } from "../utils/logger";
 
-// ── Tool definitions ────────────────────────────────────────────────
+// ── Standard Tool Definitions ───────────────────────────────────────
 const TOOLS = [
+  // 1. Nowledge Mem Standard: memory_add
   {
-    name: "get_working_memory",
+    name: "memory_add",
     description:
-      "Retrieve the high-signal Working Memory briefing for a project (current focus areas, active decisions, blockers, and executive status). " +
-      "Call this at the beginning of a session to immediately understand the project context.",
+      "Save a decision, insight, procedure, learning, preference, or important context to the knowledge graph. " +
+      "Use proactively when durable knowledge emerges. Pass an id to upsert. Supports labels, unit_type, importance, and EVOLVES relationships.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        project: { type: "string", description: "Project ID or name (optional, defaults to active project)" },
+        content: { type: "string", description: "Memory content (plain text or markdown)" },
+        title: { type: "string", description: "Optional title for the memory" },
+        id: { type: "string", description: "Optional stable ID for upsert" },
+        space_id: { type: "string", description: "Isolation space to store the memory in (default: 'default')" },
+        importance: { type: "number", description: "Importance score (0.1=low, 0.5=medium, 0.8=high, 1.0=critical)" },
+        unit_type: {
+          type: "string",
+          enum: ["fact", "preference", "decision", "plan", "procedure", "learning", "context", "event"],
+          description: "Memory unit type (decision, procedure, fact, learning, etc.)",
+        },
+        labels: { type: "string", description: "Comma-separated labels (e.g. 'auth,architecture')" },
+        claim_status: {
+          type: "string",
+          enum: ["asserted", "explored", "proposed", "planned", "unverified"],
+          description: "Epistemic status of the memory",
+        },
+        evolves_from_id: { type: "string", description: "Existing memory ID this updates or replaces" },
+        evolves_relation: {
+          type: "string",
+          enum: ["replaces", "enriches", "confirms"],
+          description: "Relationship to evolves_from_id",
+        },
+      },
+      required: ["content"],
+    },
+  },
+
+  // 2. Nowledge Mem Standard: memory_search
+  {
+    name: "memory_search",
+    description:
+      "Search stored memories using hybrid semantic + BM25 keyword search, or list recent memories when query is omitted. " +
+      "Ranked by relevance and importance. Supports label filtering and unit_type filtering.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Natural language search query" },
+        limit: { type: "number", description: "Max results (1-20, default: 10)" },
+        space_id: { type: "string", description: "Isolation space to search within" },
+        filter_labels: { type: "string", description: "Comma-separated labels to filter results" },
+        unit_type: { type: "string", description: "Comma-separated unit types to filter by" },
+        confidence_threshold: { type: "number", description: "Minimum relevance score (0.0-1.0)" },
+        mode: { type: "string", enum: ["normal", "deep"], description: "Search mode: 'normal' (fast) or 'deep' (graph-enhanced)" },
       },
       required: [],
     },
   },
+
+  // 3. Nowledge Mem Standard: get_memory_by_id
   {
-    name: "update_working_memory",
-    description:
-      "Update the project's Working Memory daily briefing, priorities, decisions, or blockers.",
+    name: "get_memory_by_id",
+    description: "Retrieve a specific memory by its ID in full (content, metadata, importance, unit type, version info).",
     inputSchema: {
       type: "object" as const,
       properties: {
-        project: { type: "string", description: "Project ID or name" },
+        memory_id: { type: "string", description: "ID of the memory to retrieve" },
+      },
+      required: ["memory_id"],
+    },
+  },
+
+  // 4. Nowledge Mem Standard: memory_update
+  {
+    name: "memory_update",
+    description: "Partially update an existing memory's content, title, importance, unit_type, or labels.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_id: { type: "string", description: "ID of the memory to update" },
+        content: { type: "string", description: "Updated content" },
+        title: { type: "string", description: "Updated title" },
+        importance: { type: "number", description: "Updated importance (0.1 - 1.0)" },
+        unit_type: { type: "string", description: "Updated unit type" },
+        labels: { type: "string", description: "Updated comma-separated labels" },
+      },
+      required: ["memory_id"],
+    },
+  },
+
+  // 5. Nowledge Mem Standard: memory_delete
+  {
+    name: "memory_delete",
+    description: "Permanently delete a memory by its ID.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_id: { type: "string", description: "ID of the memory to delete" },
+      },
+      required: ["memory_id"],
+    },
+  },
+
+  // 6. Nowledge Mem P1: memory_relation_add
+  {
+    name: "memory_relation_add",
+    description:
+      "Create or update an explicit semantic link between two memories (e.g. relates_to, supports, contradicts, depends_on, caused_by).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source_memory_id: { type: "string", description: "Source memory ID" },
+        target_memory_id: { type: "string", description: "Target memory ID" },
+        relation_type: { type: "string", description: "Relation type (supports, contradicts, depends_on, relates_to, caused_by)" },
+        reason: { type: "string", description: "Short explanation for why this link exists" },
+        strength: { type: "number", description: "Weight 0..1 (default 1.0)" },
+        confidence: { type: "number", description: "Confidence 0..1 (default 1.0)" },
+        bidirectional: { type: "boolean", description: "Whether the link can be traversed both ways" },
+      },
+      required: ["source_memory_id", "target_memory_id", "relation_type"],
+    },
+  },
+
+  // 7. Nowledge Mem P1: memory_relation_list
+  {
+    name: "memory_relation_list",
+    description: "List explicit semantic Memory-to-Memory links around a given memory.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_id: { type: "string", description: "Memory ID to inspect" },
+        direction: { type: "string", enum: ["out", "in", "both"], description: "Traversal direction (default: both)" },
+        relation_types: { type: "string", description: "Comma-separated relation types filter" },
+        limit: { type: "number", description: "Maximum relations to return (default 50)" },
+      },
+      required: ["memory_id"],
+    },
+  },
+
+  // 8. Nowledge Mem P1: memory_relation_delete
+  {
+    name: "memory_relation_delete",
+    description: "Remove an explicit semantic Memory-to-Memory link by relation ID.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        relation_id: { type: "string", description: "Relation ID to delete" },
+      },
+      required: ["relation_id"],
+    },
+  },
+
+  // 9. Nowledge Mem P2: memory_evolves_chain
+  {
+    name: "memory_evolves_chain",
+    description: "Get the full version history (EVOLVES chain) for a memory, showing how knowledge evolved over time.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_id: { type: "string", description: "Memory ID to get the version chain for" },
+        max_depth: { type: "number", description: "Maximum chain traversal depth (default 10)" },
+      },
+      required: ["memory_id"],
+    },
+  },
+
+  // 10. Nowledge Mem P2: memory_supersede
+  {
+    name: "memory_supersede",
+    description: "Mark an older memory as replaced by a newer one. Records the version link and marks newer as active.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        old_memory_id: { type: "string", description: "ID of the outdated memory being replaced" },
+        new_memory_id: { type: "string", description: "ID of the newer replacing memory" },
+        reason: { type: "string", description: "Short explanation of why it was superseded" },
+      },
+      required: ["old_memory_id", "new_memory_id"],
+    },
+  },
+
+  // 11. Nowledge Mem P1: query_sources
+  {
+    name: "query_sources",
+    description: "Search or list Library sources (URL, PDF, documents, local files). Returns source IDs for reading full content.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Text query to search source names and summaries" },
+        source_type: { type: "string", description: "Optional source type filter ('file', 'url', 'document', 'note')" },
+        lifecycle_state: { type: "string", description: "Lifecycle filter ('parsed', 'indexed', 'extracted', 'stale')" },
+        labels: { type: "string", description: "Comma-separated label filters" },
+        space_id: { type: "string", description: "Isolation space filter" },
+        limit: { type: "number", description: "Maximum results (default 10)" },
+      },
+      required: [],
+    },
+  },
+
+  // 12. Nowledge Mem P1: read_source_content
+  {
+    name: "read_source_content",
+    description: "Read the full or paginated content of a Library source.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source_id: { type: "string", description: "Source ID returned by query_sources" },
+        offset: { type: "number", description: "Character offset for pagination (default: 0)" },
+        limit: { type: "number", description: "Maximum characters to return (default: 8000)" },
+      },
+      required: ["source_id"],
+    },
+  },
+
+  // 13. Nowledge Mem P2: list_communities
+  {
+    name: "list_communities",
+    description: "List knowledge communities — clusters of related entities detected by graph clustering algorithms.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        space_id: { type: "string", description: "Optional space ID" },
+        limit: { type: "number", description: "Maximum communities to return (default 20)" },
+      },
+      required: [],
+    },
+  },
+
+  // 14. Nowledge Mem P2: run_community_detection
+  {
+    name: "run_community_detection",
+    description: "Execute community detection algorithm to group knowledge graph entities into topical clusters.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        space_id: { type: "string", description: "Optional space ID" },
+      },
+      required: [],
+    },
+  },
+
+  // 15. Nowledge Mem P2: get_community_details
+  {
+    name: "get_community_details",
+    description: "Get detailed information about a knowledge community, including member entities and linked memories.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        community_id: { type: "string", description: "Community ID" },
+      },
+      required: ["community_id"],
+    },
+  },
+
+  // 16. Nowledge Mem Standard: read_working_memory
+  {
+    name: "read_working_memory",
+    description:
+      "Read today's Working Memory briefing: current priorities, recent decisions, open questions, and active focus areas. " +
+      "Call this once near the start of every session to understand current context.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        space_id: { type: "string", description: "Isolation space to read (defaults to active project)" },
+      },
+      required: [],
+    },
+  },
+
+  // 17. Nowledge Mem Standard: update_working_memory
+  {
+    name: "update_working_memory",
+    description: "Update the project's Working Memory daily briefing, priorities, decisions, or blockers.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project: { type: "string", description: "Project/Space ID or name" },
+        space_id: { type: "string", description: "Project/Space ID (alias)" },
         briefing: { type: "string", description: "Executive summary text of project state" },
         focusAreas: { type: "array", items: { type: "string" }, description: "List of immediate priority tasks" },
         activeDecisions: { type: "array", items: { type: "string" }, description: "List of active architecture decisions" },
         blockers: { type: "array", items: { type: "string" }, description: "List of open issues or gotchas" },
       },
-      required: ["project"],
+      required: [],
     },
   },
+
+  // 18. Nowledge Mem Standard: list_spaces
+  {
+    name: "list_spaces",
+    description: "List all active spaces / projects with memory and graph statistics.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+
+  // 19. Nowledge Mem Standard: get_space_profile
+  {
+    name: "get_space_profile",
+    description: "Read one Space profile by id, key, or display name with detailed stats and current working memory.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        space_ref: { type: "string", description: "Space id, key, or display name to resolve." },
+      },
+      required: ["space_ref"],
+    },
+  },
+
+  // 19. Nowledge Mem Standard: explore_graph
+  {
+    name: "explore_graph",
+    description: "Explore the knowledge graph around memories or entities. Returns nodes and edges in a visualization-ready format.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        memory_ids: { type: "string", description: "Optional comma-separated memory IDs to explore around" },
+        space_id: { type: "string", description: "Optional space ID to scope exploration" },
+        limit: { type: "number", description: "Max nodes to return (default 20)" },
+      },
+      required: [],
+    },
+  },
+
+  // 20. Nowledge Mem Standard: graph_stats
+  {
+    name: "graph_stats",
+    description: "Get global statistics on spaces, memories, knowledge graph facts, and entities.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+
+  // ── Backward Compatible / Coding Helper Tools ─────────────────────
   {
     name: "recall_context",
-    description:
-      "Retrieve the most relevant memory chunks for a given prompt. " +
-      "Returns sanitised chunks wrapped in <ARCRIFT_retrieved_context> delimiters.",
+    description: "Retrieve the most relevant memory chunks wrapped in context delimiters for AI coders.",
     inputSchema: {
       type: "object" as const,
       properties: {
         prompt: { type: "string", description: "The current task or question" },
         project: { type: "string", description: "Project ID to scope the search (optional)" },
         topN: { type: "number", description: "Max chunks to return (default 3, max 6)" },
-        debug: { type: "boolean", description: "Include engine attribution in results (default false)" },
       },
       required: ["prompt"],
     },
   },
   {
     name: "store_memory",
-    description:
-      "Save text or key decisions to ArcRift long-term memory. " +
-      "Creates a structured memory card, extracts Knowledge Graph triples, and stores semantic vectors.",
+    description: "Backward compatible alias for memory_add.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        content: { type: "string", description: "The fact, decision, or context to remember" },
-        project: { type: "string", description: "Project ID or a NEW project name (auto-creates)" },
-        importance: {
-          type: "string",
-          enum: ["critical", "high", "medium", "low"],
-          description: "Importance level (default: high)",
-        },
-        category: {
-          type: "string",
-          enum: ["Architecture", "Decision", "Gotcha", "Rule", "Tech", "Note"],
-          description: "Memory category (default: Note)",
-        },
-        title: { type: "string", description: "Optional short descriptive title" },
-        tags: { type: "array", items: { type: "string" }, description: "Optional tags" },
+        content: { type: "string", description: "Content to store" },
+        project: { type: "string", description: "Target project/space" },
+        title: { type: "string", description: "Title" },
+        importance: { type: "string", description: "Importance level" },
+        category: { type: "string", description: "Category" },
       },
-      required: ["content", "project"],
-    },
-  },
-  {
-    name: "prune_memory",
-    description:
-      "Surgically remove facts or context chunks from a project. " +
-      "Use this to correct errors or tell ArcRift to 'forget' outdated info.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        prompt: { type: "string", description: "What information should be removed?" },
-        project: { type: "string", description: "Project ID to prune from" },
-      },
-      required: ["prompt", "project"],
+      required: ["content"],
     },
   },
   {
     name: "search_memory",
-    description:
-      "Semantic search across all sessions and projects.",
+    description: "Backward compatible alias for memory_search.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Natural language search query" },
-        topN: { type: "number", description: "Max results (default 5)" },
+        query: { type: "string", description: "Search query" },
+        topN: { type: "number", description: "Max results" },
       },
       required: ["query"],
     },
   },
   {
+    name: "prune_memory",
+    description: "Backward compatible alias for memory_delete or entity pruning.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        prompt: { type: "string", description: "What information should be removed?" },
+        project: { type: "string", description: "Project ID to prune from" },
+        memory_id: { type: "string", description: "Memory ID to delete" },
+      },
+      required: [],
+    },
+  },
+  {
     name: "list_projects",
-    description: "List all project names and IDs stored in ArcRift Memory.",
+    description: "Backward compatible alias for list_spaces.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -176,9 +478,19 @@ const TOOLS = [
     },
   },
   {
+    name: "get_working_memory",
+    description: "Backward compatible alias for read_working_memory.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        project: { type: "string", description: "Project ID" },
+      },
+      required: [],
+    },
+  },
+  {
     name: "get_project_summary",
-    description:
-      "Get a structured knowledge-graph summary for a project.",
+    description: "Get knowledge graph summary for a project.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -189,7 +501,7 @@ const TOOLS = [
   },
   {
     name: "identify_active_project",
-    description: "Automatically identify the ArcRift project ID based on a folder path or CWD.",
+    description: "Automatically identify the active project ID based on a folder path or CWD.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -200,164 +512,300 @@ const TOOLS = [
   },
   {
     name: "index_codebase",
-    description: "Scans a local directory and indexes the raw source code files into the current session's memory graph. Call this to give the AI access to the actual codebase.",
+    description: "Scans a local directory and indexes the raw source code files into memory graph.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        directoryPath: {
-          type: "string",
-          description: "The absolute path to the directory to index (e.g., C:/Code/MyProject)."
-        },
-        sessionId: {
-          type: "string",
-          description: "(Optional) The target session ID. Defaults to the active project if omitted."
-        }
+        directoryPath: { type: "string", description: "Absolute directory path to index" },
+        sessionId: { type: "string", description: "Target session ID" },
       },
-      required: ["directoryPath"]
-    }
-  }
+      required: ["directoryPath"],
+    },
+  },
 ];
 
 // ── Server setup ────────────────────────────────────────────────────
 const server = new Server(
-  { name: "ArcRift-memory", version: "1.6.3" },
+  { name: "nowledge-mem", version: "2.0.0" },
   { capabilities: { tools: {}, resources: {} } }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
-// ── Resource handlers ──────────────────────────────────────────────
-import { ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const sessions = await sessionStore.getSessions();
   return {
     resources: sessions.map(s => ({
-      uri: `ArcRift://projects/${s._id}/graph`,
+      uri: `nowledgemem://spaces/${s._id}/graph`,
       name: `${s.projectName} Knowledge Graph`,
       mimeType: "text/markdown",
-      description: `Structured knowledge graph facts for ${s.projectName}`
-    }))
+      description: `Structured knowledge graph facts for space ${s.projectName}`,
+    })),
   };
 });
 
-server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
-  const uri = new URL(req.params.uri);
-  const match = uri.pathname.match(/\/projects\/([^/]+)\/graph/);
-
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const uri = request.params.uri;
+  const match = uri.match(/^nowledgemem:\/\/spaces\/([^/]+)\/graph$/);
   if (!match) {
-    throw new Error(`Invalid resource URI: ${req.params.uri}`);
+    throw new Error(`Resource not found: ${uri}`);
   }
-
-  const projectId = match[1];
-  const summary = await getSummary(projectId);
-
+  const spaceId = match[1];
+  const summary = await getSummary({ project: spaceId });
   return {
-    contents: [{
-      uri: req.params.uri,
-      mimeType: "text/markdown",
-      text: summary
-    }]
+    contents: [
+      {
+        uri,
+        mimeType: "text/markdown",
+        text: summary.summary,
+      },
+    ],
   };
 });
 
-server.setRequestHandler(CallToolRequestSchema, async (req): Promise<CallToolResult> => {
-  const { name, arguments: args = {} } = req.params;
+// ── Main Tool Call Dispatcher ───────────────────────────────────────
+server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
+  const { name, arguments: args = {} } = request.params;
 
   try {
     switch (name) {
-      case "get_working_memory": {
-        const result = await getWorkingMemoryTool(args.project as string | undefined);
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "update_working_memory": {
-        const result = await updateWorkingMemoryTool(
-          args.project as string,
-          args.briefing as string | undefined,
-          args.focusAreas as string[] | undefined,
-          args.activeDecisions as string[] | undefined,
-          args.blockers as string[] | undefined
-        );
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "recall_context": {
-        const result = await recall(
-          args.prompt as string,
-          args.project as string,
-          args.topN as number | undefined,
-          args.debug as boolean | undefined
-        );
-        return { content: [{ type: "text", text: result }] };
-      }
+      // 1. memory_add / store_memory
+      case "memory_add":
       case "store_memory": {
-        const result = await store(
-          args.content as string,
-          args.project as string,
-          args.importance as any,
-          args.category as any,
-          args.title as string | undefined,
-          args.tags as string[] | undefined
-        );
-        return { content: [{ type: "text", text: result }] };
+        const result = await memoryAdd(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 2. memory_search / search_memory
+      case "memory_search":
+      case "search_memory": {
+        const query = (args as any).query || (args as any).prompt;
+        const limit = (args as any).limit || (args as any).topN;
+        const result = await memorySearch({ ...(args as any), query, limit });
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 3. get_memory_by_id
+      case "get_memory_by_id": {
+        const result = await getMemoryById(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 4. memory_update
+      case "memory_update": {
+        const result = await memoryUpdate(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 5. memory_delete / prune_memory
+      case "memory_delete": {
+        const result = await memoryDelete(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
       }
       case "prune_memory": {
-        const result = await prune(
-          args.prompt as string,
-          args.project as string
-        );
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "search_memory": {
-        const result = await search(
-          args.query as string,
-          args.topN as number | undefined
-        );
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "list_projects": {
-        const result = await listProjects();
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "get_project_summary": {
-        const result = await getSummary(args.project as string);
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "identify_active_project": {
-        const result = await identifyProject(args.path as string);
-        return { content: [{ type: "text", text: result }] };
-      }
-      case "index_codebase": {
-        const result = await indexCodebase(args.directoryPath as string, args.sessionId as string | undefined);
-        return { content: [{ type: "text", text: result }] };
-      }
-      default:
+        if ((args as any).memory_id || (args as any).id) {
+          const result = await memoryDelete(args as any);
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        }
+        const result = await prune(args as any);
         return {
-          content: [{ type: "text", text: `Unknown tool: ${name}` }],
-          isError: true,
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };
+      }
+
+      // 6. memory_relation_add
+      case "memory_relation_add": {
+        const result = await memoryRelationAdd(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 7. memory_relation_list
+      case "memory_relation_list": {
+        const result = await memoryRelationList(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 8. memory_relation_delete
+      case "memory_relation_delete": {
+        const result = await memoryRelationDelete(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 9. memory_evolves_chain
+      case "memory_evolves_chain": {
+        const result = await memoryEvolvesChain(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 10. memory_supersede
+      case "memory_supersede": {
+        const result = await memorySupersede(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 11. query_sources
+      case "query_sources": {
+        const result = await querySources(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 12. read_source_content
+      case "read_source_content": {
+        const result = await readSourceContent(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 13. list_communities
+      case "list_communities": {
+        const result = await listCommunities(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 14. run_community_detection
+      case "run_community_detection": {
+        const result = await runCommunityDetection(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 15. get_community_details
+      case "get_community_details": {
+        const result = await getCommunityDetails(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 16. read_working_memory / get_working_memory
+      case "read_working_memory":
+      case "get_working_memory": {
+        const result = await readWorkingMemory(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 17. update_working_memory
+      case "update_working_memory": {
+        const result = await updateWorkingMemoryTool(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 18. list_spaces / list_projects
+      case "list_spaces":
+      case "list_projects": {
+        const result = await listSpaces();
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 19. get_space_profile
+      case "get_space_profile": {
+        const result = await getSpaceProfile(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 19. explore_graph
+      case "explore_graph": {
+        const result = await exploreGraph(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 20. graph_stats
+      case "graph_stats": {
+        const result = await graphStats();
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 21. recall_context
+      case "recall_context": {
+        const result = await recall(args as any);
+        return {
+          content: [{ type: "text", text: result.context }],
+        };
+      }
+
+      // 22. get_project_summary
+      case "get_project_summary": {
+        const result = await getSummary(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 23. identify_active_project
+      case "identify_active_project": {
+        const result = await identifyProject(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // 24. index_codebase
+      case "index_codebase": {
+        const result = await indexCodebase(args as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
     }
   } catch (err: any) {
+    logger.error(`MCP Tool Error in [${name}]:`, err?.message || err);
     return {
-      content: [{ type: "text", text: `Error: ${err.message ?? String(err)}` }],
       isError: true,
+      content: [{ type: "text", text: `Error executing ${name}: ${err?.message || String(err)}` }],
     };
   }
 });
 
-// ── Bootstrap: start server ─────────────────────
-import { startWorker } from "../services/jobs";
-
-async function main() {
+// ── Start MCP stdio server ──────────────────────────────────────────
+async function run() {
   await initStorage();
-  // Start the background worker so that sentence indexing jobs are processed
-  startWorker().catch(err => logger.error("Failed to start job worker:", err));
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logger.info("ArcRift MCP Server running on stdio");
+  logger.info("[MCP] Nowledge Mem MCP server running on stdio");
 }
 
-main().catch(err => {
-  process.stderr.write(`[ArcRift MCP] Fatal: ${err}\n`);
+run().catch((err) => {
+  logger.error("MCP Server fatal error:", err);
   process.exit(1);
 });

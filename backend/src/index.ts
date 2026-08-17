@@ -23,6 +23,8 @@ import memoriesRoutes from "./routes/memories";
 import workingMemoryRoutes from "./routes/workingMemory";
 import toolsRoutes from "./routes/tools";
 import modelsRoutes from "./routes/models";
+import sourcesRoutes from "./routes/sources";
+import communitiesRoutes from "./routes/communities";
 
 
 // ── Pure SQLite Environment Initialization ──────────
@@ -106,6 +108,8 @@ app.use("/api/memories", memoriesRoutes);
 app.use("/api/working-memory", workingMemoryRoutes);
 app.use("/api/tools", toolsRoutes);
 app.use("/api/models", modelsRoutes);
+app.use("/api/sources", sourcesRoutes);
+app.use("/api/communities", communitiesRoutes);
 
 // Health check — includes service status
 app.get("/health", (_req, res) => {

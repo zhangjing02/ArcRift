@@ -112,16 +112,27 @@ export interface IVectorStore {
 
 export type ImportanceLevel = "critical" | "high" | "medium" | "low";
 export type MemoryCategory = "Architecture" | "Decision" | "Gotcha" | "Rule" | "Tech" | "Note";
+export type UnitType = "fact" | "preference" | "decision" | "plan" | "procedure" | "learning" | "context" | "event";
+export type ClaimStatus = "asserted" | "explored" | "proposed" | "planned" | "unverified";
+export type EvolvesRelation = "replaces" | "enriches" | "confirms";
 
 export interface Memory {
   id: string;
-  sessionId: string;
+  sessionId: string; // Space ID or Session ID
   title: string;
   content: string;
-  importance: ImportanceLevel;
-  category: MemoryCategory;
+  importance: number; // Normalized 0.1 - 1.0 (supports "critical" -> 1.0, "high" -> 0.8, "medium" -> 0.5, "low" -> 0.1)
+  category: string;
+  unitType: UnitType;
+  labels: string[];
   tags: string[];
+  claimStatus?: ClaimStatus;
+  evolvesFromId?: string;
+  evolvesRelation?: EvolvesRelation;
+  isLatest?: boolean;
   source?: string;
+  sourceApp?: string;
+  temporalContext?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -136,13 +147,99 @@ export interface WorkingMemory {
   updatedAt: Date;
 }
 
+export interface MemorySearchFilters {
+  spaceId?: string;
+  sessionId?: string;
+  filterLabels?: string[];
+  unitType?: string;
+  category?: string;
+  importanceMin?: number;
+  confidenceThreshold?: number;
+  limit?: number;
+  mode?: "normal" | "deep";
+  query?: string;
+}
+
+export interface MemoryRelation {
+  id: string;
+  sourceMemoryId: string;
+  targetMemoryId: string;
+  relationType: string;
+  reason?: string;
+  strength: number;
+  confidence: number;
+  bidirectional: boolean;
+  status: "active" | "suggested";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Source {
+  id: string;
+  sessionId: string;
+  name: string;
+  sourceType: "url" | "file" | "document" | "note";
+  url?: string;
+  filePath?: string;
+  summary?: string;
+  rawContent?: string;
+  labels: string[];
+  lifecycleState: "parsed" | "indexed" | "extracted" | "stale" | "error";
+  metadata?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ISourceStore {
+  createSource(source: Partial<Source> & { name: string; sessionId?: string; spaceId?: string; sourceType?: string }): Promise<Source>;
+  getSources(sessionId?: string, filters?: { sourceType?: string; lifecycleState?: string; labels?: string[]; query?: string; limit?: number }): Promise<Source[]>;
+  getSource(id: string): Promise<Source | null>;
+  deleteSource(id: string): Promise<boolean>;
+}
+
 export interface IMemoryStore {
-  createMemory(memory: Omit<Memory, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Memory>;
-  getMemories(sessionId?: string, filters?: { importance?: ImportanceLevel; category?: string; query?: string }): Promise<Memory[]>;
+  createMemory(memory: Partial<Memory> & { content: string; sessionId?: string; spaceId?: string }): Promise<Memory>;
+  getMemories(sessionId?: string, filters?: { importance?: string | number; category?: string; query?: string; unitType?: string; labels?: string[]; limit?: number }): Promise<Memory[]>;
+  searchMemories(filters: MemorySearchFilters): Promise<Array<Memory & { score?: number }>>;
   getMemory(id: string): Promise<Memory | null>;
   updateMemory(id: string, update: Partial<Memory>): Promise<Memory | null>;
   deleteMemory(id: string): Promise<boolean>;
 
+  // Memory Relations
+  addRelation(relation: {
+    sourceMemoryId: string;
+    targetMemoryId: string;
+    relationType: string;
+    reason?: string;
+    strength?: number;
+    confidence?: number;
+    bidirectional?: boolean;
+    status?: "active" | "suggested";
+  }): Promise<MemoryRelation>;
+  listRelations(memoryId: string, options?: { direction?: "out" | "in" | "both"; relationTypes?: string[]; status?: string; limit?: number }): Promise<MemoryRelation[]>;
+  deleteRelation(relationId: string): Promise<boolean>;
+
+  // Memory Evolution (P2)
+  getEvolutionChain(memoryId: string, maxDepth?: number): Promise<{
+    chain: Array<{
+      id: string;
+      title: string;
+      unitType: string;
+      isLatest: boolean;
+      createdAt: string;
+      evolvesFromId?: string;
+      evolvesRelation?: string;
+    }>;
+    position: number;
+    totalVersions: number;
+  }>;
+  supersedeMemory(oldMemoryId: string, newMemoryId: string, reason?: string): Promise<{
+    status: string;
+    oldMemory: { id: string; isLatest: boolean };
+    newMemory: { id: string; isLatest: boolean; evolvesFromId: string };
+  }>;
+
+  // Working Memory
   getWorkingMemory(sessionId: string): Promise<WorkingMemory | null>;
   saveWorkingMemory(workingMemory: Partial<WorkingMemory> & { sessionId: string }): Promise<WorkingMemory>;
 }

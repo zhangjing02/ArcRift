@@ -209,17 +209,58 @@ function createTables() {
       sessionId TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
-      importance TEXT DEFAULT 'medium',
+      importance REAL DEFAULT 0.5,
       category TEXT DEFAULT 'Note',
+      unit_type TEXT DEFAULT 'context',
+      labels TEXT,
       tags TEXT,
-      source TEXT,
+      claim_status TEXT DEFAULT 'asserted',
+      evolves_from_id TEXT,
+      evolves_relation TEXT,
+      is_latest INTEGER DEFAULT 1,
+      source TEXT DEFAULT 'manual',
+      source_app TEXT,
+      temporal_context TEXT DEFAULT 'timeless',
       createdAt TEXT,
       updatedAt TEXT,
       FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
+
+  // Migration for memories columns
+  try {
+    const memInfo = db.prepare("PRAGMA table_info(memories)").all() as any[];
+    const cols = memInfo.map(c => c.name);
+    if (!cols.includes("unit_type")) {
+      db.exec("ALTER TABLE memories ADD COLUMN unit_type TEXT DEFAULT 'context'");
+      db.exec("ALTER TABLE memories ADD COLUMN labels TEXT");
+      db.exec("ALTER TABLE memories ADD COLUMN claim_status TEXT DEFAULT 'asserted'");
+      db.exec("ALTER TABLE memories ADD COLUMN evolves_from_id TEXT");
+      db.exec("ALTER TABLE memories ADD COLUMN evolves_relation TEXT");
+      db.exec("ALTER TABLE memories ADD COLUMN is_latest INTEGER DEFAULT 1");
+      db.exec("ALTER TABLE memories ADD COLUMN source_app TEXT");
+      db.exec("ALTER TABLE memories ADD COLUMN temporal_context TEXT DEFAULT 'timeless'");
+      logger.info("Database migration: Added Nowledge Mem columns to memories table");
+    }
+  } catch (e) {
+    logger.warn(`Memories migration warning: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   db.exec("CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(sessionId)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memories_unit_type ON memories(unit_type)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memories_latest ON memories(is_latest)");
+
+  // Memories FTS5 Virtual Table for full-text search
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS fts_memories USING fts5(
+      memory_id UNINDEXED,
+      title,
+      content,
+      labels,
+      tokenize='porter'
+    )
+  `);
 
   // Nowledge Mem: Working Memory / Daily Briefing
   db.exec(`
@@ -234,6 +275,63 @@ function createTables() {
       FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
+
+  // Nowledge Mem P1: Memory Relations (Memory-to-Memory Links)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_relations (
+      id TEXT PRIMARY KEY,
+      source_memory_id TEXT NOT NULL,
+      target_memory_id TEXT NOT NULL,
+      relation_type TEXT NOT NULL,
+      reason TEXT,
+      strength REAL DEFAULT 1.0,
+      confidence REAL DEFAULT 1.0,
+      bidirectional INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY(source_memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+      FOREIGN KEY(target_memory_id) REFERENCES memories(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memrel_source ON memory_relations(source_memory_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memrel_target ON memory_relations(target_memory_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memrel_type ON memory_relations(relation_type)");
+
+  // Nowledge Mem P1: Library Sources Management (URL, PDF, File Tracking)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sources (
+      id TEXT PRIMARY KEY,
+      sessionId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      url TEXT,
+      filePath TEXT,
+      summary TEXT,
+      rawContent TEXT,
+      labels TEXT,
+      lifecycle_state TEXT DEFAULT 'indexed',
+      metadata TEXT,
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+  // Nowledge Mem P2: Knowledge Communities (Louvain / Cluster Detection)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS communities (
+      id TEXT PRIMARY KEY,
+      sessionId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      summary TEXT,
+      member_count INTEGER DEFAULT 0,
+      member_entities TEXT,
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_communities_session ON communities(sessionId)");
 
   logger.success("All SQLite tables initialized successfully");
 }

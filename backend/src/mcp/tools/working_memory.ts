@@ -64,30 +64,46 @@ ${blockersStr}
 }
 
 export async function updateWorkingMemoryTool(
-  project: string,
+  projectOrInput: string | { project?: string; space_id?: string; briefing?: string; focusAreas?: string[]; activeDecisions?: string[]; blockers?: string[] },
   briefing?: string,
   focusAreas?: string[],
   activeDecisions?: string[],
   blockers?: string[]
 ): Promise<string> {
   try {
-    if (!project) return "Error: project name is required.";
+    let proj: string | undefined;
+    let b = briefing;
+    let fa = focusAreas;
+    let ad = activeDecisions;
+    let bl = blockers;
 
-    let session = await sessionStore.getSession(project);
+    if (typeof projectOrInput === "object" && projectOrInput !== null) {
+      proj = projectOrInput.project || projectOrInput.space_id;
+      b = projectOrInput.briefing;
+      fa = projectOrInput.focusAreas;
+      ad = projectOrInput.activeDecisions;
+      bl = projectOrInput.blockers;
+    } else {
+      proj = projectOrInput;
+    }
+
+    if (!proj) return "Error: project or space_id is required.";
+
+    let session = await sessionStore.getSession(proj);
     if (!session) {
-      session = await sessionStore.getSessionByName(project);
+      session = await sessionStore.getSessionByName(proj);
       if (!session) {
-        session = await sessionStore.createSession(project, "mcp", undefined, project);
+        session = await sessionStore.createSession(proj, "mcp", undefined, proj);
       }
     }
 
     const effectiveId = session._id;
     const saved = await memoryStore.saveWorkingMemory({
       sessionId: effectiveId,
-      briefing,
-      focusAreas: Array.isArray(focusAreas) ? focusAreas : undefined,
-      activeDecisions: Array.isArray(activeDecisions) ? activeDecisions : undefined,
-      blockers: Array.isArray(blockers) ? blockers : undefined,
+      briefing: b,
+      focusAreas: Array.isArray(fa) ? fa : undefined,
+      activeDecisions: Array.isArray(ad) ? ad : undefined,
+      blockers: Array.isArray(bl) ? bl : undefined,
       updatedAt: new Date(),
     });
 

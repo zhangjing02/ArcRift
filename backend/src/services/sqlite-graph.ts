@@ -5,6 +5,15 @@ export class SqliteGraphStore implements IGraphStore {
   private db = getSqlite();
 
   async saveTriple(triple: Triple): Promise<void> {
+    const sessionExists = this.db.prepare("SELECT id FROM sessions WHERE id = ?").get(triple.sessionId);
+    if (!sessionExists) {
+      const now = new Date().toISOString();
+      this.db.prepare(`
+        INSERT OR IGNORE INTO sessions (id, projectName, platform, createdAt, updatedAt)
+        VALUES (?, ?, 'default', ?, ?)
+      `).run(triple.sessionId, triple.sessionId, now, now);
+    }
+
     this.db.prepare(`
       INSERT OR IGNORE INTO facts (sessionId, subject, subjectType, relation, object, objectType, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?)
