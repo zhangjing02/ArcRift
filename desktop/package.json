@@ -1,0 +1,14 @@
+{
+  "name": "nowledge-mem-desktop",
+  "version": "1.6.3",
+  "description": "Nowledge Mem Native Windows Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:exe": "electron-builder --win"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^34.0.0"
+  }
+}
