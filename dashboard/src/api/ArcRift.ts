@@ -203,6 +203,42 @@ export async function getGraphData(sessionId?: string): Promise<{ nodes: any[]; 
   }
 }
 
+export async function detectSystemTools(): Promise<{
+  tools: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    detected: boolean;
+    connected: boolean;
+    statusText: string;
+    configPath?: string;
+  }>;
+  activeCount: number;
+  detectedCount: number;
+  activeSummary: string;
+}> {
+  try {
+    const res = await apiClient.get("/api/tools/detect");
+    return res.data;
+  } catch {
+    return {
+      tools: [],
+      activeCount: 0,
+      detectedCount: 0,
+      activeSummary: "",
+    };
+  }
+}
+
+export async function connectToolById(toolId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.post("/api/tools/connect", { toolId });
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "连接失败" };
+  }
+}
+
 export async function getFullChat(sessionId: string): Promise<import("../types").FullChat | null> {
   try {
     const res = await apiClient.get(`/api/chat/${sessionId}`);

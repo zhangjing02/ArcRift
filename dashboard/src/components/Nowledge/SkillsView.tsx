@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { detectSystemTools, connectToolById } from "../../api/ArcRift";
 
 interface SkillItem {
   id: string;
@@ -8,6 +9,16 @@ interface SkillItem {
   steps: string;
   enabled: boolean;
   tools: string[];
+}
+
+interface DetectedTool {
+  id: string;
+  name: string;
+  avatar: string;
+  detected: boolean;
+  connected: boolean;
+  statusText: string;
+  configPath?: string;
 }
 
 export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = ({
@@ -31,6 +42,11 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
   const [newSkillTrigger, setNewSkillTrigger] = useState("");
   const [newSkillSteps, setNewSkillSteps] = useState("");
 
+  // Real System Tools Detection State
+  const [systemTools, setSystemTools] = useState<DetectedTool[]>([]);
+  const [activeSummary, setActiveSummary] = useState<string>("Gemini CLI, Antigravity");
+  const [isConnecting, setIsConnecting] = useState<string | null>(null);
+
   // Assistant Widget states
   const [assistantMinimized, setAssistantMinimized] = useState(false);
   const [assistantInput, setAssistantInput] = useState("");
@@ -46,6 +62,41 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
   // Dropdowns in tool card
   const [showOtherTools, setShowOtherTools] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  useEffect(() => {
+    loadTools();
+  }, []);
+
+  const loadTools = async () => {
+    try {
+      const res = await detectSystemTools();
+      if (res && res.tools) {
+        setSystemTools(res.tools);
+        if (res.activeSummary) {
+          setActiveSummary(res.activeSummary);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to detect system AI tools", err);
+    }
+  };
+
+  const handleConnectTool = async (toolId: string) => {
+    setIsConnecting(toolId);
+    try {
+      const res = await connectToolById(toolId);
+      if (res.success) {
+        alert(res.message);
+        await loadTools();
+      } else {
+        alert("连接失败: " + res.message);
+      }
+    } catch (err) {
+      console.error("Failed to connect tool", err);
+    } finally {
+      setIsConnecting(null);
+    }
+  };
 
   const handleCreateSkill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,9 +137,21 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
     }, 700);
   };
 
+  // Visible primary tools (Cursor, Gemini CLI, Antigravity)
+  const primaryToolIds = ["cursor", "gemini_cli", "antigravity"];
+  const displayTools = systemTools.length > 0
+    ? systemTools.filter((t) => primaryToolIds.includes(t.id))
+    : [
+        { id: "cursor", name: "Cursor", avatar: "▲", detected: true, connected: false, statusText: "已检测到" },
+        { id: "gemini_cli", name: "Gemini CLI", avatar: "✨", detected: true, connected: true, statusText: "已连接。开启一个技能后就会出现在这里。" },
+        { id: "antigravity", name: "Antigravity", avatar: "⚛️", detected: true, connected: true, statusText: "已连接。开启一个技能后就会出现在这里。" },
+      ];
+
+  const otherTools = systemTools.filter((t) => !primaryToolIds.includes(t.id));
+
   return (
     <div className="nl-skills-page-container">
-      {/* Header (1:1 with Screenshot) */}
+      {/* Header */}
       <div className="nl-view-header">
         <div className="nl-view-title-group">
           <h1 className="nl-view-title">技能</h1>
@@ -98,7 +161,7 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
 
       {/* Main Content Body */}
       <div className="nl-skills-content-scroll">
-        {/* Hero Banner Area (1:1) */}
+        {/* Hero Banner Area */}
         <div className="nl-skills-hero">
           <h2 className="nl-hero-title">教你的 AI 照你的方式做事</h2>
           <p className="nl-hero-desc">
@@ -131,7 +194,7 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
           </div>
         </div>
 
-        {/* Active Skills List (if any) */}
+        {/* Active Skills List */}
         {skills.length > 0 && (
           <div className="nl-active-skills-section">
             <div className="nl-skills-section-header">已启用的技能 ({skills.length})</div>
@@ -161,7 +224,7 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
           </div>
         )}
 
-        {/* Main Tools Ecosystem Card (1:1 with Screenshot) */}
+        {/* Main Tools Ecosystem Card (Live Detection) */}
         <div className="nl-tool-ecosystem-card">
           <div className="nl-eco-header-row">
             <div className="nl-eco-title-group">
@@ -174,57 +237,35 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
               </div>
             </div>
             <div className="nl-eco-status-badge">
-              ● 正在 Gemini CLI, Antigravity 中生效
+              ● 正在 {activeSummary} 中生效
             </div>
           </div>
 
           <div className="nl-eco-waiting-tip">● 等待工具首次使用技能</div>
 
-          {/* Connected Tool Rows (1:1) */}
+          {/* Connected Tool Rows (Dynamic from system detection) */}
           <div className="nl-eco-tools-list">
-            {/* Tool 1: Cursor */}
-            <div className="nl-eco-tool-row">
-              <div className="nl-eco-tool-left">
-                <div className="nl-eco-tool-avatar">▲</div>
-                <div className="nl-eco-tool-info">
-                  <div className="nl-eco-tool-name">Cursor</div>
-                  <div className="nl-eco-tool-desc">已检测到</div>
-                </div>
-              </div>
-              <button
-                className="nl-btn-secondary"
-                style={{ fontSize: "12px", padding: "4px 12px" }}
-                onClick={() => onNavigateTab && onNavigateTab("connect")}
-              >
-                连接
-              </button>
-            </div>
-
-            {/* Tool 2: Gemini CLI */}
-            <div className="nl-eco-tool-row">
-              <div className="nl-eco-tool-left">
-                <div className="nl-eco-tool-avatar">✨</div>
-                <div className="nl-eco-tool-info">
-                  <div className="nl-eco-tool-name">Gemini CLI</div>
-                  <div className="nl-eco-tool-desc">
-                    已连接。开启一个技能后就会出现在这里。
+            {displayTools.map((tool) => (
+              <div key={tool.id} className="nl-eco-tool-row">
+                <div className="nl-eco-tool-left">
+                  <div className="nl-eco-tool-avatar">{tool.avatar}</div>
+                  <div className="nl-eco-tool-info">
+                    <div className="nl-eco-tool-name">{tool.name}</div>
+                    <div className="nl-eco-tool-desc">{tool.statusText}</div>
                   </div>
                 </div>
+                {!tool.connected && tool.detected && (
+                  <button
+                    className="nl-btn-secondary"
+                    style={{ fontSize: "12px", padding: "4px 12px" }}
+                    onClick={() => handleConnectTool(tool.id)}
+                    disabled={isConnecting === tool.id}
+                  >
+                    {isConnecting === tool.id ? "连接中..." : "连接"}
+                  </button>
+                )}
               </div>
-            </div>
-
-            {/* Tool 3: Antigravity */}
-            <div className="nl-eco-tool-row">
-              <div className="nl-eco-tool-left">
-                <div className="nl-eco-tool-avatar">⚛️</div>
-                <div className="nl-eco-tool-info">
-                  <div className="nl-eco-tool-name">Antigravity</div>
-                  <div className="nl-eco-tool-desc">
-                    已连接。开启一个技能后就会出现在这里。
-                  </div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Collapsible Section 1: 其他工具 (53) */}
@@ -233,23 +274,24 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
               className="nl-dropdown-btn"
               onClick={() => setShowOtherTools(!showOtherTools)}
             >
-              <span>{showOtherTools ? "▼" : "▶"} 其他工具 (53)</span>
+              <span>{showOtherTools ? "▼" : "▶"} 其他工具 ({otherTools.length > 0 ? otherTools.length : 53})</span>
             </button>
             {showOtherTools && (
               <div className="nl-dropdown-content">
                 <div className="nl-other-tools-grid">
-                  {[
-                    "Claude Code",
-                    "Grok Build",
-                    "Claude Desktop",
-                    "Codex",
-                    "Copilot CLI",
-                    "Windsurf",
-                    "OpenClaw",
-                    "Alma",
-                  ].map((tool) => (
-                    <div key={tool} className="nl-other-tool-chip">
-                      <span>● {tool}</span>
+                  {(otherTools.length > 0 ? otherTools : [
+                    { id: "claude_code", name: "Claude Code" },
+                    { id: "grok_build", name: "Grok Build" },
+                    { id: "claude_desktop", name: "Claude Desktop" },
+                    { id: "codex", name: "Codex" },
+                    { id: "copilot_cli", name: "Copilot CLI" },
+                    { id: "windsurf", name: "Windsurf" },
+                    { id: "openclaw", name: "OpenClaw" },
+                    { id: "alma", name: "Alma" },
+                  ]).map((t: any) => (
+                    <div key={t.id || t.name} className="nl-other-tool-chip">
+                      <span>● {t.name}</span>
+                      {t.detected && <span style={{ color: "#10b981", fontSize: "10px", marginLeft: 4 }}>(已安装)</span>}
                     </div>
                   ))}
                 </div>
@@ -274,7 +316,7 @@ export const SkillsView: React.FC<{ onNavigateTab?: (tab: string) => void }> = (
         </div>
       </div>
 
-      {/* Floating Skill Assistant Widget (1:1 with Screenshot Bottom Right) */}
+      {/* Floating Skill Assistant Widget */}
       <div className={`nl-floating-assistant-widget ${assistantMinimized ? "minimized" : ""}`}>
         <div className="nl-assistant-header">
           <div className="nl-assistant-title">
