@@ -84,27 +84,40 @@ if "!USE_SQLITE!"=="0" (
 echo.
 
 
-REM 7. Build components (Ensure UI is always up-to-date)
+REM 6. Build components (Ensure UI and Extension are up-to-date)
 echo  Building Dashboard...
 pushd dashboard
 call npm run build
 popd
 
-echo  Building extension...
-pushd extension
-call npx esbuild src/content.ts    --bundle --outfile=dist/content.js    --format=iife --target=es2020 --log-level=error
-call npx esbuild src/background.ts --bundle --outfile=dist/background.js --format=iife --target=es2020 --log-level=error
-call npx esbuild popup/popup.ts    --bundle --outfile=popup/popup.js     --format=iife --target=es2020 --log-level=error
+echo  Building Browser Extension...
+call node extension\scripts\build.js
+
+echo  Building Backend Server...
+pushd backend
+call npm run build
 popd
 
 REM 7. Start backend
 echo.
-echo  ===================================
-echo   ArcRift is running!
-echo  ===================================
+echo  =======================================================
+echo    ArcRift is running! / ArcRift 启动成功！
+echo  =======================================================
 echo.
-for /f "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%b"
-echo   Dashboard ^-^> !ESC![1;96mhttp://localhost:3001!ESC![0m
+echo    Unified Dashboard / 统一中文控制台:
+echo    -^> http://localhost:3001
 echo.
+echo    Press Ctrl+C to stop the server.
+echo.
+
+REM Automatically open default browser to dashboard
+start http://localhost:3001
+
 cd backend
-npm run dev
+call node dist/index.js
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] ArcRift exited with an error. / 运行出现异常。
+    pause
+)
