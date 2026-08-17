@@ -46,8 +46,7 @@ function validateEnv() {
   } else {
     // SQLite mode validation (minimal)
     if (process.env.GRAPH_BACKEND === "groq" && !process.env.GROQ_API_KEY) {
-      logger.error("Missing GROQ_API_KEY for graph extraction.");
-      process.exit(1);
+      logger.warn("[ArcRift] GRAPH_BACKEND is set to 'groq' but GROQ_API_KEY is missing. You can configure API keys in the Settings UI.");
     }
   }
 }

@@ -67,35 +67,38 @@ export class SqliteVectorStore implements IVectorStore {
     const sessionId = chunks[0].sessionId;
     await this.deleteChunksBySession(sessionId);
 
-    const contents = chunks.map(c => c.content);
-    // nomic-embed-text: Use 'document' task for indexing
-    const embeddings = await generateEmbeddings(contents, "document");
-
     const insertVec = this.db.prepare("INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)");
     const insertMeta = this.db.prepare("INSERT OR REPLACE INTO chunk_metadata (chunk_id, sessionId, chunkIndex, content, filePath, fileHash) VALUES (?, ?, ?, ?, ?, ?)");
     const insertFts = this.db.prepare("INSERT OR REPLACE INTO fts_chunks (chunk_id, content) VALUES (?, ?)");
-    const insertSentVec = this.db.prepare("INSERT OR REPLACE INTO vec_sentences (sentence_id, embedding) VALUES (?, ?)");
-    const insertSentMeta = this.db.prepare("INSERT OR REPLACE INTO sentence_metadata (sentence_id, chunk_id, content) VALUES (?, ?, ?)");
 
-    const chunkEmbeddings = await generateEmbeddings(chunks.map(c => c.content), "document");
+    let chunkEmbeddings: number[][] | null = null;
+    try {
+      const contents = chunks.map(c => c.content);
+      chunkEmbeddings = await generateEmbeddings(contents, "document");
+    } catch (err: any) {
+      logger.warn(`[ArcRift Vector] Embedding unavailable (Ollama offline/busy), indexing in FTS only: ${err.message}`);
+    }
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const embedding = chunkEmbeddings[i];
-      const vector = Buffer.from(new Float32Array(embedding).buffer);
+      const embedding = chunkEmbeddings ? chunkEmbeddings[i] : null;
 
       this.db.transaction(() => {
-        insertVec.run(chunk.id, vector);
+        if (embedding) {
+          const vector = Buffer.from(new Float32Array(embedding).buffer);
+          insertVec.run(chunk.id, vector);
+        }
         insertMeta.run(chunk.id, chunk.sessionId, chunk.chunkIndex, chunk.content, chunk.filePath || null, chunk.fileHash || null);
         insertFts.run(chunk.id, chunk.content);
       })();
     }
 
-    // Offload high-precision sentence indexing to background job
-    // This makes the "Save" instant (only 1-2 embeddings instead of 20)
-    import("./jobs").then(m => m.enqueueJob("sentence_indexing", { chunks }));
+    if (chunkEmbeddings) {
+      // Offload high-precision sentence indexing to background job
+      import("./jobs").then(m => m.enqueueJob("sentence_indexing", { chunks }));
+    }
 
-    logger.success(`Stored ${chunks.length} chunks (Sentence indexing queued in background)`);
+    logger.success(`Stored ${chunks.length} chunks into database${chunkEmbeddings ? " (Vector + FTS)" : " (FTS mode)"}`);
   }
 
   async storeFileChunks(chunks: WindowChunk[]): Promise<void> {
@@ -107,7 +110,13 @@ export class SqliteVectorStore implements IVectorStore {
       await this.deleteChunksByFile(filePath, sessionId);
     }
 
-    const chunkEmbeddings = await generateEmbeddings(chunks.map(c => c.content), "document");
+    let chunkEmbeddings: number[][] | null = null;
+    try {
+      const contents = chunks.map(c => c.content);
+      chunkEmbeddings = await generateEmbeddings(contents, "document");
+    } catch (err: any) {
+      logger.warn(`[ArcRift Vector] File embedding unavailable, indexing in FTS only: ${err.message}`);
+    }
 
     const insertVec = this.db.prepare("INSERT OR REPLACE INTO vec_chunks (chunk_id, embedding) VALUES (?, ?)");
     const insertMeta = this.db.prepare("INSERT OR REPLACE INTO chunk_metadata (chunk_id, sessionId, chunkIndex, content, filePath, fileHash) VALUES (?, ?, ?, ?, ?, ?)");
@@ -115,11 +124,13 @@ export class SqliteVectorStore implements IVectorStore {
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const embedding = chunkEmbeddings[i];
-      const vector = Buffer.from(new Float32Array(embedding).buffer);
+      const embedding = chunkEmbeddings ? chunkEmbeddings[i] : null;
 
       this.db.transaction(() => {
-        insertVec.run(chunk.id, vector);
+        if (embedding) {
+          const vector = Buffer.from(new Float32Array(embedding).buffer);
+          insertVec.run(chunk.id, vector);
+        }
         insertMeta.run(chunk.id, chunk.sessionId, chunk.chunkIndex, chunk.content, chunk.filePath || null, chunk.fileHash || null);
         insertFts.run(chunk.id, chunk.content);
       })();
@@ -129,87 +140,94 @@ export class SqliteVectorStore implements IVectorStore {
   }
 
   async retrieveRelevantChunks(query: string, sessionId: string, topN = 3, keywords: string[] = []): Promise<RetrievedChunk[]> {
-    const hydeAnswer = await generateHyDEAnswer(query);
-    const augmentedQuery = `${query}\n${hydeAnswer}`;
+    const candidates = new Map<string, { chunkIndex: number, sentences: Set<string>, maxScore: number, engines: Set<string> }>();
 
-    const queryEmbedding = await generateEmbedding(augmentedQuery, "query");
-    const vector = Buffer.from(new Float32Array(queryEmbedding).buffer);
+    // 1. Vector Search (Sentence + Chunk) - Wrapped in try/catch to fallback cleanly to FTS
+    try {
+      let augmentedQuery = query;
+      try {
+        const hydeAnswer = await generateHyDEAnswer(query);
+        augmentedQuery = `${query}\n${hydeAnswer}`;
+      } catch (e) {
+        // HyDE optional
+      }
 
-    // 1. High-Precision Sentence Search (Small-to-Big)
-    const sentRows = this.db.prepare(`
-      SELECT 
-        sm.chunk_id, sm.content, vs.distance
-      FROM vec_sentences vs
-      JOIN sentence_metadata sm ON vs.sentence_id = sm.sentence_id
-      JOIN chunk_metadata m ON sm.chunk_id = m.chunk_id
-      WHERE vs.embedding MATCH ? AND m.sessionId = ? AND k = 100
-    `).all(vector, sessionId) as any[];
+      const queryEmbedding = await generateEmbedding(augmentedQuery, "query");
+      const vector = Buffer.from(new Float32Array(queryEmbedding).buffer);
 
-    // 2. Coarse Chunk Search (Context)
-    const vecRows = this.db.prepare(`
-      SELECT m.chunk_id, m.content, m.chunkIndex, v.distance
-      FROM vec_chunks v
-      JOIN chunk_metadata m ON v.chunk_id = m.chunk_id
-      WHERE v.embedding MATCH ? AND m.sessionId = ? AND k = 20
-    `).all(vector, sessionId) as any[];
+      // High-Precision Sentence Search
+      const sentRows = this.db.prepare(`
+        SELECT 
+          sm.chunk_id, sm.content, vs.distance
+        FROM vec_sentences vs
+        JOIN sentence_metadata sm ON vs.sentence_id = sm.sentence_id
+        JOIN chunk_metadata m ON sm.chunk_id = m.chunk_id
+        WHERE vs.embedding MATCH ? AND m.sessionId = ? AND k = 100
+      `).all(vector, sessionId) as any[];
 
-    // 3. Keyword Search
-    // Split into words, remove very short words, and join with OR for better keyword snap
+      // Coarse Chunk Search
+      const vecRows = this.db.prepare(`
+        SELECT m.chunk_id, m.content, m.chunkIndex, v.distance
+        FROM vec_chunks v
+        JOIN chunk_metadata m ON v.chunk_id = m.chunk_id
+        WHERE v.embedding MATCH ? AND m.sessionId = ? AND k = 20
+      `).all(vector, sessionId) as any[];
+
+      sentRows.forEach(r => {
+        const score = l2ToScore(r.distance);
+        if (score < SENTENCE_THRESHOLD) return;
+
+        if (!candidates.has(r.chunk_id)) {
+          candidates.set(r.chunk_id, { chunkIndex: 0, sentences: new Set(), maxScore: score, engines: new Set() });
+        }
+        candidates.get(r.chunk_id)!.sentences.add(r.content);
+        candidates.get(r.chunk_id)!.maxScore = Math.max(candidates.get(r.chunk_id)!.maxScore, score);
+        candidates.get(r.chunk_id)!.engines.add("Sentence Vector");
+      });
+
+      // Backfill chunk metadata for sentence candidates
+      vecRows.forEach(r => {
+        if (candidates.has(r.chunk_id)) {
+          candidates.get(r.chunk_id)!.chunkIndex = r.chunkIndex;
+          candidates.get(r.chunk_id)!.maxScore = Math.max(candidates.get(r.chunk_id)!.maxScore, l2ToScore(r.distance));
+          candidates.get(r.chunk_id)!.engines.add("Chunk Vector");
+        } else {
+          const score = l2ToScore(r.distance);
+          if (score >= SESSION_THRESHOLD) {
+            candidates.set(r.chunk_id, { chunkIndex: r.chunkIndex, sentences: new Set(), maxScore: score, engines: new Set(["Chunk Vector"]) });
+          }
+        }
+      });
+    } catch (e: any) {
+      logger.warn(`Vector search unavailable (Ollama offline), using keyword retrieval: ${e.message}`);
+    }
+
+    // 2. Keyword Search (FTS5) - Always runs
     const ftsWords = query.toLowerCase()
       .replace(/[^\w\s]/g, " ")
       .split(/\s+/)
       .filter(w => w.length >= 3);
     
-    if (ftsWords.length === 0) return [];
+    if (ftsWords.length > 0) {
+      // Use FTS5 prefix matching for each word to catch variations
+      const ftsQuery = ftsWords.map(w => `${w}*`).join(" OR ");
 
-    // Use FTS5 prefix matching for each word to catch variations (e.g. "encrypt*" matches "encryption")
-    const ftsQuery = ftsWords.map(w => `${w}*`).join(" OR ");
+      const ftsRows = this.db.prepare(`
+        SELECT m.chunk_id, m.chunkIndex, m.content
+        FROM fts_chunks f
+        JOIN chunk_metadata m ON f.chunk_id = m.chunk_id
+        WHERE f.content MATCH ? AND m.sessionId = ?
+        LIMIT 20
+      `).all(ftsQuery, sessionId) as any[];
 
-    const ftsRows = this.db.prepare(`
-      SELECT m.chunk_id, m.chunkIndex, m.content
-      FROM fts_chunks f
-      JOIN chunk_metadata m ON f.chunk_id = m.chunk_id
-      WHERE f.content MATCH ? AND m.sessionId = ?
-      LIMIT 20
-    `).all(ftsQuery, sessionId) as any[];
-
-    // 4. Group & Filter
-    // We group by chunk_id and only keep the sentences that matched.
-    const candidates = new Map<string, { chunkIndex: number, sentences: Set<string>, maxScore: number, engines: Set<string> }>();
-
-    sentRows.forEach(r => {
-      const score = l2ToScore(r.distance);
-      if (score < SENTENCE_THRESHOLD) return;
-
-      if (!candidates.has(r.chunk_id)) {
-        candidates.set(r.chunk_id, { chunkIndex: 0, sentences: new Set(), maxScore: score, engines: new Set() });
-      }
-      candidates.get(r.chunk_id)!.sentences.add(r.content);
-      candidates.get(r.chunk_id)!.maxScore = Math.max(candidates.get(r.chunk_id)!.maxScore, score);
-      candidates.get(r.chunk_id)!.engines.add("Sentence Vector");
-    });
-
-    // Backfill chunk metadata for sentence candidates
-    vecRows.forEach(r => {
-      if (candidates.has(r.chunk_id)) {
-        candidates.get(r.chunk_id)!.chunkIndex = r.chunkIndex;
-        candidates.get(r.chunk_id)!.maxScore = Math.max(candidates.get(r.chunk_id)!.maxScore, l2ToScore(r.distance));
-        candidates.get(r.chunk_id)!.engines.add("Chunk Vector");
-      } else {
-        const score = l2ToScore(r.distance);
-        if (score >= SESSION_THRESHOLD) {
-          candidates.set(r.chunk_id, { chunkIndex: r.chunkIndex, sentences: new Set(), maxScore: score, engines: new Set(["Chunk Vector"]) });
+      ftsRows.forEach(r => {
+        if (!candidates.has(r.chunk_id)) {
+          candidates.set(r.chunk_id, { chunkIndex: r.chunkIndex, sentences: new Set(), maxScore: SESSION_THRESHOLD, engines: new Set(["FTS Keyword"]) });
+        } else {
+          candidates.get(r.chunk_id)!.engines.add("FTS Keyword");
         }
-      }
-    });
-
-    ftsRows.forEach(r => {
-      if (!candidates.has(r.chunk_id)) {
-        candidates.set(r.chunk_id, { chunkIndex: r.chunkIndex, sentences: new Set(), maxScore: SESSION_THRESHOLD, engines: new Set(["FTS Keyword"]) });
-      } else {
-        candidates.get(r.chunk_id)!.engines.add("FTS Keyword");
-      }
-    });
+      });
+    }
 
     return Array.from(candidates.values())
       .map(c => {

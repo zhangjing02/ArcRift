@@ -1,3 +1,5 @@
+export * from "./locales";
+
 export const STATIC_TYPE_COLORS: Record<string, string> = {
   Person: "#F472B6", Pet: "#FB923C", Goal: "#34D399", Problem: "#F87171",
   Preference: "#818CF8", Habit: "#FCD34D", Location: "#2DD4BF",
@@ -6,7 +8,11 @@ export const STATIC_TYPE_COLORS: Record<string, string> = {
   Decision: "#F59E0B", Auth: "#10B981", Database: "#06B6D4",
   Library: "#3B82F6", API: "#6366F1", Concept: "#D946EF",
   Framework: "#7C3AED", Architecture: "#EAB308", Tool: "#4ADE80",
-  Pattern: "#2DD4BF", Algorithm: "#14B8A6", default: "#475569",
+  Pattern: "#2DD4BF", Algorithm: "#14B8A6", File: "#38BDF8",
+  Rule: "#F97316", Dependency: "#A855F7", Config: "#EC4899",
+  Component: "#06B6D4", Service: "#10B981", Event: "#E11D48",
+  Model: "#8B5CF6", Prompt: "#F59E0B", Schema: "#64748B",
+  default: "#475569",
 };
 
 export function getDynamicColor(type: string): string {

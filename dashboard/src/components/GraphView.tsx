@@ -1,8 +1,8 @@
 /**
- * GraphView.tsx — v1.5.1
+ * GraphView.tsx — v1.6.0
  * 
  * Performance Upgrade: HTML5 Canvas for rendering.
- * Optimized draw loop and interaction handlers.
+ * Complete i18n localization support.
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
@@ -10,6 +10,7 @@ import * as d3 from "d3";
 import type { Node, Link } from "../types";
 import { TYPE_COLORS } from "../constants";
 import { pruneGraphNode, renameGraphNode, deleteGraphEdge } from "../api/ArcRift";
+import { useLocale } from "../context/LocaleContext";
 
 interface Props {
   nodes: Node[];
@@ -23,21 +24,6 @@ interface Props {
   activeSessionId?: string;
 }
 
-const ABBREVIATIONS: Record<string, string> = {
-  Person: "PER", Pet: "PET", Goal: "GOAL", Problem: "PROB",
-  Preference: "PREF", Habit: "HABIT", Location: "LOC",
-  Organization: "ORG", Project: "PROJ", Technology: "TECH",
-  Feature: "FEAT", Bug: "BUG", Decision: "DEC", Auth: "AUTH",
-  Database: "DB", Library: "LIB", API: "API", Concept: "CON",
-  Framework: "FW", Architecture: "ARCH", Tool: "TOOL",
-  Pattern: "PAT", Algorithm: "ALGO",
-};
-
-function getAbbreviation(type: string | null | undefined): string {
-  if (!type) return "";
-  return ABBREVIATIONS[type] || type.slice(0, 4).toUpperCase();
-}
-
 export default function GraphView({ 
   nodes, 
   links, 
@@ -49,6 +35,7 @@ export default function GraphView({
   setMinDegree,
   activeSessionId
 }: Props) {
+  const { t, getNodeTypeLabel, getNodeTypeAbbr } = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -174,8 +161,6 @@ export default function GraphView({
     return Math.max(base, Math.min(80, base + (degree || 0) * mult));
   }, []);
 
-
-
   // ── Simulation Lifecycle ──────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -189,7 +174,6 @@ export default function GraphView({
         if (node.wanderAngle === undefined) {
           node.wanderAngle = Math.random() * Math.PI * 2;
         }
-        // Smoothly rotate the wander angle so movement is continuous, not jerky
         node.wanderAngle += (Math.random() - 0.5) * 0.4;
         
         node.vx = (node.vx || 0) + Math.cos(node.wanderAngle) * wanderStrength;
@@ -197,7 +181,6 @@ export default function GraphView({
       });
     };
 
-    // The graph area starts at x=240 (sidebar width). Center forces on graph area, not full canvas.
     const SIDEBAR = 240;
     const graphCenterX = SIDEBAR + (width - SIDEBAR) / 2;
 
@@ -241,14 +224,12 @@ export default function GraphView({
       }
     }
 
-    // Enter initial fit mode on data change
     const nodeCount = processedData.nodes.length;
     if (nodeCount !== prevNodeCountRef.current && nodeCount > 0) {
       prevNodeCountRef.current = nodeCount;
       isInitialFitRef.current = true;
     }
 
-    // End initial fit mode after 1.5s and sync D3 zoom state
     const fitTimer = setTimeout(() => {
       isInitialFitRef.current = false;
       if (canvasRef.current && zoomRef.current) {
@@ -408,7 +389,7 @@ export default function GraphView({
         ctx.quadraticCurveTo(mx - (dy / len) * offset, my + (dx / len) * offset, t.x, t.y);
         ctx.stroke();
 
-        // Always draw arrows
+        // Draw arrows
         const tAngle = Math.atan2(t.y - (my + (dx / len) * offset), t.x - (mx - (dy / len) * offset));
         const nr = getNodeRadius((t as any).degree || 0) + 3;
         const ax = t.x - Math.cos(tAngle) * nr;
@@ -447,7 +428,6 @@ export default function GraphView({
         const isTypeMatch = !filterType || node.type === filterType;
         const isDimmed = (selectedNodeId && !isInSelectionFocus) || (filterType && !isTypeMatch);
         const isSelected = selectedNodeId === node.id;
-        // Use community color by default, unless filterType is active
         const color = filterType ? TYPE_COLORS[node.type] : COMMUNITY_COLORS[(node as any).community % COMMUNITY_COLORS.length];
         const isDirectlyFocused = isHovered || isSelected;
 
@@ -482,7 +462,7 @@ export default function GraphView({
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.globalAlpha = isDimmed ? 0.1 : 0.9;
-          ctx.fillText(getAbbreviation(node.type), node.x, node.y);
+          ctx.fillText(getNodeTypeAbbr(node.type), node.x, node.y);
         }
 
         if (isSelected || selectedNeighbors.has(node.id)) {
@@ -543,18 +523,17 @@ export default function GraphView({
       }
     };
 
-    d3.select(canvas).on("click", (e: MouseEvent) => {
+    d3.select(canvas).on("click", (_e: MouseEvent) => {
       setContextMenu(null);
       const rect = canvas.getBoundingClientRect();
-      const node = findNodeAt(e.clientX - rect.left, e.clientY - rect.top);
+      const node = findNodeAt(_e.clientX - rect.left, _e.clientY - rect.top);
       if (node) {
         if (node.id === selectedNodeId) {
-          onNodeClick?.(null); // Toggle off if clicking the SAME node
+          onNodeClick?.(null);
         } else {
-          onNodeClick?.(node.id); // Select NEW node
+          onNodeClick?.(node.id);
         }
       }
-      // Do nothing if clicking the background (keeps current selection active)
     });
 
     const drag = d3.drag<HTMLCanvasElement, unknown>()
@@ -588,7 +567,7 @@ export default function GraphView({
       canvas.removeEventListener("contextmenu", handleContextMenu);
       d3.select(canvas).on("click", null);
     };
-  }, [processedData, getNodeRadius, hoveredNodeId, selectedNodeId, filterType]);
+  }, [processedData, getNodeRadius, hoveredNodeId, selectedNodeId, filterType, getNodeTypeAbbr]);
 
   const hoveredNode = useMemo(() => nodes.find(n => n.id === hoveredNodeId), [nodes, hoveredNodeId]);
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
@@ -598,17 +577,17 @@ export default function GraphView({
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
 
       <div className="graph-controls">
-        <button title="Zoom in" onClick={() => {
+        <button title={t.graph.zoomIn} onClick={() => {
           const canvas = canvasRef.current;
           if (!canvas || !zoomRef.current) return;
           d3.select(canvas).transition().duration(300).call(zoomRef.current.scaleBy, 1.5);
         }} className="graph-btn">+</button>
-        <button title="Zoom out" onClick={() => {
+        <button title={t.graph.zoomOut} onClick={() => {
           const canvas = canvasRef.current;
           if (!canvas || !zoomRef.current) return;
           d3.select(canvas).transition().duration(300).call(zoomRef.current.scaleBy, 0.67);
         }} className="graph-btn">−</button>
-        <button title="Fit to screen" onClick={() => {
+        <button title={t.graph.fitScreen} onClick={() => {
           const canvas = canvasRef.current;
           if (!canvas || !zoomRef.current || !simulationRef.current) return;
           const allNodes = simulationRef.current.nodes().filter(n => n.x != null && n.y != null);
@@ -635,13 +614,13 @@ export default function GraphView({
             d3.zoomIdentity.translate(tx, ty).scale(scale)
           );
         }} className="graph-btn" style={{ fontSize: "16px", lineHeight: 1 }}>⤢</button>
-        <button title="Settings" onClick={() => setShowSettings(!showSettings)} className={`graph-btn ${showSettings ? "active" : ""}`}>
+        <button title={t.graph.settings} onClick={() => setShowSettings(!showSettings)} className={`graph-btn ${showSettings ? "active" : ""}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
         </button>
-        <button title={isPaused ? "Play" : "Pause"} onClick={() => setIsPaused(!isPaused)} className={`graph-btn ${isPaused ? "active" : ""}`}>
+        <button title={isPaused ? t.graph.play : t.graph.pause} onClick={() => setIsPaused(!isPaused)} className={`graph-btn ${isPaused ? "active" : ""}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             {isPaused ? (
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -655,16 +634,16 @@ export default function GraphView({
         </button>
         {selectedNode && !prunedNodes.has(selectedNode.id) && (
           <button 
-            title="Delete Node" 
+            title={t.graph.deleteNode} 
             onClick={async () => {
-              if (window.confirm(`Delete "${selectedNode.id}" and its connections?`)) {
+              if (window.confirm(t.graph.deleteNodeConfirm.replace("{name}", selectedNode.id))) {
                 setIsPruning(true);
                 try {
                   await pruneGraphNode(selectedNode.id, activeSessionId);
                   setPrunedNodes(prev => new Set(prev).add(selectedNode.id));
                   onNodeClick?.(null);
                 } catch (err: any) {
-                  alert("Failed to delete node: " + (err.message || String(err)));
+                  alert(t.graph.deleteNodeFailed + (err.message || String(err)));
                 } finally {
                   setIsPruning(false);
                 }
@@ -696,7 +675,7 @@ export default function GraphView({
           zIndex: 100,
           display: "flex",
           flexDirection: "column",
-          minWidth: "150px"
+          minWidth: "160px"
         }}>
           <div style={{ padding: "6px 10px", fontSize: "11px", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", borderBottom: "1px solid var(--border-dim)", marginBottom: "4px" }}>
             {contextMenu.node.id.length > 20 ? contextMenu.node.id.slice(0, 18) + "..." : contextMenu.node.id}
@@ -706,20 +685,19 @@ export default function GraphView({
             onClick={async () => {
               const oldName = contextMenu.node.id;
               setContextMenu(null);
-              const newName = window.prompt(`Rename "${oldName}" to:`, oldName);
+              const newName = window.prompt(t.graph.renamePrompt.replace("{name}", oldName), oldName);
               if (newName && newName.trim() !== "" && newName !== oldName) {
                 try {
                   await renameGraphNode(oldName, newName.trim(), activeSessionId);
-                  // Refresh via window location for now to re-fetch the entire graph and restart sim properly
                   window.location.reload();
                 } catch (err: any) {
-                  alert("Failed to rename node: " + err.message);
+                  alert(t.graph.renameFailed + err.message);
                 }
               }
             }}
             style={{ textAlign: "left", padding: "8px 10px", fontSize: "13px", color: "var(--text-primary)", background: "transparent", border: "none", borderRadius: "4px", cursor: "pointer" }}
           >
-            Rename Node
+            {t.graph.renameNode}
           </button>
           <button 
             className="context-menu-item"
@@ -729,26 +707,26 @@ export default function GraphView({
             }}
             style={{ textAlign: "left", padding: "8px 10px", fontSize: "13px", color: "var(--text-primary)", background: "transparent", border: "none", borderRadius: "4px", cursor: "pointer" }}
           >
-            Manage Edges
+            {t.graph.manageEdges}
           </button>
           <button 
             className="context-menu-item"
             onClick={async () => {
               const nodeId = contextMenu.node.id;
               setContextMenu(null);
-              if (window.confirm(`Delete "${nodeId}" and its connections?`)) {
+              if (window.confirm(t.graph.deleteNodeConfirm.replace("{name}", nodeId))) {
                 try {
                   await pruneGraphNode(nodeId, activeSessionId);
                   setPrunedNodes(prev => new Set(prev).add(nodeId));
                   onNodeClick?.(null);
                 } catch (err: any) {
-                  alert("Failed to delete node: " + err.message);
+                  alert(t.graph.deleteNodeFailed + err.message);
                 }
               }
             }}
             style={{ textAlign: "left", padding: "8px 10px", fontSize: "13px", color: "var(--error)", background: "transparent", border: "none", borderRadius: "4px", cursor: "pointer", marginTop: "2px", borderTop: "1px solid var(--border-dim)" }}
           >
-            Delete Node
+            {t.graph.deleteNode}
           </button>
         </div>
       )}
@@ -778,19 +756,19 @@ export default function GraphView({
           }}>
             <div style={{ padding: "20px", borderBottom: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
-                Edges for "{edgeManagerNode.id.length > 25 ? edgeManagerNode.id.slice(0, 25) + "..." : edgeManagerNode.id}"
+                {t.graph.edgesFor.replace("{name}", edgeManagerNode.id.length > 25 ? edgeManagerNode.id.slice(0, 25) + "..." : edgeManagerNode.id)}
               </h3>
               <button onClick={() => setEdgeManagerNode(null)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "20px" }}>×</button>
             </div>
             <div style={{ padding: "20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
               {processedData.links.filter((l: any) => l.source.id === edgeManagerNode.id || l.target.id === edgeManagerNode.id).length === 0 ? (
-                <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "20px" }}>No edges found.</div>
+                <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "20px" }}>{t.graph.noEdges}</div>
               ) : (
                 processedData.links.filter((l: any) => l.source.id === edgeManagerNode.id || l.target.id === edgeManagerNode.id).map((link: any) => {
                   const s = link.source.id;
-                  const t = link.target.id;
+                  const tId = link.target.id;
                   const r = link.relation;
-                  const edgeKey = `${s}-${r}-${t}`;
+                  const edgeKey = `${s}-${r}-${tId}`;
                   if (prunedEdges.has(edgeKey)) return null;
 
                   return (
@@ -802,17 +780,17 @@ export default function GraphView({
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)", overflow: "hidden" }}>
                         <span style={{ color: s === edgeManagerNode.id ? "var(--primary)" : "var(--text-primary)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }} title={s}>{s}</span>
                         <span style={{ color: "var(--text-dim)", fontSize: "11px", fontWeight: 700, padding: "2px 6px", background: "rgba(0,0,0,0.2)", borderRadius: "4px" }}>{r}</span>
-                        <span style={{ color: t === edgeManagerNode.id ? "var(--primary)" : "var(--text-primary)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }} title={t}>{t}</span>
+                        <span style={{ color: tId === edgeManagerNode.id ? "var(--primary)" : "var(--text-primary)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }} title={tId}>{tId}</span>
                       </div>
                       <button 
-                        title="Delete Edge"
+                        title={t.graph.deleteEdge}
                         onClick={async () => {
-                          if (window.confirm(`Delete edge: ${s} -> ${t}?`)) {
+                          if (window.confirm(t.graph.deleteEdgeConfirm.replace("{source}", s).replace("{relation}", r).replace("{target}", tId))) {
                             try {
-                              await deleteGraphEdge(s, t, r, activeSessionId);
+                              await deleteGraphEdge(s, tId, r, activeSessionId);
                               setPrunedEdges(prev => new Set(prev).add(edgeKey));
                             } catch (err: any) {
-                              alert("Failed to delete edge: " + err.message);
+                              alert(t.graph.deleteEdgeFailed + err.message);
                             }
                           }
                         }}
@@ -834,9 +812,9 @@ export default function GraphView({
 
       {showSettings && (
         <div className="graph-settings-panel">
-          <div className="settings-title">Graph Density</div>
+          <div className="settings-title">{t.graph.densityTitle}</div>
           <div className="settings-row">
-            <div className="settings-label">Min Connections: {minDegree}</div>
+            <div className="settings-label">{t.graph.minConnections}: {minDegree}</div>
             <input 
               type="range" 
               min="0" 
@@ -846,8 +824,8 @@ export default function GraphView({
               style={{ accentColor: "var(--primary)" }}
             />
           </div>
-          <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "4px" }}>
-            Hiding nodes with fewer than {minDegree} connections.
+          <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
+            {t.graph.densityDesc.replace("{count}", String(minDegree))}
           </div>
         </div>
       )}
@@ -859,7 +837,7 @@ export default function GraphView({
             style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--surface)", border: `1px solid ${TYPE_COLORS[filterType]}`, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", cursor: "pointer", color: TYPE_COLORS[filterType], fontWeight: 600, backdropFilter: "blur(4px)" }}
             onClick={(e) => { e.stopPropagation(); setFilterType?.(null); }}
           >
-            {filterType}
+            <span>{getNodeTypeLabel(filterType)}</span>
             <span style={{ fontSize: "14px", lineHeight: 1 }}>×</span>
           </div>
         )}
@@ -868,7 +846,7 @@ export default function GraphView({
             style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--surface)", border: `1px solid var(--border-dim)`, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", cursor: "pointer", color: "var(--text-primary)", fontWeight: 600, backdropFilter: "blur(4px)" }}
             onClick={(e) => { e.stopPropagation(); onNodeClick?.(null); }}
           >
-            {selectedNodeId.length > 15 ? selectedNodeId.slice(0, 15) + "..." : selectedNodeId}
+            <span>{selectedNodeId.length > 15 ? selectedNodeId.slice(0, 15) + "..." : selectedNodeId}</span>
             <span style={{ fontSize: "14px", lineHeight: 1 }}>×</span>
           </div>
         )}
@@ -877,12 +855,14 @@ export default function GraphView({
       {hoveredNode && !prunedNodes.has(hoveredNode.id) && (
         <div className="graph-tooltip" style={{ border: `1px solid ${TYPE_COLORS[hoveredNode.type]}`, boxShadow: `0 4px 20px ${TYPE_COLORS[hoveredNode.type]}33` }}>
           <div className="graph-tooltip-title">{hoveredNode.id}</div>
-          <div className="graph-tooltip-type" style={{ color: TYPE_COLORS[hoveredNode.type] }}>{hoveredNode.type}</div>
-          <div className="graph-tooltip-meta">{(hoveredNode as any).degree} connection{(hoveredNode as any).degree !== 1 ? "s" : ""}</div>
+          <div className="graph-tooltip-type" style={{ color: TYPE_COLORS[hoveredNode.type] }}>
+            {getNodeTypeLabel(hoveredNode.type)} ({hoveredNode.type})
+          </div>
+          <div className="graph-tooltip-meta">
+            {(hoveredNode as any).degree} {t.graph.connectionsCount}
+          </div>
         </div>
       )}
-
-
     </div>
   );
 }

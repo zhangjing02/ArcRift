@@ -1,10 +1,11 @@
 /**
- * ChatViewer.tsx — v1.5.1
+ * ChatViewer.tsx — v1.6.0
  *
- * Displays the full saved conversation as a scrollable chat view.
+ * Displays the full saved conversation as a scrollable chat view with i18n and copy support.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { useLocale } from "../context/LocaleContext";
 
 interface Props {
   rawText: string;
@@ -38,17 +39,34 @@ function parseTurns(rawText: string): Turn[] {
 }
 
 const ChatViewer: React.FC<Props> = ({ rawText, messageCount, createdAt, platform }) => {
+  const { t, locale } = useLocale();
   const turns = useMemo(() => parseTurns(rawText), [rawText]);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleCopy = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const formattedDate = new Date(createdAt).toLocaleDateString(
+    locale === "zh" ? "zh-CN" : "en-US",
+    { year: "numeric", month: "short", day: "numeric" }
+  );
+
+  const turnsText = t.chat.metaTurns.replace("{turns}", String(turns.length));
+  const msgText = t.chat.metaMessages.replace("{count}", String(messageCount));
+  const savedText = t.chat.metaSaved.replace("{date}", formattedDate);
 
   return (
     <div className="chat-container">
       {/* Header bar */}
       <div className="chat-header">
         <div className="chat-header-meta">
-          {turns.length} turn{turns.length !== 1 ? "s" : ""} · {messageCount} messages · saved {new Date(createdAt).toLocaleDateString()}
+          {turnsText} · {msgText} · {savedText}
         </div>
         <div className="chat-header-label">
-          RAW CONVERSATION
+          {t.chat.rawTitle}
         </div>
       </div>
 
@@ -59,8 +77,34 @@ const ChatViewer: React.FC<Props> = ({ rawText, messageCount, createdAt, platfor
           return (
             <div key={i} className={`chat-turn ${isUser ? "user" : "assistant"}`}>
               {/* Role label */}
-              <div className={`chat-role-label ${isUser ? "user" : "assistant"}`}>
-                {isUser ? "YOU" : (platform ? platform.toUpperCase() : "ASSISTANT")}
+              <div className={`chat-role-label ${isUser ? "user" : "assistant"}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{isUser ? t.chat.you : (platform ? platform.toUpperCase() : t.chat.assistant)}</span>
+                <button
+                  onClick={() => handleCopy(turn.text, i)}
+                  title={t.common.copy}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "inherit",
+                    opacity: 0.6,
+                    cursor: "pointer",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    fontSize: "11px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  {copiedIndex === i ? (
+                    <span style={{ color: "var(--success)" }}>{t.common.copied}</span>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
               </div>
 
               {/* Message bubble */}

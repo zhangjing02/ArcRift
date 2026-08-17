@@ -456,12 +456,18 @@ async function injectAndSend(input: HTMLElement, text: string) {
       bubbles: true,
       cancelable: true,
     });
-    const cancelled = !input.dispatchEvent(evt);
+    input.dispatchEvent(evt);
 
-    // Strategy 2: If InputEvent didn't take hold, use direct DOM mutation as fallback
-    if (!cancelled && input.textContent !== text) {
+    // Strategy 2: execCommand fallback (critical for Quill/Angular in Gemini and ProseMirror in Claude)
+    if (input.textContent !== text) {
+      document.execCommand("insertText", false, text);
+    }
+
+    // Strategy 3: If InputEvent/execCommand didn't take hold, use direct DOM mutation as fallback
+    if (input.textContent !== text) {
       input.textContent = text;
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
     }
   } else {
     // <textarea>: native setter (bypasses React's readonly descriptor)

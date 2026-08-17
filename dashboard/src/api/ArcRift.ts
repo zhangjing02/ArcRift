@@ -1,5 +1,21 @@
 import { apiClient, extractErrorMessage } from "./client";
 
+export interface SettingsResponse {
+  ollamaReachable: boolean;
+  availableModels: string[];
+  activeEmbeddingModel: string;
+  activeExtractionModel: string;
+  chatProvider?: string;
+  apiBaseUrl?: string;
+  apiKey?: string;
+  chatModel?: string;
+  embeddingProvider?: string;
+  embeddingBaseUrl?: string;
+  embeddingApiKey?: string;
+  embeddingModel?: string;
+  contextMode?: "raw" | "summarized";
+}
+
 export async function fetchGraphBySession(sessionId: string) {
   const res = await apiClient.get(`/api/graph/session/${sessionId}`);
   return res.data as {
@@ -78,20 +94,36 @@ export async function deleteGraphEdge(source: string, target: string, relation: 
   return res.data;
 }
 
-export async function fetchSettings() {
+export async function fetchSettings(): Promise<SettingsResponse> {
   const res = await apiClient.get("/api/settings");
-  return res.data as {
-    ollamaReachable: boolean;
-    availableModels: string[];
-    activeEmbeddingModel: string;
-    activeExtractionModel: string;
-    contextMode: string;
-  };
+  return res.data;
 }
 
-export async function updateSettings(data: { activeEmbeddingModel?: string; activeExtractionModel?: string; contextMode?: string }) {
+export async function updateSettings(data: {
+  activeEmbeddingModel?: string;
+  activeExtractionModel?: string;
+  chatProvider?: string;
+  apiBaseUrl?: string;
+  apiKey?: string;
+  chatModel?: string;
+  embeddingProvider?: string;
+  embeddingBaseUrl?: string;
+  embeddingApiKey?: string;
+  embeddingModel?: string;
+  contextMode?: "raw" | "summarized";
+}) {
   const res = await apiClient.post("/api/settings", data);
   return res.data;
+}
+
+export async function testSettingsConnection(data: {
+  provider?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+}) {
+  const res = await apiClient.post("/api/settings/test", data);
+  return res.data as { success: boolean; message: string; error?: string };
 }
 
 export async function mergeSessions(sourceId: string, targetId: string) {

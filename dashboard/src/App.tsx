@@ -12,8 +12,11 @@ import type { Session } from "./types";
 import { useSessions } from "./hooks/useSessions";
 import { useGraphData } from "./hooks/useGraphData";
 import { PAGE_SIZE } from "./constants";
+import { LocaleProvider, useLocale } from "./context/LocaleContext";
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { t } = useLocale();
+
   // Navigation & UI State
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [activeMainTab, setActiveMainTab] = useState<"graph" | "search" | "settings">("graph");
@@ -32,7 +35,7 @@ const App: React.FC = () => {
         setTimeout(() => setLoadedToExtension(false), 3000);
       }
     } catch (err) {
-      setError(`Failed to sync: ${extractErrorMessage(err)}`);
+      setError(`${t.header.syncFailed}: ${extractErrorMessage(err)}`);
     }
   };
 
@@ -91,7 +94,7 @@ const App: React.FC = () => {
       setFactSearch("");
       setJobStatus({ pending: 0, processing: 0, deadLettered: 0 });
     }
-  }, [activeSession, loadSessionData]);
+  }, [activeSession, loadSessionData, setJobStatus]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,7 +106,7 @@ const App: React.FC = () => {
         await apiClient.post("/api/session/import", data);
         await loadSessions();
       } catch (err) {
-        setError(`Import failed: ${extractErrorMessage(err)}`);
+        setError(`${t.sidebar.importFailed || "Import failed"}: ${extractErrorMessage(err)}`);
       }
     };
     reader.readAsText(file);
@@ -129,7 +132,6 @@ const App: React.FC = () => {
           const { data: status } = await apiClient.get(`/api/jobs/status/${activeSession._id}`);
           setJobStatus(status);
           
-          // If it just finished, refresh the session list to get the final tripleCount
           if (activeSession.isProcessingGraph && status.pending === 0 && status.processing === 0) {
             const freshSessions = await loadSessions();
             const updatedSession = freshSessions?.find((s: any) => s._id === activeSession._id);
@@ -164,21 +166,21 @@ const App: React.FC = () => {
   const pagedTriples = useMemo(() => {
     let list = triples;
     if (minDegree > 0) {
-      list = list.filter(t => {
-        const sDegree = degreeMap.get(t.subject) || 0;
-        const oDegree = degreeMap.get(t.object) || 0;
+      list = list.filter(tItem => {
+        const sDegree = degreeMap.get(tItem.subject) || 0;
+        const oDegree = degreeMap.get(tItem.object) || 0;
         return sDegree >= minDegree && oDegree >= minDegree;
       });
     }
     if (selectedNodeId) {
-      list = list.filter(t => t.subject === selectedNodeId || t.object === selectedNodeId);
+      list = list.filter(tItem => tItem.subject === selectedNodeId || tItem.object === selectedNodeId);
     }
     if (factSearch) {
       const q = factSearch.toLowerCase();
-      list = list.filter(t => 
-        t.subject.toLowerCase().includes(q) || 
-        t.object.toLowerCase().includes(q) || 
-        t.relation.toLowerCase().includes(q)
+      list = list.filter(tItem => 
+        tItem.subject.toLowerCase().includes(q) || 
+        tItem.object.toLowerCase().includes(q) || 
+        tItem.relation.toLowerCase().includes(q)
       );
     }
     const start = factsPage * PAGE_SIZE;
@@ -188,21 +190,21 @@ const App: React.FC = () => {
   const filteredTripleCount = useMemo(() => {
     let list = triples;
     if (minDegree > 0) {
-      list = list.filter(t => {
-        const sDegree = degreeMap.get(t.subject) || 0;
-        const oDegree = degreeMap.get(t.object) || 0;
+      list = list.filter(tItem => {
+        const sDegree = degreeMap.get(tItem.subject) || 0;
+        const oDegree = degreeMap.get(tItem.object) || 0;
         return sDegree >= minDegree && oDegree >= minDegree;
       });
     }
     if (selectedNodeId) {
-      list = list.filter(t => t.subject === selectedNodeId || t.object === selectedNodeId);
+      list = list.filter(tItem => tItem.subject === selectedNodeId || tItem.object === selectedNodeId);
     }
     if (factSearch) {
       const q = factSearch.toLowerCase();
-      list = list.filter(t => 
-        t.subject.toLowerCase().includes(q) || 
-        t.object.toLowerCase().includes(q) || 
-        t.relation.toLowerCase().includes(q)
+      list = list.filter(tItem => 
+        tItem.subject.toLowerCase().includes(q) || 
+        tItem.object.toLowerCase().includes(q) || 
+        tItem.relation.toLowerCase().includes(q)
       );
     }
     return list.length;
@@ -286,26 +288,26 @@ const App: React.FC = () => {
             <SettingsView />
           </div>
         )}
+
         {activeMainTab === "graph" && (activeSession?.isProcessingGraph || jobStatus.pending > 0 || jobStatus.processing > 0) && (
           <div className="job-status-bar centered-progress">
             <div className="status-header">
               <div className="processing-dot" />
               <span className="status-title">
-                {jobStatus.processing > 0 ? "Extracting Memories..." : "Queued in Brain..."}
+                {jobStatus.processing > 0 ? t.drawer.jobExtracting : t.drawer.jobQueued}
               </span>
             </div>
             <div className="status-meta">
-              {(Number(jobStatus?.pending) || 0) + (Number(jobStatus?.processing) || 0)} background tasks active
+              {(Number(jobStatus?.pending) || 0) + (Number(jobStatus?.processing) || 0)} {t.drawer.jobActiveCount}
             </div>
             {jobStatus.deadLettered > 0 && (
               <div className="status-error">
-                <span> {jobStatus.deadLettered} facts failed</span>
-                <button onClick={handleClearJobs} className="clear-btn">Clear</button>
+                <span>{jobStatus.deadLettered} {t.drawer.jobFailedCount}</span>
+                <button onClick={handleClearJobs} className="clear-btn">{t.drawer.clearJobs}</button>
               </div>
             )}
           </div>
         )}
-
       </main>
 
       {currentError && (
@@ -315,6 +317,14 @@ const App: React.FC = () => {
         </div>
       )}
     </MainLayout>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <LocaleProvider>
+      <AppContent />
+    </LocaleProvider>
   );
 };
 

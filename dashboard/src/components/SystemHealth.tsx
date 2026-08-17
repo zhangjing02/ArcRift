@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../api/client";
+import { useLocale } from "../context/LocaleContext";
 
 interface HealthData {
   storageMode: string;
@@ -19,6 +20,7 @@ interface HealthData {
 }
 
 export function SystemHealth() {
+  const { t, locale } = useLocale();
   const [health, setHealth] = useState<HealthData | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,12 +52,15 @@ export function SystemHealth() {
   const [isCollapsed, setIsCollapsed] = useState(true);
 
   const storageBadgeColor = health?.storageMode === "sqlite" ? "#818CF8" : "#34D399";
+  const storageLabel = health?.storageMode?.toLowerCase() === "sqlite" 
+    ? (locale === "zh" ? "SQLite (本地)" : "SQLite (Local)") 
+    : health?.storageMode?.toUpperCase() || "STORAGE";
 
   return (
     <div className="system-health-panel">
       <div className="health-header" onClick={() => setIsCollapsed(!isCollapsed)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isCollapsed ? 0 : "10px" }}>
         <div>
-          <span className="health-title">System Health</span>
+          <span className="health-title">{t.health.title}</span>
           {lastUpdated && !isCollapsed && (
             <span className="health-updated" style={{ marginLeft: "8px" }}>
               {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
@@ -69,11 +74,11 @@ export function SystemHealth() {
 
       {!isCollapsed && (
         <>
-          {loading && <div className="health-loading">Checking system...</div>}
+          {loading && <div className="health-loading">{t.health.checking}</div>}
 
           {error && !loading && (
             <div className="health-error">
-              <span className="health-indicator red" /> Backend unreachable
+              <span className="health-indicator red" /> {t.health.backendUnreachable}
             </div>
           )}
 
@@ -81,47 +86,49 @@ export function SystemHealth() {
             <div className="health-metrics">
               {/* Storage Mode */}
               <div className="health-row">
-                <span className="health-label">Storage</span>
+                <span className="health-label">{t.health.storage}</span>
                 <span className="health-badge" style={{ background: storageBadgeColor + "22", color: storageBadgeColor, border: `1px solid ${storageBadgeColor}44` }}>
-                  {health.storageMode.toUpperCase()}
+                  {storageLabel}
                 </span>
               </div>
 
-              {/* Sessions + Graph Backend */}
+              {/* Sessions */}
               <div className="health-row">
-                <span className="health-label">Sessions</span>
+                <span className="health-label">{t.health.sessions}</span>
                 <span className="health-value">{health.sessionCount}</span>
               </div>
+
               {/* Job Queue */}
               <div className="health-row">
-                <span className="health-label">Job Queue</span>
+                <span className="health-label">{t.health.jobQueue}</span>
                 <span className="health-queue">
                   {health.jobQueue.pending > 0 && (
-                    <span className="queue-pill pending">{health.jobQueue.pending} pending</span>
+                    <span className="queue-pill pending">{health.jobQueue.pending} {t.health.pendingSuffix}</span>
                   )}
                   {health.jobQueue.processing > 0 && (
-                    <span className="queue-pill processing">{health.jobQueue.processing} active</span>
+                    <span className="queue-pill processing">{health.jobQueue.processing} {t.health.activeSuffix}</span>
                   )}
                   {health.jobQueue.deadLettered > 0 && (
-                    <span className="queue-pill failed">{health.jobQueue.deadLettered} failed</span>
+                    <span className="queue-pill failed">{health.jobQueue.deadLettered} {t.health.failedSuffix}</span>
                   )}
                   {health.jobQueue.pending === 0 && health.jobQueue.processing === 0 && health.jobQueue.deadLettered === 0 && (
-                    <span className="queue-pill idle">-</span>
+                    <span className="queue-pill idle">{t.health.idle}</span>
                   )}
                 </span>
               </div>
 
+              {/* Graph Backend */}
               <div className="health-row">
-                <span className="health-label">Graph</span>
+                <span className="health-label">{t.health.graph}</span>
                 <span className="health-value">{health.graphBackend}</span>
               </div>
 
-              {/* Ollama */}
+              {/* AI Service & Model */}
               <div className="health-row">
-                <span className="health-label">Ollama</span>
+                <span className="health-label">{t.health.aiService}</span>
                 <span className="health-ollama">
                   <span className={`health-indicator ${health.ollama.reachable ? "green" : "red"}`} />
-                  {health.ollama.reachable ? health.ollama.model : "Offline"}
+                  {health.ollama.reachable ? (health.ollama.model || t.health.online) : t.health.offline}
                 </span>
               </div>
             </div>

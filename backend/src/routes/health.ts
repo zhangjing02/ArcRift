@@ -6,10 +6,10 @@ import { getSettings } from "../utils/settings";
 const router = Router();
 
 // GET /api/health
-// Returns live system metrics: chunk count, session count, job queue, storage mode, Ollama status
+// Returns live system metrics: chunk count, session count, job queue, storage mode, LLM & Ollama status
 router.get("/", async (_req: Request, res: Response) => {
   try {
-    const storageMode = (process.env.ARCRIFT_STORAGE_MODE || "docker").toLowerCase();
+    const storageMode = (process.env.ARCRIFT_STORAGE_MODE || "sqlite").toLowerCase();
 
     // Session + chunk counts
     const sessions = await sessionStore.getSessions();
@@ -21,28 +21,38 @@ router.get("/", async (_req: Request, res: Response) => {
     // Job queue status
     const jobStatus = await sessionStore.getJobStatus();
 
-    // Ollama reachability
+    const settings = getSettings();
+
+    // Ollama reachability check (fast timeout)
     let ollamaReachable = false;
     try {
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      const ollamaUrl = settings.embeddingBaseUrl?.includes("11434")
+        ? settings.embeddingBaseUrl
+        : (process.env.OLLAMA_URL || "http://localhost:11434");
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch(`${ollamaUrl}/api/tags`, { signal: controller.signal });
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, { signal: controller.signal });
       clearTimeout(timeout);
       ollamaReachable = resp.ok;
     } catch {
       ollamaReachable = false;
     }
 
-    const settings = getSettings();
-    const activeExtractionModel = settings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "llama3.1:8b";
+    const activeExtractionModel =
+      settings.chatModel || settings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "deepseek-ai/DeepSeek-V3";
+    const activeEmbeddingModel =
+      settings.embeddingModel || settings.ollamaEmbeddingModel || process.env.OLLAMA_EMBED_MODEL || "BAAI/bge-large-zh-v1.5";
 
     res.json({
       storageMode,
       sessionCount,
       chunkCount,
       jobQueue: jobStatus,
-      graphBackend: (process.env.GRAPH_BACKEND || "ollama").toUpperCase(),
+      chatProvider: settings.chatProvider || "openai-compatible",
+      embeddingProvider: settings.embeddingProvider || "openai-compatible",
+      chatModel: activeExtractionModel,
+      embeddingModel: activeEmbeddingModel,
+      graphBackend: (settings.chatProvider || process.env.GRAPH_BACKEND || "openai-compatible").toUpperCase(),
       ollama: {
         reachable: ollamaReachable,
         model: activeExtractionModel,

@@ -6,6 +6,7 @@ import MergeModal from "./MergeModal";
 import { SystemHealth } from "../SystemHealth";
 import type { Session } from "../../types";
 import { mergeSessions } from "../../api/ArcRift";
+import { useLocale } from "../../context/LocaleContext";
 
 interface SidebarProps {
   sessions: Session[];
@@ -39,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onFilterToggle,
 }) => {
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const { t } = useLocale();
 
   const handleMergeClick = () => {
     setIsMergeModalOpen(true);
@@ -48,7 +50,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (!activeSessionId) return;
     try {
       await mergeSessions(sourceId, activeSessionId);
-      // Let the main App refetch sessions through its own polling or we can force a reload
       window.location.reload(); 
     } catch (err) {
       console.error("Failed to merge sessions", err);
@@ -64,13 +65,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           className={`sidebar-tab ${sidebarTab === "projects" ? "active" : ""}`}
           onClick={() => setSidebarTab("projects")}
         >
-          Projects
+          {t.sidebar.projectsTab}
         </button>
         <button
           className={`sidebar-tab ${sidebarTab === "legend" ? "active" : ""}`}
           onClick={() => setSidebarTab("legend")}
         >
-          Node Types
+          {t.sidebar.nodeTypesTab}
         </button>
       </div>
 

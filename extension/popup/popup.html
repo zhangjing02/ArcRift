@@ -15,58 +15,58 @@
   <div class="header">
     <div>
       <div class="header-title">ArcRift</div>
-      <div class="header-sub">AI Memory Layer</div>
+      <div class="header-sub">AI 跨平台记忆层</div>
     </div>
-    <span id="ArcRift-status-badge" class="ArcRift-status idle">NO SESSION</span>
+    <span id="ArcRift-status-badge" class="ArcRift-status idle">未连接会话</span>
   </div>
 
   <div class="platform-bar">
     <div class="platform-dot" id="platform-dot"></div>
-    <span id="detected-platform">Detecting...</span>
+    <span id="detected-platform">正在检测平台...</span>
   </div>
 
   <div id="session-info">
     <div class="session-row">
-      <span class="session-label">Session</span>
+      <span class="session-label">当前会话</span>
       <span class="session-value" id="session-name">—</span>
     </div>
     <div class="session-row">
-      <span class="session-label">Chunks</span>
+      <span class="session-label">记忆切片</span>
       <span class="session-value" id="topic-count">—</span>
     </div>
     <div class="session-row">
-      <span class="session-label">Facts</span>
+      <span class="session-label">提取事实</span>
       <span class="session-value" id="triple-count">—</span>
     </div>
-    <button id="unload-btn" class="secondary-btn" disabled>Unload Session</button>
+    <button id="unload-btn" class="secondary-btn" disabled>卸载当前会话</button>
   </div>
 
   <div class="section">
-    <label>Session Name</label>
-    <input type="text" id="project-name" placeholder="e.g. Project" autocomplete="off" />
+    <label>会话 / 项目名称</label>
+    <input type="text" id="project-name" placeholder="例如：前端重构 / Project-Alpha" autocomplete="off" />
 
     <p class="hint">
-      Finish your chat → name it → Save Chat. ArcRift auto-connects and recalls context on your next chat.
+      完成对话后 → 输入名称 → 点击【保存当前会话】。ArcRift 会自动提取知识图谱并在后续对话中智能召回记忆。
     </p>
 
-    <button id="save-btn">Save Chat</button>
-    <button id="pause-toggle-btn" disabled>Pause ArcRift</button>
+    <button id="save-btn">保存当前会话</button>
+    <button id="pause-toggle-btn" disabled>暂停 ArcRift 同步</button>
   </div>
 
-  <button id="inject-btn">Inject Context (one-time)</button>
+  <button id="inject-btn">手动注入上下文 (单次)</button>
 
   <div id="selector-warning" class="selector-warning" style="display:none">
     <div class="selector-warning-body">
       <span class="selector-warning-icon">⚠</span>
       <div>
-        <div class="selector-warning-title">Injection Failed</div>
-        <div class="selector-warning-msg" id="selector-warning-msg">Could not find chat input. Selector may be stale.
+        <div class="selector-warning-title">输入框定位失败</div>
+        <div class="selector-warning-msg" id="selector-warning-msg">未能定位到聊天输入框，页面元素选择器可能已更新。
         </div>
       </div>
     </div>
     <div class="selector-warning-actions">
-      <a class="selector-warning-link" href="https://github.com/Eshaan-Nair/ARCRIFT/issues" target="_blank">Report</a>
-      <button class="selector-warning-dismiss" id="selector-dismiss-btn">Dismiss</button>
+      <a class="selector-warning-link" href="https://github.com/Eshaan-Nair/ARCRIFT/issues" target="_blank">反馈报告</a>
+      <button class="selector-warning-dismiss" id="selector-dismiss-btn">忽略</button>
     </div>
   </div>
 

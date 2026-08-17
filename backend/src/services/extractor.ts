@@ -1,8 +1,9 @@
 import axios from "axios";
 import { logger } from "../utils/logger";
-import { getSettings } from "../utils/settings";
+import { getSettings, resetSettingsCache } from "../utils/settings";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export interface Triple {
   subject: string;
   subjectType: string;
@@ -23,7 +24,7 @@ export interface ProjectSummary {
 const CHUNK_SIZE = 2000;
 
 export function chunkText(text: string): string[] {
-  const chunks: string[] = []
+  const chunks: string[] = [];
   const paragraphs = text.split(/\n\n+/);
   let current = "";
   for (const para of paragraphs) {
@@ -38,77 +39,75 @@ export function chunkText(text: string): string[] {
   return chunks;
 }
 
-// ── v1.4.7: Smart Backend Selection ───────────────────────────────
-//
-// Priority:
-//   1. GRAPH_BACKEND env var (explicit override — "ollama" | "groq" | "local-openai")
-//   2. Auto-detect: probe Ollama at startup → use if available
-//   3. Auto-detect: probe LM Studio / LocalAI at startup
-//   4. Fallback: Groq (requires GROQ_API_KEY — warns that data leaves machine)
-//
-// This serves all hardware tiers without manual configuration:
-//   - Full local setup:  Ollama runs  → fully private, zero external calls
-//   - Low-spec setup:    Ollama absent → Groq used, warning logged
-//   - Explicit override: GRAPH_BACKEND=groq forces Groq regardless of Ollama
-// ────────────────────────────────────────────────────────────────────
+// ── Smart Backend Selection & Dispatch ─────────────────────────────
+let resolvedBackend: "ollama" | "groq" | "openai-compatible" | "gemini" | null = null;
 
-let resolvedBackend: "ollama" | "groq" | "local-openai" | null = null;
+export function _resetBackendForTest() {
+  resolvedBackend = null;
+  resetSettingsCache();
+}
 
-async function detectBackend(): Promise<"ollama" | "groq" | "local-openai"> {
-  // Explicit override takes highest priority
+async function detectBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini"> {
   const envBackend = process.env.GRAPH_BACKEND?.toLowerCase();
   if (envBackend === "groq") return "groq";
   if (envBackend === "ollama") return "ollama";
-  if (envBackend === "local-openai") return "local-openai";
+  if (envBackend === "gemini") return "gemini";
+  if (envBackend === "openai-compatible" || envBackend === "siliconflow" || envBackend === "deepseek") {
+    return "openai-compatible";
+  }
 
-  // Auto-detect: try to reach Ollama
+  const settings = getSettings();
+  if (settings.chatProvider === "gemini") return "gemini";
+  if (settings.chatProvider === "groq") return "groq";
+  if (settings.chatProvider === "ollama") return "ollama";
+  if (settings.apiKey && settings.apiKey.trim().length > 0) return "openai-compatible";
+
+  // Auto-detect: probe Ollama
   try {
-    const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
-    await axios.get(`${ollamaUrl}/api/tags`, { timeout: 2000 });
-    logger.success("[ArcRift] Ollama detected — graph extraction will run locally (fully private)");
+    const ollamaUrl = settings.apiBaseUrl?.includes("11434")
+      ? settings.apiBaseUrl
+      : (process.env.OLLAMA_URL ?? "http://localhost:11434");
+    await axios.get(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, { timeout: 2000 });
+    logger.success("[ArcRift] Ollama detected — graph extraction running locally");
     return "ollama";
   } catch {
-    // Try Local OpenAI (LM Studio / LocalAI)
-    try {
-      const localUrl = process.env.LOCAL_OPENAI_URL ?? "http://localhost:1234/v1";
-      await axios.get(`${localUrl}/models`, { timeout: 2000 });
-      logger.success("[ArcRift] LM Studio / LocalAI detected — using local OpenAI-compatible backend");
-      return "local-openai";
-    } catch {
-      if (process.env.GROQ_API_KEY) {
-        logger.warn(
-          "[ArcRift] Local LLM (Ollama/LM Studio) not available — falling back to Groq API. " +
-          "Note: PII-scrubbed conversation text will leave your machine via Groq."
-        );
-        return "groq";
-      } else {
-        logger.warn(
-          "[ArcRift] No local LLM found and GROQ_API_KEY missing. " +
-          "Graph extraction disabled — install Ollama or set GROQ_API_KEY in backend/.env"
-        );
-        return "groq";
-      }
+    if (process.env.GROQ_API_KEY) {
+      logger.warn("[ArcRift] Local Ollama not available — falling back to Groq API.");
+      return "groq";
     }
+    return "openai-compatible";
   }
 }
 
-async function getBackend(): Promise<"ollama" | "groq" | "local-openai"> {
+async function getBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini"> {
   if (!resolvedBackend) {
     resolvedBackend = await detectBackend();
   }
   return resolvedBackend;
 }
 
-/** @internal - For test cleanup only */
-export function _resetBackendForTest() {
-  resolvedBackend = null;
-}
+// ── Generic OpenAI-Compatible Chat Call ─────────────────────────────
+async function callOpenAICompatible(
+  prompt: string,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  maxTokens = 1000
+): Promise<string> {
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const endpoint = cleanBase.endsWith("/chat/completions")
+    ? cleanBase
+    : `${cleanBase}/chat/completions`;
 
-// ── Groq LLM call ─────────────────────────────────────────────────
-async function callGroq(prompt: string, maxTokens = 1000): Promise<string> {
-  const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
   const response = await axios.post(
-    "https://api.groq.com/openai/v1/chat/completions",
+    endpoint,
     {
       model,
       messages: [{ role: "user", content: prompt }],
@@ -116,105 +115,139 @@ async function callGroq(prompt: string, maxTokens = 1000): Promise<string> {
       temperature: 0.1,
     },
     {
-      headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 20000,
+      headers,
+      timeout: 90000,
     }
   );
-  return response.data.choices[0].message.content;
+
+  const content = response.data?.choices?.[0]?.message?.content;
+  if (content === undefined || content === null) {
+    throw new Error("Chat completions API returned empty message content");
+  }
+  return content;
 }
 
-// ── Ollama LLM call ───────────────────────────────────────────────
+// ── Google Gemini Chat Call ──────────────────────────────────────────
+async function callGemini(prompt: string, apiKey: string, model: string, maxTokens = 1000): Promise<string> {
+  const modelName = model.replace(/^models\//, "");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  const response = await axios.post(
+    url,
+    {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        temperature: 0.1,
+      },
+    },
+    { timeout: 60000 }
+  );
+
+  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Gemini generateContent returned empty response");
+  }
+  return text;
+}
+
+// ── Ollama LLM Call ──────────────────────────────────────────────────
 async function callOllama(prompt: string, maxTokens = 1000): Promise<string> {
-  const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
   const settings = getSettings();
-  const model = settings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "llama3.1:8b";
+  const ollamaUrl = (settings.apiBaseUrl?.includes("11434") ? settings.apiBaseUrl : process.env.OLLAMA_URL) ?? "http://localhost:11434";
+  const model = settings.chatModel || settings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "llama3.1:8b";
+  const cleanUrl = ollamaUrl.replace(/\/+$/, "");
 
   const response = await axios.post(
-    `${ollamaUrl}/api/generate`,
+    `${cleanUrl}/api/generate`,
     {
       model,
       prompt,
       stream: false,
       options: { num_predict: maxTokens, temperature: 0.1 },
     },
-    { timeout: 90000 } // Increased to 90s for low-end hardware
-  );
-  return response.data.response;
-}
-
-// ── Local OpenAI (LM Studio / LocalAI) LLM call ───────────────────
-async function callLocalOpenAI(prompt: string, maxTokens = 1000): Promise<string> {
-  const url = process.env.LOCAL_OPENAI_URL ?? "http://localhost:1234/v1";
-  const model = process.env.LOCAL_OPENAI_MODEL ?? "loaded_model"; // LM Studio usually uses whatever is loaded
-
-  const response = await axios.post(
-    `${url}/chat/completions`,
-    {
-      model,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: maxTokens,
-      temperature: 0.1,
-    },
     { timeout: 90000 }
   );
-  return response.data.choices[0].message.content;
+  return response.data?.response ?? response.data?.choices?.[0]?.message?.content;
 }
 
-// ── Unified LLM call with Retry Logic (Backoff) ───────────────────
+// ── Groq LLM Call ────────────────────────────────────────────────────
+async function callGroq(prompt: string, maxTokens = 1000): Promise<string> {
+  const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+  const apiKey = process.env.GROQ_API_KEY ?? "";
+  return await callOpenAICompatible(
+    prompt,
+    "https://api.groq.com/openai/v1",
+    apiKey,
+    model,
+    maxTokens
+  );
+}
+
+// ── Unified LLM call with Retry & Fallback ───────────────────────────
 async function _llm(prompt: string, maxTokens = 1000): Promise<string> {
+  const settings = getSettings();
   const backend = await getBackend();
-  const MAX_RETRIES = 3; // Reduced total retries but made each smarter
+  const MAX_RETRIES = 2;
   let lastErr: any = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
-        const waitTime = attempt * 15000; // 15s, 30s, 45s...
+        const waitTime = attempt * 3000;
         logger.info(`[ArcRift] LLM call retry ${attempt}/${MAX_RETRIES} in ${waitTime / 1000}s...`);
         await sleep(waitTime);
       }
 
       let res: string;
+
       if (backend === "ollama") {
         try {
           res = await callOllama(prompt, maxTokens);
         } catch (err: any) {
-          const isDown = err.code === "ECONNREFUSED" ||
+          const isDown =
+            err.code === "ECONNREFUSED" ||
             err.code === "ENOTFOUND" ||
             err.message?.includes("ECONNREFUSED") ||
             err.message?.includes("connection refused");
-          if (isDown && process.env.GROQ_API_KEY) {
-            logger.warn(`[ArcRift] Ollama unreachable — falling back to Groq.`);
-            res = await callGroq(prompt, maxTokens);
+
+          // Fallback to Groq or Cloud API if Ollama is down
+          if (isDown && (process.env.GROQ_API_KEY || settings.apiKey)) {
+            logger.warn(`[ArcRift] Ollama unreachable — falling back to cloud API.`);
+            if (process.env.GROQ_API_KEY) {
+              res = await callGroq(prompt, maxTokens);
+            } else {
+              res = await callOpenAICompatible(
+                prompt,
+                settings.apiBaseUrl || "https://api.siliconflow.cn/v1",
+                settings.apiKey || "",
+                settings.chatModel || "deepseek-ai/DeepSeek-V3",
+                maxTokens
+              );
+            }
           } else {
             throw err;
           }
         }
-      } else if (backend === "local-openai") {
-        try {
-          res = await callLocalOpenAI(prompt, maxTokens);
-        } catch (err: any) {
-          const isDown = err.code === "ECONNREFUSED" ||
-            err.code === "ENOTFOUND" ||
-            err.message?.includes("ECONNREFUSED") ||
-            err.message?.includes("connection refused");
-          if (isDown && process.env.GROQ_API_KEY) {
-            logger.warn(`[ArcRift] Local OpenAI unreachable — falling back to Groq.`);
-            res = await callGroq(prompt, maxTokens);
-          } else {
-            throw err;
-          }
-        }
-      } else {
+      } else if (backend === "gemini") {
+        const apiKey = settings.apiKey || process.env.GEMINI_API_KEY || "";
+        res = await callGemini(prompt, apiKey, settings.chatModel || "gemini-1.5-flash", maxTokens);
+      } else if (backend === "groq") {
         res = await callGroq(prompt, maxTokens);
+      } else {
+        // Default: OpenAI-compatible (SiliconFlow, DeepSeek, OpenAI, etc.)
+        const baseUrl = settings.apiBaseUrl || "https://api.siliconflow.cn/v1";
+        const apiKey = settings.apiKey || process.env.API_KEY || process.env.SILICONFLOW_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || "";
+        const model = settings.chatModel || "deepseek-ai/DeepSeek-V3";
+        res = await callOpenAICompatible(prompt, baseUrl, apiKey, model, maxTokens);
       }
 
       if (res === undefined || res === null || res.trim() === "") {
         throw new Error("Model returned empty response");
       }
+
+      // Strip reasoning <think>...</think> tags if present (e.g. DeepSeek-R1)
+      res = res.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
       return res;
     } catch (err: any) {
       lastErr = err;
@@ -223,13 +256,12 @@ async function _llm(prompt: string, maxTokens = 1000): Promise<string> {
       const isBadFormat = err?.message?.includes("JSON") || err?.message?.includes("formatting");
 
       if ((isRateLimit || isTimeout || isBadFormat) && attempt < MAX_RETRIES) {
-        if (isTimeout) logger.warn(`[ArcRift] LLM timeout (attempt ${attempt + 1}). Model might be loading or hardware is slow.`);
+        if (isTimeout) logger.warn(`[ArcRift] LLM timeout (attempt ${attempt + 1}). Retrying...`);
         if (isBadFormat) logger.warn("[ArcRift] Model returned malformed data. Retrying...");
         continue;
       }
 
-      // Permanent failure
-      logger.error(`[ArcRift] LLM call failed permanently: ${err.message}`);
+      logger.error(`[ArcRift] LLM call failed: ${err.message}`);
       throw err;
     }
   }
@@ -237,7 +269,7 @@ async function _llm(prompt: string, maxTokens = 1000): Promise<string> {
 }
 
 /**
- * Unified LLM call with explicit debug logging
+ * Unified LLM call with debug logging
  */
 export async function llm(prompt: string, maxTokens = 1000): Promise<string> {
   const result = await _llm(prompt, maxTokens);
@@ -247,7 +279,7 @@ export async function llm(prompt: string, maxTokens = 1000): Promise<string> {
   return result;
 }
 
-// ── Step 1: compress raw chat into ALL meaningful facts ────────────
+// ── Step 1: Compress raw chat into ALL meaningful facts ────────────
 export async function summarizeChunk(text: string): Promise<string> {
   const prompt = `You are a precision fact extractor. Read this conversation and extract ALL meaningful facts.
 
@@ -310,16 +342,19 @@ Entities:`;
       // Fallback to manual parsing
     }
 
-    // 2. Fallback cleanup: remove brackets, quotes, and "Entities:" prefix
-    return raw.replace(/[\[\]"]/g, "")
+    // 2. Fallback cleanup
+    return raw
+      .replace(/[\[\]"]/g, "")
       .replace(/Entities:/gi, "")
       .split(",")
       .map(e => e.trim())
       .filter(e => {
-        return e.length > 0 &&
+        return (
+          e.length > 0 &&
           e.length < 50 &&
           e.toLowerCase() !== "none" &&
-          !e.toLowerCase().includes("not json");
+          !e.toLowerCase().includes("not json")
+        );
       });
   } catch (err) {
     logger.warn(`[ArcRift] Entity extraction failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -327,15 +362,12 @@ Entities:`;
   }
 }
 
-// ── Step 2: extract triples from compressed summary ───────────────
-/**
- * v1.5.1: Direct Triple Extraction from raw text (Saves 50% API calls)
- */
+// ── Step 2: Extract triples from text/summary ───────────────────────
 export async function extractTriplesFromText(text: string): Promise<Triple[]> {
   const prompt = `You are a precision fact extractor. Extract subject-relation-object triplets from the conversation below.
 
 RULES:
-1. Return ONLY raw JSON.
+1. Return ONLY raw JSON array.
 2. If no facts found, return [].
 3. Preserve specific technical terms.
 
@@ -355,13 +387,14 @@ JSON:`;
     const end = raw.lastIndexOf("]");
     if (start !== -1 && end !== -1) {
       let clean = raw.slice(start, end + 1).trim();
+      clean = clean.replace(/```json/gi, "").replace(/```/g, "");
       clean = clean.replace(/,\s*\]/g, "]").replace(/,\s*\}/g, "}");
       clean = clean.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
       clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "");
       return JSON.parse(clean) as Triple[];
     }
     return [];
-  } catch (err) {
+  } catch {
     logger.warn(`[Extractor] Direct parse failed, falling back to empty list.`);
     return [];
   }
@@ -415,56 +448,39 @@ JSON:`;
   const raw = await llm(prompt, 1500);
 
   try {
-    // 1. Precise extraction: find the first '[' and last ']'
     const start = raw.indexOf("[");
     const end = raw.lastIndexOf("]");
 
     if (start !== -1 && end !== -1) {
       let clean = raw.slice(start, end + 1).trim();
-      
-      // 1.1 Fix "Smart Quotes" and other non-standard punctuation
+      clean = clean.replace(/```json/gi, "").replace(/```/g, "");
       clean = clean.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-      
-      // 1.2 Remove trailing commas in arrays/objects
       clean = clean.replace(/,\s*\]/g, "]").replace(/,\s*\}/g, "}");
-      
-      // 1.3 Remove truly dangerous control characters (but KEEP newlines/tabs)
-      // This regex removes null, bell, backspace, etc. but keeps \n, \r, \t
       clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "");
 
-      try {
-        return JSON.parse(clean) as Triple[];
-      } catch (e: any) {
-        logger.warn(`[Extractor] JSON Parse Error: ${e.message}`);
-        logger.warn(`[Extractor] Cleaned content snippet: ${clean.slice(0, 100)}...`);
-        throw e;
-      }
+      return JSON.parse(clean) as Triple[];
     }
 
-    // 2. Fallback: If no brackets but model says "none" or is empty
     const rawLower = raw.toLowerCase();
     if (rawLower.includes("none") || rawLower.includes("no facts") || raw.trim().length < 5) {
       return [];
     }
 
-    // 3. Fallback: Try parsing the whole thing (maybe it returned just the array)
     return JSON.parse(raw.trim()) as Triple[];
-  } catch (jsonErr) {
+  } catch {
     logger.warn(`[Extractor] JSON Parse failed. Model output: ${raw.slice(0, 100)}...`);
     throw new Error(`Bad formatting: No valid JSON array found in model output`);
   }
 }
 
-// ── Step 3: generate structured project summary ───────────────────
+// ── Step 3: Generate structured project summary ─────────────────────
 export async function generateProjectSummary(
   triples: Triple[],
   projectName: string
 ): Promise<string> {
   if (triples.length === 0) return "";
 
-  // Cap triples to prevent payload-too-large (413) errors on massive sessions
   const cappedTriples = triples.slice(0, 100);
-
   const tripleText = cappedTriples
     .map(t => `${t.subject} (${t.subjectType}) ${t.relation} ${t.object} (${t.objectType})`)
     .join("\n");
@@ -483,14 +499,16 @@ Keep it under 200 words total.`;
   try {
     return await llm(prompt, 400);
   } catch {
-    // Fallback — format triples directly
     return triples
       .map(t => `- ${t.subject} ${t.relation.toLowerCase().replace(/_/g, " ")} ${t.object}`)
       .join("\n");
   }
 }
 
-export async function extractTriples(text: string, startIndex = 0): Promise<{ triples: Triple[], nextIndex: number }> {
+export async function extractTriples(
+  text: string,
+  startIndex = 0
+): Promise<{ triples: Triple[]; nextIndex: number }> {
   const chunks = chunkText(text);
   logger.info(`Processing ${chunks.length} chunk(s) for triple extraction...`);
 
@@ -499,25 +517,19 @@ export async function extractTriples(text: string, startIndex = 0): Promise<{ tr
   for (let i = startIndex; i < chunks.length; i++) {
     try {
       logger.info(`  chunk ${i + 1}/${chunks.length} — summarizing...`);
-
       const summary = await summarizeChunk(chunks[i]);
-
-      // Delay to stay under Groq TPM limit
-      await sleep(3000);
+      await sleep(1000);
 
       const triples = await extractTriplesFromSummary(summary);
       allTriples.push(...triples);
 
       logger.info(`  chunk ${i + 1} → ${triples.length} triples`);
-
-      // Delay before next chunk
-      if (i < chunks.length - 1) await sleep(2000);
+      if (i < chunks.length - 1) await sleep(1000);
     } catch (err: any) {
-      logger.error(`chunk ${i + 1} failed:`, JSON.stringify(err?.response?.data, null, 2));
+      logger.error(`chunk ${i + 1} failed:`, JSON.stringify(err?.response?.data || err?.message, null, 2));
     }
   }
 
-  // Deduplicate
   const seen = new Set<string>();
   const unique = allTriples.filter(t => {
     const key = `${t.subject}|${t.relation}|${t.object}`;
@@ -530,12 +542,6 @@ export async function extractTriples(text: string, startIndex = 0): Promise<{ tr
   return { triples: unique, nextIndex: chunks.length };
 }
 
-/**
- * v1.4.6: Token Optimization via Snippet Extraction
- * Reads raw retrieved chunks and uses the LLM to extract ONLY the exact lines
- * relevant to the user's prompt. This prevents dumping 1500+ words of raw context
- * into the final RAG prompt, significantly reducing token cost and hallucination risk.
- */
 export async function extractRelevantSnippets(prompt: string, chunks: string[]): Promise<string> {
   if (!chunks.length) return "";
 
@@ -552,24 +558,26 @@ If nothing matches, say "None".
 Relevant parts:`;
 
   try {
-    // We use the unified llm() which handles retries, fallbacks, and temperature=0.1
     const responseText = await llm(fullPrompt, 1500);
-
-    if (responseText.includes("None") || responseText.includes("NO_RELEVANCE") || responseText.trim().length < 5) {
+    if (
+      responseText.includes("None") ||
+      responseText.includes("NO_RELEVANCE") ||
+      responseText.trim().length < 5
+    ) {
       return "";
     }
-
     return responseText.trim();
   } catch (err: any) {
     logger.warn(`[Extractor] Snippet extraction failed: ${err?.message || "Unknown error"}`);
-    if (err?.stack) console.error(err.stack);
-    // Fallback: return raw chunks up to ~2500 chars to prevent complete RAG failure
     return chunks.join("\n...\n").slice(0, 2500);
   }
 }
 
-// ── Multi-turn Context Summarisation ──────────────────────────────
-export async function summarizeContext(query: string, chunks: string[], facts: string[]): Promise<string> {
+export async function summarizeContext(
+  query: string,
+  chunks: string[],
+  facts: string[]
+): Promise<string> {
   if (chunks.length === 0 && facts.length === 0) return "";
 
   const prompt = `You are a highly capable summarization assistant for a memory-augmented AI.
@@ -586,7 +594,7 @@ RAW GRAPH FACTS:
 ${facts.length > 0 ? facts.join("\n") : "None"}
 
 RAW MEMORY CHUNKS:
-${chunks.length > 0 ? chunks.map((c, i) => `[Chunk ${i+1}]: ${c}`).join("\n\n") : "None"}
+${chunks.length > 0 ? chunks.map((c, i) => `[Chunk ${i + 1}]: ${c}`).join("\n\n") : "None"}
 
 SUMMARY:`;
 
@@ -595,7 +603,6 @@ SUMMARY:`;
     return summary.trim();
   } catch (err: any) {
     logger.warn(`[Extractor] Context summarisation failed: ${err?.message || "Unknown error"}`);
-    // Fallback to joining raw chunks
     let fallback = chunks.join("\n\n");
     if (facts.length > 0) {
       fallback = `Facts:\n${facts.join("\n")}\n\n${fallback}`;

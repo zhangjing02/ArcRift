@@ -1,4 +1,4 @@
-// popup.ts — v1.6.3
+// popup.ts — v1.6.3 (Chinese Localization & Enhanced Platform Support)
 // Replaced Connect/Disconnect with a Pause toggle
 // Auto-connect happens in content.ts on init — popup only shows state + pause control
 
@@ -33,7 +33,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   chatgpt: "ChatGPT (chatgpt.com)",
   gemini: "Gemini (gemini.google.com)",
   deepseek: "DeepSeek (chat.deepseek.com)",
-  unknown: "Not on a supported platform",
+  unknown: "未在受支持的 AI 平台页面 (Claude / ChatGPT / Gemini / DeepSeek)",
 };
 
 let currentSessionId: string | null = null;
@@ -150,7 +150,6 @@ async function ensureContentScript(tabId: number): Promise<boolean> {
       if (response?.activeSession) {
         currentSessionId = response.activeSession._id as string;
 
-
         showSession({
           sessionId: response.activeSession._id as string,
           projectName: response.activeSession.projectName as string,
@@ -206,28 +205,28 @@ async function ensureContentScript(tabId: number): Promise<boolean> {
 // ── Save Chat ─────────────────────────────────────────────────────
 saveBtn.addEventListener("click", async () => {
   const projectName = projectNameInput.value.trim();
-  if (!projectName) { setStatus("⚠ Enter a session name first", "error"); return; }
+  if (!projectName) { setStatus("⚠ 请先输入会话/项目名称", "error"); return; }
 
   const tabId = await getTabId();
-  if (!tabId) { setStatus("⚠ No active tab", "error"); return; }
+  if (!tabId) { setStatus("⚠ 未检测到当前活动标签页", "error"); return; }
 
   const platform = await detectPlatformFromTab();
-  if (platform === "unknown") { setStatus("⚠ Open Claude, ChatGPT, Gemini, or DeepSeek first", "error"); return; }
+  if (platform === "unknown") { setStatus("⚠ 请先打开 Claude、ChatGPT、Gemini 或 DeepSeek 页面", "error"); return; }
 
   saveBtn.disabled = true;
-  saveBtn.textContent = "Saving...";
-  setStatus("Checking content script...");
+  saveBtn.textContent = "正在保存...";
+  setStatus("正在检查页面脚本状态...");
 
   const ready = await ensureContentScript(tabId);
   if (!ready) {
     saveBtn.disabled = false;
-    saveBtn.textContent = "Save Chat";
-    setStatus("⚠ Could not load content script. Try refreshing the page.", "error");
+    saveBtn.textContent = "保存当前会话";
+    setStatus("⚠ 无法加载内容脚本，请尝试刷新当前页面。", "error");
     return;
   }
 
   // Step 1: Create or update session from popup → background
-  setStatus("Creating session...");
+  setStatus("正在创建会话...");
 
   // Check if we already have a session for this specific URL or currently loaded
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -294,7 +293,7 @@ saveBtn.addEventListener("click", async () => {
       currentSessionId = null;
 
       // Retry creation
-      setStatus("Session stale, creating new one...");
+      setStatus("会话已过期，正在创建新会话...");
       const retryResult = await new Promise<any>((resolve) => {
         chrome.runtime.sendMessage(
           { type: "CREATE_SESSION", payload: { projectName, platform } },
@@ -304,16 +303,16 @@ saveBtn.addEventListener("click", async () => {
 
       if (!retryResult?.sessionId) {
         saveBtn.disabled = false;
-        saveBtn.textContent = "Save Chat";
-        setStatus(`⚠ ${retryResult?.error || "Failed to create session"}`, "error");
+        saveBtn.textContent = "保存当前会话";
+        setStatus(`⚠ ${retryResult?.error || "创建会话失败"}`, "error");
         return;
       }
 
       sessionResult.sessionId = retryResult.sessionId;
     } else {
       saveBtn.disabled = false;
-      saveBtn.textContent = "Save Chat";
-      setStatus(`⚠ ${sessionResult?.error || "Failed to create session. Is the backend running?"}`, "error");
+      saveBtn.textContent = "保存当前会话";
+      setStatus(`⚠ ${sessionResult?.error || "创建会话失败，请确认 ArcRift 后端服务是否正在运行"}`, "error");
 
       // Trigger shake animation on input
       projectNameInput.classList.add("shake");
@@ -323,16 +322,16 @@ saveBtn.addEventListener("click", async () => {
   }
 
   // Step 2: Tell content script to scrape + save using the sessionId we just created
-  setStatus("Scraping chat...");
+  setStatus("正在提取对话与图谱事实...");
   chrome.tabs.sendMessage(
     tabId,
     { type: "SAVE_CHAT_FROM_POPUP", payload: { projectName, platform, sessionId: sessionResult.sessionId } },
     (response) => {
       saveBtn.disabled = false;
-      saveBtn.textContent = "Save Chat";
+      saveBtn.textContent = "保存当前会话";
 
       if (chrome.runtime.lastError || !response) {
-        setStatus("⚠ Lost connection to content script. Refresh and try again.", "error");
+        setStatus("⚠ 与页面内容脚本失去连接，请刷新页面后重试。", "error");
         return;
       }
       if (response.error) { setStatus(`⚠ ${response.error as string}`, "error"); return; }
@@ -359,9 +358,7 @@ saveBtn.addEventListener("click", async () => {
         }
 
         showSession(sessionData);
-        const chunks = response.topicsExtracted as number;
-        const facts = response.triplesExtracted as number;
-        setStatus(`Saved! ArcRift auto-connected.`);
+        setStatus("保存成功！ArcRift 记忆层已自动连接。");
 
         // ── Success State Glow ───────────────────────────────────────
         document.body.classList.add("success-glow");
@@ -388,7 +385,7 @@ pauseToggleBtn.addEventListener("click", async () => {
     chrome.tabs.sendMessage(tabId, { type: isPaused ? "PAUSE_ARCRIFT" : "RESUME_ARCRIFT" }, () => { });
   }
 
-  setStatus(isPaused ? "⏸ ArcRift paused" : "▶ ArcRift resumed");
+  setStatus(isPaused ? "⏸ ArcRift 记忆同步已暂停" : "▶ ArcRift 记忆同步已恢复");
 });
 
 // ── Unload Session ───────────────────────────────────────────────
@@ -396,11 +393,11 @@ unloadBtn.addEventListener("click", async () => {
   if (!currentSessionId) return;
 
   unloadBtn.disabled = true;
-  unloadBtn.textContent = "Unloading...";
+  unloadBtn.textContent = "正在卸载...";
 
   chrome.runtime.sendMessage({ type: "UNLOAD_SESSION" }, (response) => {
     unloadBtn.disabled = false;
-    unloadBtn.textContent = "Unload Session";
+    unloadBtn.textContent = "卸载当前会话";
 
     if (response?.success) {
       currentSessionId = null;
@@ -408,9 +405,9 @@ unloadBtn.addEventListener("click", async () => {
       sessionInfo.style.display = "none";
       projectNameInput.value = ""; // Clear input on unload
       updatePauseUI();
-      setStatus("Session unloaded");
+      setStatus("会话已成功卸载");
     } else {
-      setStatus("⚠ Failed to unload session", "error");
+      setStatus("⚠ 卸载会话失败", "error");
     }
   });
 });
@@ -444,18 +441,18 @@ chrome.runtime.onMessage.addListener((message) => {
 // ── Inject Context (one-time) ─────────────────────────────────────
 injectBtn.addEventListener("click", async () => {
   const tabId = await getTabId();
-  if (!tabId) { setStatus("⚠ No active tab", "error"); return; }
+  if (!tabId) { setStatus("⚠ 未检测到当前活动标签页", "error"); return; }
 
   const platform = await detectPlatformFromTab();
-  if (platform === "unknown") { setStatus("⚠ Open Claude, ChatGPT, Gemini, or DeepSeek first", "error"); return; }
+  if (platform === "unknown") { setStatus("⚠ 请先打开 Claude、ChatGPT、Gemini 或 DeepSeek 页面", "error"); return; }
 
   const ready = await ensureContentScript(tabId);
-  if (!ready) { setStatus("⚠ Could not reach page. Refresh and try again.", "error"); return; }
+  if (!ready) { setStatus("⚠ 无法连接到页面，请刷新页面后重试。", "error"); return; }
 
-  setStatus("Injecting context...");
+  setStatus("正在注入上下文记忆...");
   chrome.tabs.sendMessage(tabId, { type: "INJECT_NOW" }, (response) => {
     if (chrome.runtime.lastError || !response) {
-      setStatus("⚠ Injection failed. Click the chat input first, then retry.", "error");
+      setStatus("⚠ 上下文注入失败，请先在页面点击选中输入框后重试。", "error");
     }
   });
 });
@@ -476,14 +473,14 @@ function showSession(data: SessionData) {
 
 function updatePauseUI() {
   if (isPaused) {
-    pauseToggleBtn.textContent = "▶ Resume ArcRift";
+    pauseToggleBtn.textContent = "▶ 恢复 ArcRift 同步";
     pauseToggleBtn.classList.add("paused");
-    arcriftStatusBadge.textContent = "⏸ Paused";
+    arcriftStatusBadge.textContent = "⏸ 已暂停";
     arcriftStatusBadge.className = "ArcRift-status paused";
   } else {
-    pauseToggleBtn.textContent = "⏸ Pause ArcRift";
+    pauseToggleBtn.textContent = "⏸ 暂停 ArcRift 同步";
     pauseToggleBtn.classList.remove("paused");
-    arcriftStatusBadge.textContent = currentSessionId ? "🟢 Active" : "⚪ No session";
+    arcriftStatusBadge.textContent = currentSessionId ? "🟢 运行中" : "⚪ 未连接";
     arcriftStatusBadge.className = `ArcRift-status ${currentSessionId ? "active" : "idle"}`;
   }
 }
@@ -497,10 +494,10 @@ function setStatus(msg: string, type: "ok" | "error" | "warn" = "ok") {
 // ── Selector Warning Banner ────────────────────────────────────────
 function showSelectorWarning(platform: string) {
   selectorWarningMsgEl.textContent =
-    `Could not connect to ${capitalize(platform)}. Selector may be stale.`;
+    `未能定位到 ${capitalize(platform)} 聊天输入框，页面元素选择器可能已更新。`;
   selectorWarningEl.style.display = "block";
   // Also update the ArcRift status badge to warning
-  arcriftStatusBadge.textContent = "⚠ Injection Failed";
+  arcriftStatusBadge.textContent = "⚠ 注入失败";
   arcriftStatusBadge.className = "ArcRift-status warning";
 }
 

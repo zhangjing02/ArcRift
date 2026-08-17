@@ -1,6 +1,7 @@
 import React from "react";
 import ChatViewer from "../ChatViewer";
 import type { Triple, ChatData, Session } from "../../types";
+import { useLocale } from "../../context/LocaleContext";
 
 interface FloatingPanelProps {
   isClosed: boolean;
@@ -35,6 +36,8 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
   factSearch,
   setFactSearch,
 }) => {
+  const { t, getNodeTypeLabel, locale } = useLocale();
+
   return (
     <aside className={`floating-side-content ${isClosed ? "closed" : ""} ${isExpanded ? "expanded" : ""}`}>
       <div className="expand-handle-group" style={{ left: "-28px", top: "40px", borderRadius: "8px 0 0 8px" }}>
@@ -48,7 +51,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
               setIsExpanded(true);
             }
           }}
-          title="Expand"
+          title={t.drawer.expand}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="15 18 9 12 15 6"></polyline>
@@ -63,7 +66,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
               setIsClosed(true);
             }
           }}
-          title="Collapse"
+          title={t.drawer.collapse}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="9 18 15 12 9 6"></polyline>
@@ -75,13 +78,15 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
         {activeTab === "history" && (
           <div className="history-list">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-              <h3 style={{ fontFamily: "Outfit", fontSize: "18px" }}>Captured Facts</h3>
+              <h3 style={{ fontFamily: "Outfit", fontSize: "18px", margin: 0 }}>
+                {t.drawer.capturedFacts}
+              </h3>
             </div>
 
             <div style={{ position: "relative", marginBottom: "20px" }}>
               <input
                 type="text"
-                placeholder="Search facts..."
+                placeholder={t.drawer.searchFactsPlaceholder}
                 value={factSearch}
                 onChange={(e) => {
                   setFactSearch(e.target.value);
@@ -89,7 +94,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
                 }}
                 style={{
                   width: "100%",
-                  padding: "10px 14px",
+                  padding: "10px 14px 10px 36px",
                   borderRadius: "12px",
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -98,7 +103,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
                   outline: "none"
                 }}
               />
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", opacity: 0.3 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", opacity: 0.4 }}>
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.3-4.3"></path>
               </svg>
@@ -116,27 +121,33 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
                 </svg>
-                No facts captured yet.
+                {t.drawer.noFacts}
               </div>
             ) : (
               <>
-                {pagedTriples.map((t, i) => (
+                {pagedTriples.map((tItem, i) => (
                   <div key={i} className="history-item">
                     <div className="history-item-subject">
-                      <span className="history-item-type">{t.subjectType}</span> {t.subject}
+                      <span className="history-item-type" title={tItem.subjectType}>{getNodeTypeLabel(tItem.subjectType)}</span> {tItem.subject}
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "4px" }}>
-                      {t.relation} → <span style={{ color: "var(--secondary)", fontWeight: "600" }}>{t.object}</span> ({t.objectType})
+                      {tItem.relation} → <span style={{ color: "var(--secondary)", fontWeight: "600" }}>{tItem.object}</span> <span style={{ opacity: 0.7 }}>({getNodeTypeLabel(tItem.objectType)})</span>
                     </div>
-                    <div style={{ fontSize: "9px", opacity: 0.3 }}>{new Date(t.timestamp).toLocaleString()}</div>
+                    <div style={{ fontSize: "9px", opacity: 0.3 }}>
+                      {new Date(tItem.timestamp).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
+                    </div>
                   </div>
                 ))}
                 
                 {totalPages > 1 && (
                   <div className="pagination" style={{ marginTop: "20px", display: "flex", gap: "10px", justifyContent: "center", alignItems: "center" }}>
-                    <button className="tab-btn" disabled={factsPage === 0} onClick={() => setFactsPage(p => p - 1)}>Prev</button>
+                    <button className="tab-btn" disabled={factsPage === 0} onClick={() => setFactsPage(p => p - 1)}>
+                      {t.common.prev}
+                    </button>
                     <span style={{ fontSize: "12px", opacity: 0.5 }}>{factsPage + 1} / {totalPages}</span>
-                    <button className="tab-btn" disabled={factsPage >= totalPages - 1} onClick={() => setFactsPage(p => p + 1)}>Next</button>
+                    <button className="tab-btn" disabled={factsPage >= totalPages - 1} onClick={() => setFactsPage(p => p + 1)}>
+                      {t.common.next}
+                    </button>
                   </div>
                 )}
               </>
@@ -154,7 +165,7 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({
                 platform={activeSession?.platform}
               />
             ) : (
-              <div className="empty-state">No chat saved for this project.</div>
+              <div className="empty-state">{t.drawer.noChat}</div>
             )}
           </div>
         )}

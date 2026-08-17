@@ -1,10 +1,12 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
-import { getSettings, updateSettings } from "../utils/settings";
+import { getSettings, updateSettings, PROVIDER_PRESETS, Settings } from "../utils/settings";
+import { generateEmbedding } from "../services/embeddings";
+import { llm } from "../services/extractor";
 import { logger } from "../utils/logger";
 
 const router = Router();
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_DEFAULT_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 
 // GET /api/settings
 router.get("/", async (_req: Request, res: Response) => {
@@ -13,8 +15,12 @@ router.get("/", async (_req: Request, res: Response) => {
     let ollamaReachable = false;
     let availableModels: string[] = [];
 
+    const probeUrl = settings.embeddingBaseUrl?.includes("11434")
+      ? settings.embeddingBaseUrl
+      : (process.env.OLLAMA_URL || OLLAMA_DEFAULT_URL);
+
     try {
-      const response = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 2000 });
+      const response = await axios.get(`${probeUrl.replace(/\/+$/, "")}/api/tags`, { timeout: 1500 });
       ollamaReachable = true;
       if (response.data && Array.isArray(response.data.models)) {
         availableModels = response.data.models.map((m: any) => m.name);
@@ -23,14 +29,27 @@ router.get("/", async (_req: Request, res: Response) => {
       ollamaReachable = false;
     }
 
-    const activeEmbeddingModel = settings.ollamaEmbeddingModel || process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
-    const activeExtractionModel = settings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "llama3.1:8b";
+    const activeEmbeddingModel =
+      settings.embeddingModel ||
+      settings.ollamaEmbeddingModel ||
+      process.env.EMBEDDING_MODEL ||
+      process.env.OLLAMA_EMBED_MODEL ||
+      "BAAI/bge-large-zh-v1.5";
+
+    const activeExtractionModel =
+      settings.chatModel ||
+      settings.ollamaExtractionModel ||
+      process.env.CHAT_MODEL ||
+      process.env.OLLAMA_MODEL ||
+      "deepseek-ai/DeepSeek-V3";
 
     res.json({
+      settings,
+      presets: PROVIDER_PRESETS,
       ollamaReachable,
       availableModels,
       activeEmbeddingModel,
-      activeExtractionModel
+      activeExtractionModel,
     });
   } catch (err: any) {
     logger.error("Failed to fetch settings:", err?.message);
@@ -41,21 +60,152 @@ router.get("/", async (_req: Request, res: Response) => {
 // POST /api/settings
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { activeEmbeddingModel, activeExtractionModel } = req.body;
+    const body = req.body || {};
 
-    const updated = updateSettings({
-      ollamaEmbeddingModel: activeEmbeddingModel,
-      ollamaExtractionModel: activeExtractionModel
-    });
+    const toUpdate: Partial<Settings> = {
+      ...body,
+    };
+
+    // Backward compatibility mappings
+    if (body.activeEmbeddingModel && !body.embeddingModel) {
+      toUpdate.embeddingModel = body.activeEmbeddingModel;
+    }
+    if (body.activeExtractionModel && !body.chatModel) {
+      toUpdate.chatModel = body.activeExtractionModel;
+    }
+
+    const updated = updateSettings(toUpdate);
 
     res.json({
       success: true,
-      settings: updated
+      settings: updated,
     });
   } catch (err: any) {
     logger.error("Failed to update settings:", err?.message);
     res.status(500).json({ error: "Failed to save settings" });
   }
+});
+
+// POST /api/settings/test-connection
+router.post("/test-connection", async (req: Request, res: Response) => {
+  const settings = getSettings();
+  const testType = req.body.type || "all"; // "chat" | "embedding" | "all"
+
+  const results: {
+    success: boolean;
+    chat?: { success: boolean; latencyMs?: number; model?: string; message?: string; error?: string };
+    embedding?: { success: boolean; latencyMs?: number; model?: string; dimension?: number; message?: string; error?: string };
+    error?: string;
+  } = {
+    success: true,
+  };
+
+  // 1. Test Chat Completion Connection
+  if (testType === "chat" || testType === "all") {
+    const startTime = Date.now();
+    const chatModel = req.body.chatModel || settings.chatModel || "deepseek-ai/DeepSeek-V3";
+    const apiBaseUrl = req.body.apiBaseUrl || settings.apiBaseUrl || "https://api.siliconflow.cn/v1";
+    const apiKey = req.body.apiKey !== undefined ? req.body.apiKey : (settings.apiKey || "");
+
+    try {
+      // Direct call to test target endpoint with specified parameters
+      const cleanBase = apiBaseUrl.replace(/\/+$/, "");
+      const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
+      const resp = await axios.post(
+        endpoint,
+        {
+          model: chatModel,
+          messages: [{ role: "user", content: "Say 'OK' if you can read this." }],
+          max_tokens: 10,
+          temperature: 0.1,
+        },
+        { headers, timeout: 20000 }
+      );
+
+      const latencyMs = Date.now() - startTime;
+      const content = resp.data?.choices?.[0]?.message?.content || "OK";
+
+      results.chat = {
+        success: true,
+        latencyMs,
+        model: chatModel,
+        message: `Chat API connected successfully. (Response: "${content.slice(0, 30)}")`,
+      };
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      const errorMsg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err.message ||
+        "Connection failed";
+
+      results.chat = {
+        success: false,
+        latencyMs,
+        model: chatModel,
+        error: errorMsg,
+      };
+      results.success = false;
+    }
+  }
+
+  // 2. Test Embedding Connection
+  if (testType === "embedding" || testType === "all") {
+    const startTime = Date.now();
+    const embeddingModel = req.body.embeddingModel || settings.embeddingModel || "BAAI/bge-large-zh-v1.5";
+    const embeddingBaseUrl = req.body.embeddingBaseUrl || settings.embeddingBaseUrl || "https://api.siliconflow.cn/v1";
+    const embeddingApiKey =
+      req.body.embeddingApiKey !== undefined
+        ? req.body.embeddingApiKey
+        : (settings.embeddingApiKey || settings.apiKey || "");
+
+    try {
+      const cleanBase = embeddingBaseUrl.replace(/\/+$/, "");
+      const endpoint = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (embeddingApiKey) headers["Authorization"] = `Bearer ${embeddingApiKey}`;
+
+      const resp = await axios.post(
+        endpoint,
+        {
+          model: embeddingModel,
+          input: "ArcRift Embedding Connection Test",
+        },
+        { headers, timeout: 20000 }
+      );
+
+      const latencyMs = Date.now() - startTime;
+      const dim = resp.data?.data?.[0]?.embedding?.length || 768;
+
+      results.embedding = {
+        success: true,
+        latencyMs,
+        model: embeddingModel,
+        dimension: dim,
+        message: `Embedding API connected successfully. (Vector Dimension: ${dim})`,
+      };
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      const errorMsg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err.message ||
+        "Embedding connection failed";
+
+      results.embedding = {
+        success: false,
+        latencyMs,
+        model: embeddingModel,
+        error: errorMsg,
+      };
+      results.success = false;
+    }
+  }
+
+  res.json(results);
 });
 
 export default router;

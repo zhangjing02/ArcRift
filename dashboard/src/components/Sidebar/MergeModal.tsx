@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { Session } from "../../types";
+import { useLocale } from "../../context/LocaleContext";
 
 interface MergeModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface MergeModalProps {
 
 const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, sessions, activeSessionId, onMerge }) => {
   const [selectedSourceId, setSelectedSourceId] = useState<string>("");
+  const { t } = useLocale();
 
   if (!isOpen) return null;
 
@@ -36,29 +38,33 @@ const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, sessions, acti
         border: '1px solid #2d3340',
         borderRadius: '12px',
         padding: '24px',
-        width: '400px',
+        width: '440px',
         maxWidth: '90vw',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
       }}>
-        <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, color: '#fff' }}>Merge Session</h2>
+        <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, color: '#fff' }}>
+          {t.sidebar.mergeModal.title}
+        </h2>
         
         <p style={{ color: '#9ca3af', fontSize: '14px', marginBottom: '20px', lineHeight: 1.5 }}>
-          Select a project to merge into the current active session. All facts, chunks, and chat history will be combined.
+          {t.sidebar.mergeModal.desc}
           <br /><br />
-          <strong style={{ color: '#ef4444' }}>Warning:</strong> The selected source session will be permanently deleted after merging.
+          <strong style={{ color: '#ef4444' }}>{t.sidebar.mergeModal.warning}</strong>
         </p>
 
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#cbd5e1' }}>Source Session</label>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#cbd5e1' }}>
+            {t.sidebar.mergeModal.sourceLabel}
+          </label>
           <select 
             className="config-select"
             value={selectedSourceId}
             onChange={(e) => setSelectedSourceId(e.target.value)}
             style={{ width: '100%' }}
           >
-            <option value="" disabled>Select a session...</option>
+            <option value="" disabled>{t.sidebar.mergeModal.selectPlaceholder}</option>
             {mergeOptions.map(s => (
-              <option key={s._id} value={s._id}>{s.projectName}</option>
+              <option key={s._id} value={s._id}>{s.projectName} ({s.tripleCount} {t.sidebar.factsCountSuffix})</option>
             ))}
           </select>
         </div>
@@ -69,7 +75,7 @@ const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, sessions, acti
             onClick={onClose}
             style={{ padding: '8px 16px', borderRadius: '6px' }}
           >
-            Cancel
+            {t.sidebar.mergeModal.cancel}
           </button>
           <button 
             className="chat-submit-btn" 
@@ -81,7 +87,7 @@ const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, sessions, acti
               color: '#fff', border: 'none', cursor: selectedSourceId ? 'pointer' : 'not-allowed'
             }}
           >
-            Merge
+            {t.sidebar.mergeModal.mergeBtn}
           </button>
         </div>
       </div>

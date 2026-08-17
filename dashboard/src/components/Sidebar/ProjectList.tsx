@@ -1,6 +1,7 @@
 import React from "react";
 import type { Session } from "../../types";
 import { exportSession } from "../../api/ArcRift";
+import { useLocale } from "../../context/LocaleContext";
 
 interface ProjectListProps {
   sessions: Session[];
@@ -25,19 +26,28 @@ const ProjectList: React.FC<ProjectListProps> = ({
   onImport,
   onMergeClick,
 }) => {
+  const { t, locale } = useLocale();
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (window.confirm(t.sidebar.deleteConfirm)) {
+      onDeleteSession(e, id);
+    }
+  };
+
   return (
     <div className="session-list">
       <div className="search-container" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <input
           className="search-input"
-          placeholder="Search projects..."
+          placeholder={t.sidebar.searchPlaceholder}
           value={sessionSearch}
           onChange={(e) => setSessionSearch(e.target.value)}
           style={{ flex: 1 }}
         />
         <label
           className="tab-btn"
-          title="Import Session"
+          title={t.sidebar.importSessionTitle}
           style={{ padding: "8px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -56,11 +66,16 @@ const ProjectList: React.FC<ProjectListProps> = ({
             <line x1="3" y1="9" x2="21" y2="9"></line>
             <line x1="9" y1="21" x2="9" y2="9"></line>
           </svg>
-          No sessions found.
+          {t.sidebar.noSessions}
         </div>
       ) : (
         sessions.map((session) => {
           const isActive = activeSessionId === session._id;
+          const formattedDate = new Date(session.updatedAt).toLocaleDateString(
+            locale === "zh" ? "zh-CN" : "en-US",
+            { month: "short", day: "numeric" }
+          );
+
           return (
             <div key={session._id} className={`session-item ${isActive ? "active" : ""}`} onClick={() => onSessionSelect(session)}>
               <div className="session-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
@@ -69,7 +84,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 </div>
                 <div className="session-actions" style={{ display: "flex", gap: "4px" }}>
                   {isActive && (
-                    <button className="action-btn" title="Merge Another Session" onClick={(e) => { e.stopPropagation(); onMergeClick(session._id); }}>
+                    <button className="action-btn" title={t.sidebar.mergeSessionTitle} onClick={(e) => { e.stopPropagation(); onMergeClick(session._id); }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M8 6h13"></path>
                         <path d="M8 12h13"></path>
@@ -80,14 +95,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       </svg>
                     </button>
                   )}
-                  <button className="action-btn" title="Export Session" onClick={(e) => { e.stopPropagation(); exportSession(session._id); }}>
+                  <button className="action-btn" title={t.sidebar.exportSessionTitle} onClick={(e) => { e.stopPropagation(); exportSession(session._id); }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                       <polyline points="7 10 12 15 17 10"></polyline>
                       <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
                   </button>
-                  <button className="action-btn delete-btn" title="Delete Session" onClick={(e) => onDeleteSession(e, session._id)}>
+                  <button className="action-btn delete-btn" title={t.sidebar.deleteSessionTitle} onClick={(e) => handleDelete(e, session._id)}>
                     {deletingId === session._id ? "..." : (
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M3 6h18"></path>
@@ -98,8 +113,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 </div>
               </div>
               <div className="session-meta">
-                <span>{session.tripleCount} facts · {session.platform}</span>
-                <span>{new Date(session.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                <span>{session.tripleCount} {t.sidebar.factsCountSuffix} · {session.platform}</span>
+                <span>{formattedDate}</span>
               </div>
             </div>
           );
