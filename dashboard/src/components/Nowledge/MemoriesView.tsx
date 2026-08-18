@@ -43,6 +43,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [editTab, setEditTab] = useState<"edit" | "preview" | "split">("edit");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [saveSuccessTip, setSaveSuccessTip] = useState(false);
+  const [saveErrorTip, setSaveErrorTip] = useState<string | null>(null);
 
   useEffect(() => {
     onSelectedMemoryChange?.(selectedMemory);
@@ -179,7 +180,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       loadData();
     } catch (err: any) {
       console.error("Failed to save memory edit", err);
-      alert("保存失败: " + (err?.message || "网络请求异常"));
+      setSaveErrorTip(err?.message || "网络请求异常");
+      setTimeout(() => setSaveErrorTip(null), 4000);
     } finally {
       setIsSavingEdit(false);
     }
@@ -280,6 +282,11 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             <span>返回记忆列表</span>
           </button>
           <div className="nl-detail-header-actions">
+            {saveErrorTip && (
+              <span className="nl-save-error-badge">
+                ✕ 保存失败: {saveErrorTip}
+              </span>
+            )}
             {saveSuccessTip && (
               <span className="nl-save-success-badge">
                 <IconCheck size={13} style={{ marginRight: 4 }} />
