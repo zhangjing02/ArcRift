@@ -54,11 +54,14 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     targetZoom: 1.05,
   });
 
-  // Calculate 3D node coordinates
+  // Current node positions for smooth transition animation
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number; z: number }>>(new Map());
+
+  // Calculate 3D node coordinates — each mode has completely different spatial logic
   const nodes3D = useMemo(() => {
     if (!data.nodes || data.nodes.length === 0) return [];
 
-    // Calculate node degree (number of connected links)
+    // ── Degree map ─────────────────────────────────────────────────────────────
     const degreeMap = new Map<string, number>();
     data.links.forEach((l: any) => {
       const src = typeof l.source === "object" ? l.source.id : l.source;
@@ -68,60 +71,149 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     });
 
     const totalNodes = data.nodes.length;
+    const maxDegree = Math.max(1, ...Array.from(degreeMap.values()));
+
     return data.nodes.map((n: GraphNode, i: number) => {
       const degree = degreeMap.get(n.id) || 1;
-      
-      // Compute 2D base positions in a distributed circle/spiral
-      const angle = (i / totalNodes) * Math.PI * 2 + (i % 2) * 0.5;
-      const radius = 160 + (i % 3) * 65 + (i * 12) % 90;
-      const baseX = Math.cos(angle) * radius;
-      const baseY = Math.sin(angle) * radius;
+      let x = 0, y = 0, z = 0, layer = 0;
 
-      // Compute Target Z based on HeightMetric
-      let targetZ = 0;
-      let layer = 0;
+      // ────────────────────────────────────────────────────────────────────────
+      // CONSTELLATION MODE — nodes on sphere surface, all same height band
+      // ────────────────────────────────────────────────────────────────────────
       if (viewMode3D === "constellation") {
-        const phi = Math.acos(-1 + (2 * i) / totalNodes);
-        targetZ = Math.sin(phi) * 140;
-      } else {
-        if (heightMetric === "influence") {
-          targetZ = Math.min(220, (degree - 1) * 35 + 25);
-          layer = Math.min(4, Math.floor(targetZ / 45));
-        } else if (heightMetric === "structure") {
-          targetZ = (i % 4) * 55 + (degree > 2 ? 60 : 15);
-          layer = Math.min(4, Math.floor(targetZ / 55));
-        } else if (heightMetric === "morphology") {
-          const t = (n.type || "").toLowerCase();
-          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) {
-            targetZ = 200;
-            layer = 3;
-          } else if (t.includes("tech") || t.includes("doc") || t.includes("file")) {
-            targetZ = 135;
-            layer = 2;
-          } else if (t.includes("concept") || t.includes("entity")) {
-            targetZ = 80;
-            layer = 1;
-          } else {
-            targetZ = 25;
-            layer = 0;
-          }
-        } else if (heightMetric === "growth") {
-          // Newest nodes at top, older at bottom
-          targetZ = ((totalNodes - 1 - i) / Math.max(1, totalNodes - 1)) * 210 + 15;
-          layer = Math.min(3, Math.floor((totalNodes - 1 - i) / 2));
+        const phi = Math.acos(-1 + (2 * i) / Math.max(1, totalNodes));
+        const theta = Math.sqrt(totalNodes * Math.PI) * phi;
+        const R = 240;
+        x = R * Math.sin(phi) * Math.cos(theta);
+        y = R * Math.sin(phi) * Math.sin(theta);
+        z = R * Math.cos(phi) * 0.5 + 100; // flatten slightly
+        layer = 0;
+
+      // ────────────────────────────────────────────────────────────────────────
+      // INFLUENCE MODE — mountain terrain: high-degree nodes rise to peaks,
+      //   low-degree nodes scatter flat at base. XY spreads based on degree rank.
+      //   => High-connectivity hub at center-top, peripheral nodes fan out flat.
+      // ────────────────────────────────────────────────────────────────────────
+      } else if (heightMetric === "influence") {
+        const degreeRatio = degree / maxDegree; // 0..1
+        // High-degree nodes cluster near center, low-degree spread wide
+        const radialDistance = (1 - degreeRatio) * 320 + 40;
+        const angle = (i / totalNodes) * Math.PI * 2 + (i * 0.618) * Math.PI;
+        x = Math.cos(angle) * radialDistance * (0.7 + Math.random() * 0.3);
+        y = Math.sin(angle) * radialDistance * (0.7 + Math.random() * 0.3);
+        // Z = height is purely driven by degree
+        z = degreeRatio * 350 + (degree > 1 ? 30 : 5);
+        layer = Math.min(4, Math.floor(degreeRatio * 5));
+
+      // ────────────────────────────────────────────────────────────────────────
+      // STRUCTURE MODE — concentric shell rings, nodes at same K-core level
+      //   are placed on the same radial shell. Innermost core = tallest.
+      //   => Nodes that survive k-core pruning stay central and high.
+      // ────────────────────────────────────────────────────────────────────────
+      } else if (heightMetric === "structure") {
+        // Approximate k-core depth by degree rank
+        const sortedByDegree = [...data.nodes]
+          .map((nn: GraphNode) => ({ id: nn.id, deg: degreeMap.get(nn.id) || 1 }))
+          .sort((a, b) => b.deg - a.deg);
+        const rank = sortedByDegree.findIndex((nn) => nn.id === n.id);
+        const shellRatio = rank / Math.max(1, totalNodes - 1); // 0=innermost core, 1=outermost
+        
+        // Nodes in same shell distributed evenly in that ring
+        const numInShell = Math.max(1, Math.round(totalNodes / 5));
+        const shellIndex = Math.floor(rank / numInShell);
+        const posInShell = rank % numInShell;
+        const shellAngle = (posInShell / numInShell) * Math.PI * 2 + shellIndex * 0.8;
+        
+        const minR = 40, maxR = 340;
+        const r = minR + shellRatio * (maxR - minR);
+        x = Math.cos(shellAngle) * r;
+        y = Math.sin(shellAngle) * r;
+        // Inner (lower shellRatio) → higher Z, outer nodes very flat
+        z = (1 - shellRatio) * 300 + 15;
+        layer = Math.min(4, 4 - Math.floor(shellRatio * 5));
+
+      // ────────────────────────────────────────────────────────────────────────
+      // MORPHOLOGY MODE — strict horizontal layers by knowledge type.
+      //   Each type occupies a different altitude band with nodes distributed
+      //   across a wide XY plane within that band.
+      //   Layer 0 (ground): raw records / chat
+      //   Layer 1 (low):    memory / decision
+      //   Layer 2 (mid):    concept / entity
+      //   Layer 3 (high):   document / tech
+      //   Layer 4 (peak):   skill / rule / architecture
+      // ────────────────────────────────────────────────────────────────────────
+      } else if (heightMetric === "morphology") {
+        const t = (n.type || "").toLowerCase();
+        if (t.includes("rule") || t.includes("arch") || t.includes("skill")) {
+          layer = 4; z = 320;
+        } else if (t.includes("tech") || t.includes("doc") || t.includes("file")) {
+          layer = 3; z = 240;
+        } else if (t.includes("concept") || t.includes("entity")) {
+          layer = 2; z = 155;
+        } else if (t.includes("memory") || t.includes("decision")) {
+          layer = 1; z = 75;
+        } else {
+          layer = 0; z = 15;
         }
+        // Within each layer, distribute nodes on a wide flat grid
+        const layerNodes = data.nodes.filter((nn: GraphNode) => {
+          const nt = (nn.type || "").toLowerCase();
+          if (layer === 4) return nt.includes("rule") || nt.includes("arch") || nt.includes("skill");
+          if (layer === 3) return nt.includes("tech") || nt.includes("doc") || nt.includes("file");
+          if (layer === 2) return nt.includes("concept") || nt.includes("entity");
+          if (layer === 1) return nt.includes("memory") || nt.includes("decision");
+          return true;
+        });
+        const posInLayer = layerNodes.findIndex((nn: GraphNode) => nn.id === n.id);
+        const countInLayer = Math.max(1, layerNodes.length);
+        const layerAngle = (posInLayer / countInLayer) * Math.PI * 2;
+        const layerR = 90 + posInLayer * 30;
+        x = Math.cos(layerAngle) * layerR;
+        y = Math.sin(layerAngle) * layerR;
+
+      // ────────────────────────────────────────────────────────────────────────
+      // GROWTH MODE — time strata: newest nodes at top, oldest at bottom.
+      //   Nodes at same time band share a horizontal layer.
+      //   Time bands: 0-7d, 7-30d, 30d-1yr, 1yr+
+      // ────────────────────────────────────────────────────────────────────────
+      } else if (heightMetric === "growth") {
+        // Use node index as proxy for "age" (first added = oldest = lowest)
+        const ageRatio = i / Math.max(1, totalNodes - 1); // 0=oldest, 1=newest
+        
+        // 4 distinct time bands
+        if (ageRatio > 0.85) { layer = 3; z = 300; }         // 现在 (recent)
+        else if (ageRatio > 0.6) { layer = 2; z = 210; }     // 7天
+        else if (ageRatio > 0.3) { layer = 1; z = 120; }     // 30天
+        else { layer = 0; z = 30; }                           // 1年以上
+
+        // Add some vertical jitter within band
+        z += (Math.random() - 0.5) * 25;
+
+        // XY: stagger nodes in a zigzag across the canvas
+        const angle = (i / totalNodes) * Math.PI * 4 + layer * 0.9;
+        const r = 100 + (i % 5) * 55;
+        x = Math.cos(angle) * r;
+        y = Math.sin(angle) * r;
       }
+
+      // Retrieve previous position for smooth lerp (if exists)
+      const prev = nodePositionsRef.current.get(n.id);
+      const startX = prev ? prev.x : x;
+      const startY = prev ? prev.y : y;
+      const startZ = prev ? prev.z : z;
 
       return {
         ...n,
-        x: baseX,
-        y: baseY,
-        z: targetZ,
-        targetZ,
-        currentZ: targetZ,
+        x: startX,
+        y: startY,
+        z: startZ,
+        targetX: x,
+        targetY: y,
+        targetZ: z,
+        currentZ: startZ,
         degree,
         layer,
-      } as Node3D;
+      } as Node3D & { targetX: number; targetY: number };
     });
   }, [data.nodes, data.links, heightMetric, viewMode3D]);
 
@@ -180,7 +272,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       // ── 1. DRAW BASE TERRAIN CONTOUR RINGS / GRID ─────────────────────────
       if (viewMode3D === "terrain") {
         // Draw isometric base planes & elevation contour rings
-        const ringElevations = [0, 60, 120, 180];
+        const ringElevations = [0, 80, 160, 240, 320];
         ringElevations.forEach((elev) => {
           const pCenter = project(0, 0, elev);
           if (!pCenter.visible) return;
@@ -214,47 +306,82 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
         if (heightMetric === "growth") {
           const timeSteps = [
-            { label: "现在", z: 220 },
-            { label: "7 天", z: 155 },
-            { label: "30 天", z: 90 },
-            { label: "1 年以上", z: 20 },
+            { label: "现在", z: 300 },
+            { label: "7 天", z: 210 },
+            { label: "30 天", z: 120 },
+            { label: "1 年以上", z: 30 },
           ];
           timeSteps.forEach((step) => {
-            const p = project(-320, 0, step.z);
+            const p = project(-380, 0, step.z);
             if (p.visible) {
-              // Draw isometric tick line
-              const pTick = project(-290, 0, step.z);
-              ctx.strokeStyle = "rgba(100, 116, 139, 0.3)";
+              const pTick = project(-340, 0, step.z);
+              ctx.strokeStyle = "rgba(100, 116, 139, 0.35)";
+              ctx.lineWidth = 0.8 * window.devicePixelRatio;
               ctx.beginPath();
               ctx.moveTo(p.sx - 8, p.sy);
               ctx.lineTo(p.sx, p.sy);
               ctx.lineTo(pTick.sx, pTick.sy);
               ctx.stroke();
-              ctx.fillText(step.label, p.sx - 12, p.sy + 3.5);
+              ctx.fillText(step.label, p.sx - 12, p.sy + 4);
             }
           });
         } else if (heightMetric === "morphology") {
           const morphSteps = [
-            { label: "知识结晶", z: 200 },
-            { label: "技术规范", z: 135 },
-            { label: "概念实体", z: 80 },
-            { label: "原始记录", z: 25 },
+            { label: "知识结晶", z: 320 },
+            { label: "技术规范", z: 240 },
+            { label: "概念实体", z: 155 },
+            { label: "记忆决策", z: 75 },
+            { label: "原始记录", z: 15 },
           ];
           morphSteps.forEach((step) => {
-            const p = project(-320, 0, step.z);
+            const p = project(-380, 0, step.z);
             if (p.visible) {
-              ctx.fillText(step.label, p.sx - 12, p.sy + 3.5);
+              ctx.fillText(step.label, p.sx - 12, p.sy + 4);
+            }
+          });
+        } else if (heightMetric === "influence") {
+          const influenceSteps = [
+            { label: "高影响力", z: 350 },
+            { label: "中等", z: 200 },
+            { label: "低", z: 60 },
+          ];
+          influenceSteps.forEach((step) => {
+            const p = project(-380, 0, step.z);
+            if (p.visible) {
+              ctx.fillText(step.label, p.sx - 12, p.sy + 4);
+            }
+          });
+        } else if (heightMetric === "structure") {
+          const structureSteps = [
+            { label: "核心", z: 300 },
+            { label: "内层", z: 200 },
+            { label: "中层", z: 110 },
+            { label: "离散", z: 20 },
+          ];
+          structureSteps.forEach((step) => {
+            const p = project(-380, 0, step.z);
+            if (p.visible) {
+              ctx.fillText(step.label, p.sx - 12, p.sy + 4);
             }
           });
         }
         ctx.restore();
       }
 
-      // ── 2. PROJECT AND INTERPOLATE ALL NODES ─────────────────────────────
+      // ── 2. PROJECT AND INTERPOLATE ALL NODES (X/Y/Z smooth lerp) ───────────
       const projectedNodes: Node3D[] = [];
-      nodes3D.forEach((n) => {
-        n.currentZ += (n.targetZ - n.currentZ) * 0.12;
-        const p = project(n.x, n.y, n.currentZ);
+      const lerp = 0.10;
+      nodes3D.forEach((n: any) => {
+        // Lerp X and Y too for smooth spatial transition
+        n.x += ((n.targetX ?? n.x) - n.x) * lerp;
+        n.y += ((n.targetY ?? n.y) - n.y) * lerp;
+        n.z += (n.targetZ - n.z) * lerp;
+        n.currentZ = n.z;
+
+        // Save current position for next mode switch
+        nodePositionsRef.current.set(n.id, { x: n.x, y: n.y, z: n.z });
+
+        const p = project(n.x, n.y, n.z);
         if (p.visible) {
           n.screenX = p.sx;
           n.screenY = p.sy;
