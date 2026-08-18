@@ -20,10 +20,12 @@ import type { Session } from "./types";
 import { useSessions } from "./hooks/useSessions";
 import { apiClient, extractErrorMessage } from "./api/ArcRift";
 import { LocaleProvider } from "./context/LocaleContext";
+import { NowledgeTopHeader } from "./components/Nowledge/NowledgeTopHeader";
 
 const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>("timeline");
   const [activeSession, setActiveSession] = useState<Session | null>(null);
+  const [selectedMemoryTitle, setSelectedMemoryTitle] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +67,10 @@ const AppContent: React.FC = () => {
       {/* 1. Global Left Sidebar */}
       <NowledgeSidebar
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={(tab) => {
+          setCurrentTab(tab);
+          setSelectedMemoryTitle(null);
+        }}
         sessions={sessions}
         activeSessionId={activeSession?._id}
         onSessionSelect={setActiveSession}
@@ -75,19 +80,34 @@ const AppContent: React.FC = () => {
 
       {/* 2. Main Workspace */}
       <main className="nl-main-workspace">
-        {currentTab === "timeline" && (
-          <TimelineView
-            activeSession={activeSession || undefined}
-            onNavigateTab={(tab) => setCurrentTab(tab as NavTab)}
-          />
-        )}
+        {/* Global Top Header Bar */}
+        <NowledgeTopHeader
+          currentTab={currentTab}
+          activeSession={activeSession}
+          selectedMemoryTitle={selectedMemoryTitle}
+        />
 
-        {currentTab === "memories" && (
-          <MemoriesView
-            activeSession={activeSession || undefined}
-            onNavigateTab={(tab) => setCurrentTab(tab as NavTab)}
-          />
-        )}
+        <div className="nl-workspace-content-body">
+          {currentTab === "timeline" && (
+            <TimelineView
+              activeSession={activeSession || undefined}
+              onNavigateTab={(tab) => {
+                setCurrentTab(tab as NavTab);
+                setSelectedMemoryTitle(null);
+              }}
+            />
+          )}
+
+          {currentTab === "memories" && (
+            <MemoriesView
+              activeSession={activeSession || undefined}
+              onNavigateTab={(tab) => {
+                setCurrentTab(tab as NavTab);
+                setSelectedMemoryTitle(null);
+              }}
+              onSelectedMemoryChange={(mem) => setSelectedMemoryTitle(mem ? mem.title : null)}
+            />
+          )}
 
         {currentTab === "threads" && (
           <ThreadsView
@@ -133,6 +153,7 @@ const AppContent: React.FC = () => {
         {currentTab === "feedback" && <StatsView sessions={sessions} />}
 
         {currentTab === "settings" && <NowledgeSettingsView />}
+        </div>
       </main>
 
       {error && (

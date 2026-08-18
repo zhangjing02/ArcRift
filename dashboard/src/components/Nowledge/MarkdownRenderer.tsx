@@ -17,25 +17,19 @@ function highlightCode(code: string, lang?: string): string {
   const l = (lang || "").toLowerCase();
 
   if (l === "json") {
-    // JSON syntax highlighting
     safeCode = safeCode
       .replace(/"([^"]+)":/g, '<span class="token-key">"$1"</span>:')
       .replace(/:\s*"([^"]*)"/g, ': <span class="token-string">"$1"</span>')
       .replace(/:\s*(\b\d+(\.\d+)?\b)/g, ': <span class="token-number">$1</span>')
       .replace(/:\s*(true|false|null)\b/g, ': <span class="token-boolean">$1</span>');
   } else if (l === "kotlin" || l === "java" || l === "typescript" || l === "javascript" || l === "ts" || l === "js") {
-    // Keywords
     const keywords = /\b(fun|val|var|class|interface|object|enum|override|private|public|protected|internal|import|package|if|else|when|switch|case|default|for|while|do|return|break|continue|try|catch|finally|throw|new|const|let|async|await|function|export|from|type)\b/g;
     safeCode = safeCode.replace(keywords, '<span class="token-keyword">$1</span>');
 
-    // Types
     const types = /\b(String|Int|Long|Float|Double|Boolean|List|Map|Set|Array|Unit|Any|void|Promise|Response|Request|StateFlow|MutableStateFlow)\b/g;
     safeCode = safeCode.replace(types, '<span class="token-type">$1</span>');
 
-    // Strings
     safeCode = safeCode.replace(/(".*?"|'.*?'|`.*?`)/g, '<span class="token-string">$1</span>');
-
-    // Comments
     safeCode = safeCode.replace(/(\/\/.*$)/gm, '<span class="token-comment">$1</span>');
   } else if (l === "log") {
     safeCode = safeCode
@@ -55,26 +49,48 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 }) => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  // Extract Summary if present
-  let summaryText = "";
-  let bodyContent = content;
-
-  // Check if content starts with or contains a Summary section
-  const summaryMatch = content.match(/^(?:#+\s*.*?\n+)?(?:>+\s*(?:\[!NOTE\]|\[!IMPORTANT\]|\[!SUMMARY\])?\s*|\*\*摘要[：:]\*\*|\*\*Summary[：:]\*\*|###?\s*摘要|###?\s*一、问题背景与现象描述\n)([\s\S]*?)(?=\n##|\n###|\n---|$)/i);
-
-  if (summaryMatch && summaryMatch[1]?.trim().length > 10) {
-    const rawSum = summaryMatch[1].trim();
-    // Keep first 200 chars or lines
-    summaryText = rawSum.replace(/^[-*>\s]+/gm, "").slice(0, 300);
-  } else {
-    // Extract first meaningful paragraph
-    const paragraphs = content.split(/\n\s*\n/).filter((p) => !p.trim().startsWith("#") && p.trim().length > 15);
-    if (paragraphs.length > 0) {
-      summaryText = paragraphs[0].replace(/^[-*>\s]+/gm, "").slice(0, 250);
+  // 1. Strip duplicate top H1 title from body content if it exists
+  let bodyContent = content.trim();
+  if (bodyContent.startsWith("# ")) {
+    const firstNewline = bodyContent.indexOf("\n");
+    if (firstNewline !== -1) {
+      bodyContent = bodyContent.substring(firstNewline + 1).trim();
     }
   }
 
-  // Parse code blocks vs markdown sections
+  // 2. Intelligent High-Quality Summary Extractor (no code lines!)
+  let summaryText = "";
+  
+  // Try extracting from explicit summary / description blocks
+  const lines = content.split("\n");
+  const candidates: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Skip code fences or code lines
+    if (trimmed.startsWith("```") || trimmed.startsWith("val ") || trimmed.startsWith("var ") || trimmed.startsWith("fun ") || trimmed.startsWith("class ") || trimmed.startsWith("private ") || trimmed.startsWith("import ") || trimmed.startsWith("{") || trimmed.startsWith("}") || trimmed.includes("coroutine") || trimmed.startsWith("<?xml")) {
+      continue;
+    }
+    // Skip Markdown headers
+    if (trimmed.startsWith("#")) continue;
+
+    // Clean markdown list bullets and quotes
+    const cleanLine = trimmed.replace(/^[-*>\d.]+\s+/, "").replace(/[*`_]/g, "").trim();
+    if (cleanLine.length > 20 && !cleanLine.includes("{") && !cleanLine.includes("=") && !cleanLine.includes("(")) {
+      candidates.push(cleanLine);
+      if (candidates.length >= 2) break;
+    }
+  }
+
+  if (candidates.length > 0) {
+    summaryText = candidates.join(" ");
+    if (summaryText.length > 240) {
+      summaryText = summaryText.slice(0, 240) + "...";
+    }
+  }
+
+  // 3. Parse code blocks vs markdown sections
   const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
   const parts: { type: "markdown" | "code"; lang?: string; code?: string; html?: string }[] = [];
 
@@ -125,7 +141,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             </div>
             <span className="nl-summary-badge">AI 提炼</span>
           </div>
-          <p className="nl-summary-text">{summaryText}...</p>
+          <p className="nl-summary-text">{summaryText}</p>
         </div>
       )}
 

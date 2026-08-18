@@ -6,11 +6,13 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 interface MemoriesViewProps {
   activeSession?: Session;
   onNavigateTab: (tab: string) => void;
+  onSelectedMemoryChange?: (memory: Memory | null) => void;
 }
 
 export const MemoriesView: React.FC<MemoriesViewProps> = ({
   activeSession,
   onNavigateTab,
+  onSelectedMemoryChange,
 }) => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,6 +23,10 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+
+  useEffect(() => {
+    onSelectedMemoryChange?.(selectedMemory);
+  }, [selectedMemory]);
 
   // New Memory Form
   const [formTitle, setFormTitle] = useState("");
