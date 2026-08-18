@@ -57,6 +57,56 @@ router.get("/", async (_req: Request, res: Response) => {
   }
 });
 
+// GET /api/settings/connect-info (Returns dynamic real-time machine-accurate MCP configuration)
+router.get("/connect-info", (_req: Request, res: Response) => {
+  try {
+    const { getAppRoot, getDbPath } = require("../utils/paths");
+    const path = require("path");
+    const fs = require("fs");
+
+    const appRoot = getAppRoot();
+    const mcpServerPath = path.join(appRoot, "backend", "dist", "mcp", "server.js");
+    const dbPath = getDbPath();
+
+    let nodeBin = "node";
+    const bundledNode = path.join(appRoot, "backend", "bin", "node.exe");
+    if (fs.existsSync(bundledNode)) {
+      nodeBin = bundledNode;
+    } else if (fs.existsSync("D:\\DevelopeTools\\Node\\node.exe")) {
+      nodeBin = "D:\\DevelopeTools\\Node\\node.exe";
+    }
+
+    const mcpConfig = {
+      mcpServers: {
+        "arcrift": {
+          command: nodeBin,
+          args: [mcpServerPath],
+          env: {
+            ARCRIFT_MCP_MODE: "true",
+            ARCRIFT_STORAGE_MODE: "sqlite",
+            SQLITE_DB_PATH: dbPath,
+            NODE_ENV: "production",
+          },
+        },
+      },
+    };
+
+    res.json({
+      success: true,
+      appRoot,
+      mcpServerPath,
+      dbPath,
+      nodeBin,
+      mcpJson: JSON.stringify(mcpConfig, null, 2),
+      prompt:
+        "在当前项目中启用 ArcRift (Nowledge Mem) 长期记忆与知识图谱工作台。每次解决重大 Bug、完成架构决策、更新 API 规范或收到 'CM' / '存档' 指令时，请主动调用 arcrift 的 memory_add 工具将经验与知识存入知识库；在遇到类似问题前，先调用 memory_search 检索历史经验。",
+    });
+  } catch (err: any) {
+    logger.error("Failed to get connect info:", err?.message);
+    res.status(500).json({ error: "Failed to get connect info" });
+  }
+});
+
 // POST /api/settings
 router.post("/", async (req: Request, res: Response) => {
   try {
