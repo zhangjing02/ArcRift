@@ -884,3 +884,12 @@ once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
 [2026-08-18T10:54:24.437Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-AgcKdiW2.js:86)
 [2026-08-18T10:55:21.618Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
 [2026-08-18T10:55:21.618Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-AgcKdiW2.js:86)
+[2026-08-18T11:00:05.142Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T11:00:05.167Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
