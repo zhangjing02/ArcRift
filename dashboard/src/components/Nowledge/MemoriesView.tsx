@@ -12,6 +12,12 @@ import {
   IconTag,
   IconSearch,
   IconMemories,
+  IconTerminal,
+  IconCategory,
+  IconFolder,
+  IconCalendar,
+  IconStar,
+  IconCheck,
 } from "./Icons";
 
 interface MemoriesViewProps {
@@ -249,7 +255,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           </button>
           <div className="nl-detail-header-actions">
             <button
-              className="nl-btn-ghost"
+              className={`nl-detail-header-icon-btn ${isEditing ? "editing" : ""}`}
+              title={isEditing ? "完成编辑并保存" : "编辑记忆"}
               onClick={() => {
                 if (!isEditing) {
                   setEditTitle(selectedMemory.title);
@@ -260,8 +267,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 }
               }}
             >
-              <IconEdit size={13} style={{ marginRight: 4 }} />
-              <span>{isEditing ? "完成编辑" : "编辑"}</span>
+              {isEditing ? <IconCheck size={16} /> : <IconEdit size={16} />}
             </button>
           </div>
         </div>
@@ -306,7 +312,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
               {/* Pin Switch */}
               <div className="nl-sidebar-field-row">
                 <span className="nl-field-label">
-                  <IconPin size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                  <IconPin size={13} className="nl-field-icon" />
                   收藏记忆
                 </span>
                 <input
@@ -325,13 +331,19 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
               {/* Source */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">来源:</span>
+                <span className="nl-field-label">
+                  <IconTerminal size={13} className="nl-field-icon" />
+                  来源:
+                </span>
                 <span className="nl-field-value">来自 {selectedMemory.source || "MCP"}</span>
               </div>
 
               {/* Unit Type */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">类型:</span>
+                <span className="nl-field-label">
+                  <IconCategory size={13} className="nl-field-icon" />
+                  类型:
+                </span>
                 <select
                   className="nl-field-select"
                   value={selectedMemory.unitType || selectedMemory.category || "decision"}
@@ -354,7 +366,10 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
               {/* Space */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">存放于:</span>
+                <span className="nl-field-label">
+                  <IconFolder size={13} className="nl-field-icon" />
+                  存放于:
+                </span>
                 <span className="nl-field-value nl-space-badge">
                   {selectedMemory.sessionId === "default" || !selectedMemory.sessionId
                     ? "Default"
@@ -364,13 +379,19 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
               {/* Created At */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">创建于:</span>
+                <span className="nl-field-label">
+                  <IconCalendar size={13} className="nl-field-icon" />
+                  创建于:
+                </span>
                 <span className="nl-field-value">{getTimeAgo(selectedMemory.createdAt)}</span>
               </div>
 
               {/* Importance 5-Star Rating */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">重要度:</span>
+                <span className="nl-field-label">
+                  <IconStar size={13} className="nl-field-icon" />
+                  重要度:
+                </span>
                 <div className="nl-star-rating-row">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <span

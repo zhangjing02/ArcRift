@@ -3680,6 +3680,32 @@ body {
   color: #94a3b8;
 }
 
+.nl-detail-header-icon-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nl-detail-header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.nl-detail-header-icon-btn.editing {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
 .nl-sidebar-field-row {
   display: flex;
   justify-content: space-between;
@@ -3688,7 +3714,16 @@ body {
 }
 
 .nl-field-label {
-  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+.nl-field-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
 }
 
 .nl-field-value {
