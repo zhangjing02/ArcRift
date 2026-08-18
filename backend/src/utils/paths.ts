@@ -1,4 +1,4 @@
-﻿import path from "path";
+import path from "path";
 import fs from "fs";
 
 let cachedAppRoot: string | null = null;
@@ -90,16 +90,23 @@ export function getDbPath(): string {
     return process.env.SQLITE_DB_PATH;
   }
 
-  const dataDir = getDataDir();
-  const primaryDb = path.join(dataDir, "NowledgeMem.db");
-  const legacyDb = path.join(dataDir, "ArcRift.db");
+  const backendDb = path.join(getAppRoot(), "backend", "ArcRift.db");
+  if (fs.existsSync(backendDb)) {
+    return backendDb;
+  }
 
-  // Keep compatibility if ArcRift.db already exists
-  if (!fs.existsSync(primaryDb) && fs.existsSync(legacyDb)) {
+  const dataDir = getDataDir();
+  const legacyDb = path.join(dataDir, "ArcRift.db");
+  if (fs.existsSync(legacyDb)) {
     return legacyDb;
   }
 
-  return primaryDb;
+  const nowledgeDb = path.join(dataDir, "NowledgeMem.db");
+  if (fs.existsSync(nowledgeDb)) {
+    return nowledgeDb;
+  }
+
+  return backendDb;
 }
 
 /**

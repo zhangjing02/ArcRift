@@ -39,8 +39,9 @@ function startBackend() {
   cleanEnv.PORT = String(PORT);
   cleanEnv.NODE_ENV = "production";
   cleanEnv.ARCRIFT_STORAGE_MODE = "sqlite";
+  cleanEnv.SQLITE_DB_PATH = path.resolve(backendDir, "ArcRift.db");
 
-  log(`Spawning backend: node "${backendEntry}" (cwd: ${backendDir})`);
+  log(`Spawning backend: node "${backendEntry}" (cwd: ${backendDir}) with DB: ${cleanEnv.SQLITE_DB_PATH}`);
 
   try {
     backendProcess = spawn("node", [backendEntry], {

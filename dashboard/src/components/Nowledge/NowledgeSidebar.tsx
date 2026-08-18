@@ -253,16 +253,22 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
       <div className="nl-project-section">
         <div className="nl-section-header">当前空间 / 项目</div>
         <select
-          value={activeSession?._id || ""}
+          value={activeSession?._id || "all"}
           onChange={(e) => {
-            const found = sessions.find((s) => s._id === e.target.value);
-            if (found) onSessionSelect(found);
+            const val = e.target.value;
+            if (val === "all") {
+              onSessionSelect(null as any);
+            } else {
+              const found = sessions.find((s) => s._id === val);
+              if (found) onSessionSelect(found);
+            }
           }}
           className="nl-project-select"
         >
+          <option value="all">🌟 全部空间 (All Spaces)</option>
           {sessions.map((s) => (
             <option key={s._id} value={s._id}>
-              {s.projectName} ({s.tripleCount || 0} 知识事实)
+              📁 {s.projectName}
             </option>
           ))}
         </select>
