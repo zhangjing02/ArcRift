@@ -480,3 +480,263 @@ For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T01:00:46.950Z] Starting ChronosMind Electron main.js...
+[2026-08-18T01:00:46.952Z] Registering app lifecycle events...
+[2026-08-18T01:00:47.194Z] app.whenReady fired!
+[2026-08-18T01:00:47.228Z] Creating BrowserWindow...
+[2026-08-18T01:00:47.383Z] Backend already active on port 3001! Loading window.
+[2026-08-18T01:00:47.383Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T01:00:47.749Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T01:00:47.750Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T01:00:47.752Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T01:00:51.874Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T01:00:51.941Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:26:06.317Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:26:06.318Z] Registering app lifecycle events...
+[2026-08-18T02:26:06.525Z] app.whenReady fired!
+[2026-08-18T02:26:06.567Z] Creating BrowserWindow...
+[2026-08-18T02:26:06.703Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:26:06.703Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:26:07.106Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:26:07.106Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:26:07.109Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:26:11.492Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:26:12.735Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:34:18.631Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:34:18.633Z] Registering app lifecycle events...
+[2026-08-18T02:34:18.845Z] app.whenReady fired!
+[2026-08-18T02:34:18.888Z] Creating BrowserWindow...
+[2026-08-18T02:34:19.041Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:34:19.042Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:34:19.424Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:34:19.425Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:34:19.426Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:34:23.441Z] [Renderer Console] [3] Refused to apply style from 'http://127.0.0.1:3001/assets/index-CA5P6nH0.css' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled. (http://127.0.0.1:3001/:37)
+[2026-08-18T02:34:23.442Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:34:23.443Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:34:49.235Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:34:49.237Z] Registering app lifecycle events...
+[2026-08-18T02:34:49.422Z] app.whenReady fired!
+[2026-08-18T02:34:49.468Z] Creating BrowserWindow...
+[2026-08-18T02:34:49.610Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:34:49.611Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:34:50.015Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:34:50.016Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:34:50.017Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:34:54.070Z] [Renderer Console] [3] Refused to apply style from 'http://127.0.0.1:3001/assets/index-CA5P6nH0.css' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled. (http://127.0.0.1:3001/:0)
+[2026-08-18T02:34:54.071Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:34:54.074Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:37:29.270Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:37:29.272Z] Registering app lifecycle events...
+[2026-08-18T02:37:29.508Z] app.whenReady fired!
+[2026-08-18T02:37:29.547Z] Creating BrowserWindow...
+[2026-08-18T02:37:29.714Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:37:29.714Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:37:30.110Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:37:30.111Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:37:30.112Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:37:34.487Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:37:35.101Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:37:53.760Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_201876b4-0aca-48ae-86db-8fe00a3a4630' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T02:37:53.761Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-DOiRPfNt.js:81)
+[2026-08-18T02:48:16.796Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:48:16.802Z] Registering app lifecycle events...
+[2026-08-18T02:48:17.388Z] app.whenReady fired!
+[2026-08-18T02:48:17.524Z] Creating BrowserWindow...
+[2026-08-18T02:48:18.022Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:48:18.023Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:48:18.290Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:48:18.291Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:48:18.295Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:48:23.125Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:48:23.332Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T02:54:16.991Z] Starting ChronosMind Electron main.js...
+[2026-08-18T02:54:16.995Z] Registering app lifecycle events...
+[2026-08-18T02:54:17.365Z] app.whenReady fired!
+[2026-08-18T02:54:17.421Z] Creating BrowserWindow...
+[2026-08-18T02:54:17.728Z] Backend already active on port 3001! Loading window.
+[2026-08-18T02:54:17.729Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:54:18.029Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T02:54:18.030Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T02:54:18.032Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T02:54:22.373Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T02:54:22.510Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T03:06:40.852Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T03:06:40.863Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T03:23:17.264Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T03:23:17.304Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T03:40:51.217Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T03:40:51.257Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T04:08:00.262Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T04:08:00.297Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T04:16:27.362Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T04:16:27.374Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T04:21:06.736Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T04:21:06.747Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T04:31:26.884Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T04:31:26.898Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T04:35:11.616Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_a509c2c5-e196-40e8-be2a-a3300f50e4f5' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T04:35:11.653Z] [Renderer Console] [3] Failed to update memory importance AxiosError: Network Error (http://127.0.0.1:3001/assets/index-CqXxleD5.js:86)
+[2026-08-18T04:35:12.447Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_a509c2c5-e196-40e8-be2a-a3300f50e4f5' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T04:35:12.449Z] [Renderer Console] [3] Failed to update memory importance AxiosError: Network Error (http://127.0.0.1:3001/assets/index-CqXxleD5.js:86)
+[2026-08-18T04:36:16.173Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T04:36:16.203Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T05:25:57.510Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T05:25:57.523Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T05:46:00.797Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T05:46:00.927Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T05:53:59.353Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T05:53:59.374Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T05:59:53.618Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T05:59:53.651Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:05:29.080Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:05:29.115Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:18:52.249Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:18:52.290Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
