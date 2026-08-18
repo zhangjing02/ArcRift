@@ -1340,17 +1340,55 @@ body {
   box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
 }
 
-/* RIGHT INSPECTOR PANEL (1:1 with Right Window) */
+/* RIGHT INSPECTOR PANEL (1:1 with Right Window, Resizable Splitter) */
 .nl-graph-inspector-panel {
-  width: 380px;
-  min-width: 360px;
-  max-width: 440px;
+  position: relative;
   background-color: #0e1118;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nl-graph-inspector-panel.resizing {
+  transition: none !important;
+  user-select: none;
+}
+
+.nl-inspector-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.nl-inspector-resize-handle:hover,
+.nl-graph-inspector-panel.resizing .nl-inspector-resize-handle {
+  background-color: rgba(56, 189, 248, 0.12);
+}
+
+.nl-resize-bar-line {
+  width: 2px;
+  height: 28px;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.18);
+  transition: all 0.15s ease;
+}
+
+.nl-inspector-resize-handle:hover .nl-resize-bar-line,
+.nl-graph-inspector-panel.resizing .nl-resize-bar-line {
+  height: 52px;
+  background-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
 }
 
 .nl-inspector-tabs-header {

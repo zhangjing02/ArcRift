@@ -62,6 +62,54 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const [memoriesMap, setMemoriesMap] = useState<Map<string, any>>(new Map());
   const [fullContextTarget, setFullContextTarget] = useState<any>(null);
 
+  // Dynamic Draggable Sidebar Width (Persisted in localStorage)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem("cm_graph_sidebar_width");
+    return saved ? Math.max(300, Math.min(850, Number(saved))) : 400;
+  });
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e: MouseEvent) => {
+      if (isResizing) {
+        const newWidth = window.innerWidth - e.clientX - 16;
+        const clampedWidth = Math.max(300, Math.min(Math.min(850, window.innerWidth * 0.7), newWidth));
+        setSidebarWidth(clampedWidth);
+        localStorage.setItem("cm_graph_sidebar_width", String(clampedWidth));
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    } else {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing, resize, stopResizing]);
+
   useEffect(() => {
     loadGraph();
   }, [sessionId]);
@@ -841,9 +889,21 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT PANE: Knowledge Inspector & Maintenance */}
+        {/* RIGHT PANE: Knowledge Inspector & Maintenance (Resizable Splitter) */}
         {isSidebarOpen && (
-          <div className="nl-graph-inspector-panel">
+          <div
+            className={`nl-graph-inspector-panel ${isResizing ? "resizing" : ""}`}
+            style={{ width: `${sidebarWidth}px`, minWidth: "300px", maxWidth: "850px" }}
+          >
+            {/* Draggable Splitter Handle on Left Border */}
+            <div
+              className="nl-inspector-resize-handle"
+              onMouseDown={startResizing}
+              title="按住左右拖动调整侧边栏宽度"
+            >
+              <div className="nl-resize-bar-line" />
+            </div>
+
             {/* Top Inspector Tabs: 解读 | 查看 | 本体 | 图谱维护 (1:1 with Screenshot 1) */}
             <div className="nl-inspector-tabs-header">
               <button
