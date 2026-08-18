@@ -545,12 +545,43 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       );
   };
 
-  const getCleanName = (nodeOrId: any) => {
+  const getCleanName = (nodeOrId: any): string => {
     if (!nodeOrId) return "";
-    const raw = typeof nodeOrId === "object" ? nodeOrId.label || nodeOrId.title || nodeOrId.name || nodeOrId.id : nodeOrId;
-    if (typeof raw !== "string") return "";
+    let raw = "";
+    if (typeof nodeOrId === "object") {
+      raw = nodeOrId.title || nodeOrId.label || nodeOrId.name || nodeOrId.id || "";
+    } else {
+      raw = String(nodeOrId);
+    }
+
+    // 1. If it exists in memoriesMap, return the real memory title!
+    if (memoriesMap && memoriesMap.has(raw)) {
+      const m = memoriesMap.get(raw);
+      if (m && m.title) return m.title;
+    }
+
+    // 2. If it's in data.nodes, check found node label or title
+    const foundNode: any = data.nodes.find((n: any) => n.id === raw);
+    if (foundNode) {
+      if (foundNode.label && !/^[0-9a-fA-F-]{36}$/.test(foundNode.label)) {
+        return foundNode.label.replace(/^tag:/, "");
+      }
+      if (foundNode.title) return foundNode.title;
+    }
+
+    // 3. Strip tag: prefix
     if (raw.startsWith("tag:")) return raw.slice(4);
-    return raw.replace(/^[0-9a-fA-F-]{36}\s*/, "").trim() || raw;
+
+    // 4. If raw is UUID and still not resolved, iterate memoriesMap
+    if (/^[0-9a-fA-F-]{36}$/.test(raw)) {
+      for (const [id, m] of memoriesMap.entries()) {
+        if (id.toLowerCase() === raw.toLowerCase() && m.title) {
+          return m.title;
+        }
+      }
+    }
+
+    return raw;
   };
 
   const handleAskQuestion = (question: string) => {
@@ -1026,41 +1057,64 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
                     )}
 
                     {/* Section: 可见网络 / 拓扑关系 */}
+                    {/* Section: 可见网络 / 拓扑关系 */}
                     <div className="nl-view-network-section">
-                      <div className="nl-view-section-header-row">
-                        <span className="nl-view-section-label">可见网络</span>
-                        <span className="nl-network-count">{connectedLinks.length} 条连接</span>
-                      </div>
+                      {(() => {
+                        const neighborMap = new Map<string, { id: string; name: string; isMemory: boolean; relations: Set<string> }>();
+                        connectedLinks.forEach((l: any) => {
+                          const src = typeof l.source === "object" ? l.source.id : l.source;
+                          const tgt = typeof l.target === "object" ? l.target.id : l.target;
+                          const otherId = src === selectedNode?.id ? tgt : src;
+                          const otherClean = getCleanName(otherId);
+                          const isMemory = memoriesMap.has(otherId) || (!otherId.startsWith("tag:") && !["ArcRift", "WechatBot", "BeBeBus", "NotionAI", "Workflow", "MoodyMusic", "StockAnalysis", "AndroidDev"].includes(otherId));
 
-                      {connectedLinks.length === 0 ? (
-                        <div className="nl-network-empty-tip">当前节点在全局图谱中未连接到其他实体。</div>
-                      ) : (
-                        <div className="nl-connected-links-list">
-                          {connectedLinks.map((l: any, idx: number) => {
-                            const src = typeof l.source === "object" ? l.source.id : l.source;
-                            const tgt = typeof l.target === "object" ? l.target.id : l.target;
-                            const srcClean = getCleanName(src);
-                            const tgtClean = getCleanName(tgt);
-                            const isSelfSrc = src === selectedNode?.id;
-                            const otherId = isSelfSrc ? tgt : src;
-                            const otherClean = isSelfSrc ? tgtClean : srcClean;
+                          if (!neighborMap.has(otherId)) {
+                            neighborMap.set(otherId, {
+                              id: otherId,
+                              name: otherClean,
+                              isMemory,
+                              relations: new Set(),
+                            });
+                          }
+                          if (l.relation) neighborMap.get(otherId)!.relations.add(l.relation);
+                        });
 
-                            return (
-                              <div
-                                key={idx}
-                                className="nl-link-item-row clickable"
-                                onClick={() => {
-                                  const targetNode = data.nodes.find((n) => n.id === otherId);
-                                  if (targetNode) setSelectedNode(targetNode);
-                                }}
-                              >
-                                <span className="nl-link-node">{otherClean}</span>
-                                <span className="nl-link-rel">({l.relation || "related_to"})</span>
+                        const uniqueNeighbors = Array.from(neighborMap.values());
+
+                        return (
+                          <>
+                            <div className="nl-view-section-header-row">
+                              <span className="nl-view-section-label">可见网络</span>
+                              <span className="nl-network-count">{uniqueNeighbors.length} 个关联实体</span>
+                            </div>
+
+                            {uniqueNeighbors.length === 0 ? (
+                              <div className="nl-network-empty-tip">当前节点在全局图谱中未连接到其他实体。</div>
+                            ) : (
+                              <div className="nl-connected-links-list">
+                                {uniqueNeighbors.map((item, idx) => {
+                                  const relText = Array.from(item.relations).join(" · ");
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="nl-link-item-row clickable"
+                                      onClick={() => {
+                                        const targetNode = data.nodes.find((n) => n.id === item.id);
+                                        if (targetNode) setSelectedNode(targetNode);
+                                      }}
+                                    >
+                                      <span className="nl-link-node" title={item.name}>
+                                        {item.isMemory ? "🔵 " : "🟣 "}{item.name}
+                                      </span>
+                                      <span className="nl-link-rel">({relText || "related_to"})</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     {/* Footer Metadata: 重要性 / 更新 / 创建 */}
