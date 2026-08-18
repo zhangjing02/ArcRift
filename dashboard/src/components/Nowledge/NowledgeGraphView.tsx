@@ -60,6 +60,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
 
   const [memoriesMap, setMemoriesMap] = useState<Map<string, any>>(new Map());
+  const [fullContextTarget, setFullContextTarget] = useState<any>(null);
 
   useEffect(() => {
     loadGraph();
@@ -1038,7 +1039,22 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
                     {/* Actions Row */}
                     <div className="nl-view-quick-actions">
-                      <button className="nl-view-action-chip" onClick={() => handleAskQuestion(`围绕 "${cleanTitle}" 还有什么？`)}>
+                      <button
+                        className="nl-view-action-chip highlight"
+                        onClick={() => {
+                          if (isMem) {
+                            setFullContextTarget(mem);
+                          } else if (selectedNode) {
+                            setFullContextTarget({
+                              title: cleanTitle,
+                              content: `实体名称: ${cleanTitle}\n类型: ${selectedNode.type || "concept"}\n关联实体数: ${connectedLinks.length} 条\n\n该实体为知识图谱中的核心枢纽节点。`,
+                              sessionId: selectedNode.id.replace(/^tag:/, ""),
+                              labels: [cleanTitle],
+                              createdAt: selectedNode.firstSeen,
+                            });
+                          }
+                        }}
+                      >
                         <span>◈</span> 打开完整上下文
                       </button>
                       <button className="nl-view-action-chip" onClick={() => handleRunMaintain("归并记忆")}>
@@ -1306,6 +1322,70 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* ── FULL CONTEXT IMMERSIVE MODAL ── */}
+      {fullContextTarget && (
+        <div className="nl-modal-overlay" onClick={() => setFullContextTarget(null)}>
+          <div className="nl-full-context-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="nl-modal-header">
+              <div className="nl-modal-title-area">
+                <span className="nl-view-badge" style={{ backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.3)" }}>
+                  🔵 完整上下文 / 深度记忆透视
+                </span>
+                <h2 className="nl-modal-title">{fullContextTarget.title || getCleanName(fullContextTarget)}</h2>
+              </div>
+              <button className="nl-modal-close-btn" onClick={() => setFullContextTarget(null)}>
+                ✕
+              </button>
+            </div>
+
+            <div className="nl-modal-body">
+              {/* Meta Bar */}
+              <div className="nl-modal-meta-bar">
+                <span className="nl-meta-pill">📁 归属项目: {fullContextTarget.sessionId || "ArcRift"}</span>
+                <span className="nl-meta-pill">⭐ 重要性: {fullContextTarget.importance || "100%"}</span>
+                <span className="nl-meta-pill">🕒 创建时间: {fullContextTarget.createdAt || "2026/8/18"}</span>
+              </div>
+
+              {/* Labels */}
+              {fullContextTarget.labels && (
+                <div className="nl-view-tags-pills">
+                  {(Array.isArray(fullContextTarget.labels)
+                    ? fullContextTarget.labels
+                    : typeof fullContextTarget.labels === "string"
+                    ? JSON.parse(fullContextTarget.labels || "[]")
+                    : []
+                  ).map((tag: string, i: number) => (
+                    <span key={i} className="nl-context-tag-pill">
+                      🏷️ {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Full Markdown Body */}
+              <div className="nl-modal-markdown-content">
+                {fullContextTarget.content || "暂无详细内容"}
+              </div>
+            </div>
+
+            <div className="nl-modal-footer">
+              <button
+                className="nl-footer-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(fullContextTarget.content || fullContextTarget.title || "");
+                  alert("已复制完整上下文到剪贴板！");
+                }}
+              >
+                📋 复制完整内容
+              </button>
+              <button className="nl-footer-btn cancel" onClick={() => setFullContextTarget(null)}>
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

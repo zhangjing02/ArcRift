@@ -1836,6 +1836,110 @@ body {
   color: #e2e8f0;
 }
 
+/* ── FULL CONTEXT MODAL ── */
+.nl-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.nl-full-context-modal {
+  background-color: #0f131c;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.nl-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #141926;
+}
+
+.nl-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+}
+
+.nl-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.nl-modal-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.nl-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-modal-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nl-meta-pill {
+  font-size: 11.5px;
+  color: #cbd5e1;
+  background-color: #1a2233;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.nl-modal-markdown-content {
+  background-color: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nl-modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background-color: #141926;
+}
+
 /* ── ONTOLOGY TAB STYLES ── */
 .nl-ontology-cards-grid {
   display: flex;
