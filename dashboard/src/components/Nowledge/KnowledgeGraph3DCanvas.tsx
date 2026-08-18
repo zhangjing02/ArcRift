@@ -17,6 +17,7 @@ interface Node3DEntry {
   raw: GraphNode;
   id: string;
   degree: number;
+  influencePercent: number;
   color: string;
   threeColor: THREE.Color;
   currentPos: THREE.Vector3;
@@ -27,7 +28,7 @@ interface Node3DEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 2)
+// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 1 & 2)
 // ─────────────────────────────────────────────────────────────────────────────
 const METRIC_CONFIG: Record<
   HeightMetric,
@@ -89,28 +90,40 @@ const METRIC_CONFIG: Record<
   },
 };
 
-// Create clean floating text sprite for peak nodes (1:1 with Screenshot 2)
-function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Sprite {
+// Create clean floating 2-line text sprite (1:1 with Screenshot 1: Title + "🔵 memory · 影响力 85%")
+function createTextSprite(
+  rawText: string,
+  typeStr: string = "memory",
+  influencePercent: number = 85,
+  color: string = "#ffffff"
+): THREE.Sprite {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   canvas.width = 512;
-  canvas.height = 64;
+  canvas.height = 80;
 
   const cleanText = rawText
     .replace(/^tag:/, "")
     .replace(/^[0-9a-fA-F-]{36}\s*/, "")
     .trim();
-  const text = cleanText.length > 22 ? cleanText.slice(0, 20) + "…" : cleanText;
+  const text = cleanText.length > 20 ? cleanText.slice(0, 18) + "…" : cleanText;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.font = "500 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  // Line 1: Title
+  ctx.font = "600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = color || "#f8fafc";
   ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
   ctx.shadowBlur = 4;
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  ctx.fillText(text, canvas.width / 2, 24);
+
+  // Line 2: Subtitle with type & real computed influence %
+  ctx.font = "400 12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.fillStyle = "#94a3b8";
+  ctx.shadowBlur = 3;
+  ctx.fillText(`${typeStr || "memory"} · 影响力 ${influencePercent}%`, canvas.width / 2, 50);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -120,7 +133,7 @@ function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Spr
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(40, 5.0, 1);
+  sprite.scale.set(38, 5.9, 1);
   return sprite;
 }
 
@@ -153,7 +166,13 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode3D>("terrain");
   const [heightMetric, setHeightMetric] = useState<HeightMetric>("influence");
-  const [hoveredNode, setHoveredNode] = useState<{ label: string; type?: string; color: string; degree: number } | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<{
+    label: string;
+    type?: string;
+    color: string;
+    degree: number;
+    influencePercent: number;
+  } | null>(null);
 
   // Stable callbacks / references
   const onNodeSelectRef = useRef(onNodeSelect);
@@ -183,20 +202,22 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const pointerDownPosRef = useRef({ x: 0, y: 0 });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. Rigorous Topographic Landscape Generator (1:1 with Screenshot 2)
+  // 1. Rigorous Graph Metrics (PageRank + Degree + Intrinsic Importance)
   // ─────────────────────────────────────────────────────────────────────────
   const computeTargetPositionsAndLandscape = useCallback(
-    (nodes: GraphNode[], links: any[], _metric: HeightMetric, mode: ViewMode3D) => {
+    (nodes: GraphNode[], links: any[], metric: HeightMetric, mode: ViewMode3D) => {
       const totalNodes = nodes.length;
       if (totalNodes === 0) {
         return {
           targetMap: new Map<string, { x: number; y: number; z: number }>(),
+          influenceMap: new Map<string, number>(),
           mountains: [] as any[],
           steppingStones: [] as Array<{ x: number; z: number; y: number }>,
           peakNodes: new Set<string>(),
         };
       }
 
+      // 1. Degree Centrality
       const degreeMap = new Map<string, number>();
       links.forEach((l: any) => {
         const src = typeof l.source === "object" ? l.source.id : l.source;
@@ -206,18 +227,58 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       });
       const maxDegree = Math.max(1, ...Array.from(degreeMap.values()));
 
-      // 3 Fixed Iconic Mountain Summits (Matching Screenshot 2 layout)
+      // 2. Power Iteration PageRank Algorithm (Damping = 0.85, 20 iterations)
+      const N = nodes.length;
+      let pr = new Map<string, number>();
+      nodes.forEach((n) => pr.set(n.id, 1 / N));
+      const damping = 0.85;
+
+      for (let iter = 0; iter < 20; iter++) {
+        const newPr = new Map<string, number>();
+        nodes.forEach((n) => newPr.set(n.id, (1 - damping) / N));
+        links.forEach((l: any) => {
+          const srcId = typeof l.source === "object" ? l.source.id : l.source;
+          const tgtId = typeof l.target === "object" ? l.target.id : l.target;
+          const srcDeg = degreeMap.get(srcId) || 1;
+          const tgtDeg = degreeMap.get(tgtId) || 1;
+          newPr.set(tgtId, (newPr.get(tgtId) || 0) + damping * ((pr.get(srcId) || 0) / srcDeg));
+          newPr.set(srcId, (newPr.get(srcId) || 0) + damping * ((pr.get(tgtId) || 0) / tgtDeg));
+        });
+        pr = newPr;
+      }
+      const maxPr = Math.max(1e-5, ...Array.from(pr.values()));
+
+      // 3. Composite Influence Score Computation (0 ~ 100%)
+      const influenceMap = new Map<string, number>();
+      nodes.forEach((n) => {
+        const baseImp =
+          typeof (n as any).importance === "number"
+            ? (n as any).importance
+            : typeof (n as any).importance === "string"
+            ? parseFloat((n as any).importance) || 0.6
+            : 0.6;
+        const prRatio = (pr.get(n.id) || 0) / maxPr;
+        const degRatio = (degreeMap.get(n.id) || 1) / maxDegree;
+
+        // Weighted Composite Influence
+        const rawScore = 0.15 + baseImp * 0.45 + prRatio * 0.28 + degRatio * 0.12;
+        const influencePercent = Math.min(99, Math.max(12, Math.round(rawScore * 100)));
+        influenceMap.set(n.id, influencePercent);
+      });
+
+      // 4. Mountain Peaks Configuration (Iconic Pillars in 3D Space)
       const mountainPeaksDef = [
-        { name: "right_peak", cx: 130, cz: -40, label: "ArcRift 架构体系", baseRadiusX: 140, baseRadiusZ: 110 },
-        { name: "left_peak", cx: -170, cz: -70, label: "WechatBot 机器人", baseRadiusX: 110, baseRadiusZ: 85 },
-        { name: "center_hill", cx: -30, cz: 45, label: "Workflow 与规范", baseRadiusX: 130, baseRadiusZ: 95 },
+        { name: "right_peak", cx: 130, cz: -40, baseRadiusX: 140, baseRadiusZ: 110 },
+        { name: "left_peak", cx: -170, cz: -70, baseRadiusX: 110, baseRadiusZ: 85 },
+        { name: "center_hill", cx: -30, cz: 45, baseRadiusX: 130, baseRadiusZ: 95 },
       ];
 
-      // Sort nodes by degree/importance
-      const sortedNodes = [...nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
-      const peakNodes = new Set<string>();
+      // Sort nodes by computed Influence Score
+      const sortedNodes = [...nodes].sort(
+        (a, b) => (influenceMap.get(b.id) || 0) - (influenceMap.get(a.id) || 0)
+      );
 
-      // Assign top 3 peak nodes
+      const peakNodes = new Set<string>();
       if (sortedNodes.length > 0) peakNodes.add(sortedNodes[0].id);
       if (sortedNodes.length > 1) peakNodes.add(sortedNodes[1].id);
       if (sortedNodes.length > 2) peakNodes.add(sortedNodes[2].id);
@@ -237,13 +298,12 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       let stoneIndex = 0;
 
       nodes.forEach((n, i) => {
-        const deg = degreeMap.get(n.id) || 1;
-        const ratio = deg / maxDegree;
+        const inf = influenceMap.get(n.id) || 50;
 
         if (mode === "galaxy") {
           const phi = Math.acos(-1 + (2 * i) / totalNodes);
           const theta = Math.sqrt(totalNodes * Math.PI) * phi;
-          const r = 160 + ratio * 60;
+          const r = 160 + (inf / 100) * 60;
           targetMap.set(n.id, {
             x: r * Math.sin(phi) * Math.cos(theta),
             y: r * Math.cos(phi) * 0.7,
@@ -252,20 +312,42 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           return;
         }
 
-        // Terrain mode
+        // Calculate Y elevation strictly according to the active Dimension
+        let ty = 25;
+        if (metric === "influence") {
+          // Height rigorously determined by Influence Score (0 ~ 100% -> 20 ~ 275px)
+          ty = (inf / 100) * 255 + 20;
+        } else if (metric === "structure") {
+          const deg = degreeMap.get(n.id) || 1;
+          const kTier = deg >= 5 ? 3 : deg >= 3 ? 2 : deg >= 2 ? 1 : 0;
+          const kHeights = [25, 110, 190, 270];
+          ty = kHeights[kTier] + (Math.random() - 0.5) * 6;
+        } else if (metric === "morphology") {
+          const t = (n.type || "").toLowerCase();
+          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) ty = 270;
+          else if (t.includes("project") || t.includes("entity") || t.includes("concept")) ty = 190;
+          else if (t.includes("memory") || t.includes("decision")) ty = 110;
+          else ty = 25;
+        } else if (metric === "growth") {
+          const created = (n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : Date.now();
+          const ageDays = Math.max(0, (Date.now() - created) / (1000 * 3600 * 24));
+          if (ageDays <= 1) ty = 270;
+          else if (ageDays <= 7) ty = 190;
+          else if (ageDays <= 30) ty = 110;
+          else ty = 25;
+        }
+
+        // Calculate X, Z planar position (sitting on the mountain terrace or stepping stone)
         if (peakNodes.has(n.id)) {
-          // Summit node
           const peakIdx = Array.from(peakNodes).indexOf(n.id);
           const m = mountainPeaksDef[peakIdx % mountainPeaksDef.length];
-          targetMap.set(n.id, { x: m.cx, y: 270, z: m.cz });
-        } else if (ratio > 0.35 || i < 15) {
-          // Mid-to-high mountain body node
+          targetMap.set(n.id, { x: m.cx, y: Math.max(260, ty), z: m.cz });
+        } else if (inf >= 40 || ty >= 60) {
+          // Mountain terrace node
           const mIdx = i % mountainPeaksDef.length;
           const m = mountainPeaksDef[mIdx];
-          const tierRatio = (ratio - 0.35) / 0.65;
-          const ty = Math.max(50, Math.min(230, tierRatio * 180 + 50));
-          const angle = (i * 1.37) % (Math.PI * 2);
           const radiusScale = 1 - (ty / 300) * 0.7;
+          const angle = (i * 1.37) % (Math.PI * 2);
           const rx = m.baseRadiusX * radiusScale * 0.6;
           const rz = m.baseRadiusZ * radiusScale * 0.6;
           const tx = m.cx + Math.cos(angle) * rx;
@@ -278,7 +360,6 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           stoneIndex++;
           const tx = stone.x + (Math.random() - 0.5) * 8;
           const tz = stone.z + (Math.random() - 0.5) * 8;
-          const ty = 14;
 
           targetMap.set(n.id, { x: tx, y: ty, z: tz });
           steppingStones.push({ x: tx, z: tz, y: ty });
@@ -287,6 +368,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
       return {
         targetMap,
+        influenceMap,
         mountains: mountainPeaksDef,
         steppingStones,
         peakNodes,
@@ -296,7 +378,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 2. Initialize Three.js Scene, High-Angle Camera, Orbit Controls
+  // 2. Initialize Three.js Scene, High Isometric Camera & Controls
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
@@ -462,6 +544,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
               type: entry.raw.type,
               color: entry.color,
               degree: entry.degree,
+              influencePercent: entry.influencePercent,
             });
             renderer.domElement.style.cursor = "pointer";
           }
@@ -497,7 +580,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     if (!scene || !data.nodes || data.nodes.length === 0) return;
 
     linksDataRef.current = data.links || [];
-    const { targetMap, mountains, steppingStones, peakNodes } = computeTargetPositionsAndLandscape(
+    const { targetMap, influenceMap, mountains, steppingStones, peakNodes } = computeTargetPositionsAndLandscape(
       data.nodes,
       data.links,
       heightMetric,
@@ -526,6 +609,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     // Add or update nodes
     data.nodes.forEach((n) => {
       const deg = degreeMap.get(n.id) || 1;
+      const inf = influenceMap.get(n.id) || 50;
       const colStr = getNodeColorRef.current(n.type);
       const threeCol = new THREE.Color(colStr);
       const isPeak = peakNodes.has(n.id);
@@ -537,6 +621,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       if (entry) {
         entry.raw = n;
         entry.degree = deg;
+        entry.influencePercent = inf;
         entry.targetPos.copy(targetVec);
       } else {
         const group = new THREE.Group();
@@ -568,11 +653,11 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         );
         group.add(halo);
 
-        // Only Peak Nodes show clean White Billboard Text Sprite
+        // Only Peak Nodes show clean White Billboard Text Sprite (with Influence %)
         let labelSprite: THREE.Sprite | undefined;
         if (isPeak) {
           const nodeLabel = (n as any).label || (n as any).title || (n as any).name || n.id;
-          labelSprite = createTextSprite(nodeLabel, "#f8fafc");
+          labelSprite = createTextSprite(nodeLabel, n.type || "memory", inf, "#f8fafc");
           labelSprite.position.set(0, radius + 8, 0);
           group.add(labelSprite);
         }
@@ -585,6 +670,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           raw: n,
           id: n.id,
           degree: deg,
+          influencePercent: inf,
           color: colStr,
           threeColor: threeCol,
           currentPos: initialPos,
@@ -711,12 +797,14 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         </div>
       )}
 
-      {/* Hover Node Tooltip */}
+      {/* Hover Node Tooltip with Computed Influence % */}
       {hoveredNode && (
         <div className="nl-3d-hover-tooltip">
           <span className="nl-3d-tooltip-dot" style={{ backgroundColor: hoveredNode.color }} />
           <span className="nl-3d-tooltip-title">{hoveredNode.label}</span>
-          <span className="nl-3d-tooltip-meta">({hoveredNode.degree} 条连接)</span>
+          <span className="nl-3d-tooltip-meta">
+            ({hoveredNode.type || "memory"} · 影响力 {hoveredNode.influencePercent}%)
+          </span>
         </div>
       )}
 
