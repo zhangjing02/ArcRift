@@ -26,15 +26,15 @@ const MODELS_BASE_DIR = path.resolve(__dirname, "../../models");
 const DEFINED_MODELS: Record<string, Omit<ModelMeta, "isDownloaded" | "isDownloading" | "progress" | "speed" | "downloadedBytes" | "totalBytes">> = {
   embedding_qwen: {
     id: "embedding_qwen",
-    name: "Qwen3-Embedding-0.6B Q4_K_M (Imatrix)",
+    name: "Qwen2.5-Embedding / 0.5B Q4_K_M (Imatrix)",
     type: "embedding",
     category: "搜索与增强",
     sizeText: "396.0 MB",
     approxBytes: 396 * 1024 * 1024,
-    filename: "qwen3-embedding-0.6b-q4_k_m.gguf",
+    filename: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
     downloadUrls: [
-      "https://hf-mirror.com/Qwen/Qwen2.5-Coder-0.5B-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
-      "https://modelscope.cn/models/qwen/Qwen2.5-Coder-0.5B-GGUF/resolve/master/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+      "https://modelscope.cn/models/qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/master/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "https://hf-mirror.com/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
     ],
   },
   llm_gemma: {
