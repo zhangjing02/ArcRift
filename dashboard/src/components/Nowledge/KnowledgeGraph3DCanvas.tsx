@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import * as d3 from "d3-force";
 import type { GraphData, GraphNode } from "../../types";
 
 interface KnowledgeGraph3DCanvasProps {
@@ -28,7 +27,7 @@ interface Node3DEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 1)
+// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 2)
 // ─────────────────────────────────────────────────────────────────────────────
 const METRIC_CONFIG: Record<
   HeightMetric,
@@ -46,9 +45,9 @@ const METRIC_CONFIG: Record<
     icon: "⛰️",
     description: "高处代表更重要、连接更强的知识。",
     levels: [
-      { label: "核心枢纽", height: 230, yPercent: 82 },
-      { label: "主结构", height: 160, yPercent: 62 },
-      { label: "普通节点", height: 95, yPercent: 42 },
+      { label: "核心枢纽", height: 270, yPercent: 86 },
+      { label: "主结构", height: 190, yPercent: 64 },
+      { label: "普通节点", height: 110, yPercent: 44 },
       { label: "外围边缘", height: 25, yPercent: 18 },
     ],
   },
@@ -58,9 +57,9 @@ const METRIC_CONFIG: Record<
     icon: "⚙️",
     description: "外围节点逐步移除后，越高的节点越能保持连接。",
     levels: [
-      { label: "核心内圈", height: 230, yPercent: 82 },
-      { label: "主结构层", height: 160, yPercent: 62 },
-      { label: "桥接层", height: 95, yPercent: 42 },
+      { label: "核心内圈", height: 270, yPercent: 86 },
+      { label: "主结构层", height: 190, yPercent: 64 },
+      { label: "桥接层", height: 110, yPercent: 44 },
       { label: "离散外圈", height: 25, yPercent: 18 },
     ],
   },
@@ -70,9 +69,9 @@ const METRIC_CONFIG: Record<
     icon: "❄️",
     description: "高度从原始凭据逐步走向可用知识。",
     levels: [
-      { label: "技能", height: 230, yPercent: 82 },
-      { label: "实体", height: 160, yPercent: 62 },
-      { label: "记忆单元", height: 95, yPercent: 42 },
+      { label: "技能", height: 270, yPercent: 86 },
+      { label: "实体", height: 190, yPercent: 64 },
+      { label: "记忆单元", height: 110, yPercent: 44 },
       { label: "轨迹", height: 25, yPercent: 18 },
     ],
   },
@@ -82,15 +81,15 @@ const METRIC_CONFIG: Record<
     icon: "🕒",
     description: "最近加入的记录位于较旧记录之上。",
     levels: [
-      { label: "现在", height: 230, yPercent: 82 },
-      { label: "7 天", height: 160, yPercent: 62 },
-      { label: "30 天", height: 95, yPercent: 42 },
+      { label: "现在", height: 270, yPercent: 86 },
+      { label: "7 天", height: 190, yPercent: 64 },
+      { label: "30 天", height: 110, yPercent: 44 },
       { label: "1 年以上", height: 25, yPercent: 18 },
     ],
   },
 };
 
-// Create clean, minimalist floating text sprite for peak nodes (1:1 with Screenshot 1)
+// Create clean floating text sprite for peak nodes (1:1 with Screenshot 2)
 function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Sprite {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
@@ -101,16 +100,15 @@ function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Spr
     .replace(/^tag:/, "")
     .replace(/^[0-9a-fA-F-]{36}\s*/, "")
     .trim();
-  const text = cleanText.length > 20 ? cleanText.slice(0, 18) + "…" : cleanText;
+  const text = cleanText.length > 22 ? cleanText.slice(0, 20) + "…" : cleanText;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Minimalist text with subtle shadow
-  ctx.font = "500 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.font = "500 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = color || "#f1f5f9";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+  ctx.fillStyle = color || "#f8fafc";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
   ctx.shadowBlur = 4;
   ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
@@ -122,7 +120,7 @@ function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Spr
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(36, 4.5, 1);
+  sprite.scale.set(40, 5.0, 1);
   return sprite;
 }
 
@@ -132,16 +130,15 @@ function createOrganicContourLoop(
   centerZ: number,
   radiusX: number,
   radiusZ: number,
-  pointsCount = 48,
-  jitter = 0.16
+  pointsCount = 56,
+  jitter = 0.15
 ): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
   for (let i = 0; i <= pointsCount; i++) {
     const angle = (i / pointsCount) * Math.PI * 2;
-    // Harmonic wave for natural organic isoline curvature
-    const harmonic = 1 + Math.sin(angle * 3 + 1.2) * jitter + Math.cos(angle * 4 - 0.8) * (jitter * 0.45);
-    const x = centerX + Math.cos(angle) * Math.max(12, radiusX) * harmonic;
-    const z = centerZ + Math.sin(angle) * Math.max(10, radiusZ) * harmonic;
+    const harmonic = 1 + Math.sin(angle * 3 + 1.2) * jitter + Math.cos(angle * 5 - 0.7) * (jitter * 0.45);
+    const x = centerX + Math.cos(angle) * Math.max(10, radiusX) * harmonic;
+    const z = centerZ + Math.sin(angle) * Math.max(8, radiusZ) * harmonic;
     points.push(new THREE.Vector3(x, 0, z));
   }
   return points;
@@ -186,15 +183,16 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const pointerDownPosRef = useRef({ x: 0, y: 0 });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. Cluster-Aware Target Position Generator
+  // 1. Rigorous Topographic Landscape Generator (1:1 with Screenshot 2)
   // ─────────────────────────────────────────────────────────────────────────
-  const computeTargetPositionsAndClusters = useCallback(
-    (nodes: GraphNode[], links: any[], metric: HeightMetric, mode: ViewMode3D) => {
+  const computeTargetPositionsAndLandscape = useCallback(
+    (nodes: GraphNode[], links: any[], _metric: HeightMetric, mode: ViewMode3D) => {
       const totalNodes = nodes.length;
       if (totalNodes === 0) {
         return {
           targetMap: new Map<string, { x: number; y: number; z: number }>(),
-          clusters: [] as Array<{ id: string; center: { cx: number; cz: number }; nodes: Array<{ id: string; x: number; z: number; y: number }> }>,
+          mountains: [] as any[],
+          steppingStones: [] as Array<{ x: number; z: number; y: number }>,
           peakNodes: new Set<string>(),
         };
       }
@@ -208,161 +206,97 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       });
       const maxDegree = Math.max(1, ...Array.from(degreeMap.values()));
 
-      // Identify major clusters (e.g. ArcRift, WechatBot, NotionAI, Workflow, etc.)
-      const clusterAssignment = new Map<string, string>();
-      nodes.forEach((n) => {
-        const sid = (n as any).sessionId || (n.id.startsWith("tag:") ? n.id.slice(4) : "default");
-        clusterAssignment.set(n.id, sid);
-      });
-
-      // Cluster centers in 2D plane
-      const distinctClusters = Array.from(new Set(clusterAssignment.values()));
-      const clusterCenterOffsets = new Map<string, { cx: number; cz: number }>();
-
-      const clusterOffsetsList = [
-        { cx: 80, cz: 40 },    // Right Peak (ArcRift)
-        { cx: -130, cz: -50 }, // Left Peak (WechatBot / NotionAI)
-        { cx: -20, cz: 110 },  // Front Peak (Workflow)
-        { cx: 140, cz: -90 },  // Far Right (AndroidDev)
-        { cx: -120, cz: 90 },  // Front Left (BeBeBus)
+      // 3 Fixed Iconic Mountain Summits (Matching Screenshot 2 layout)
+      const mountainPeaksDef = [
+        { name: "right_peak", cx: 130, cz: -40, label: "ArcRift 架构体系", baseRadiusX: 140, baseRadiusZ: 110 },
+        { name: "left_peak", cx: -170, cz: -70, label: "WechatBot 机器人", baseRadiusX: 110, baseRadiusZ: 85 },
+        { name: "center_hill", cx: -30, cz: 45, label: "Workflow 与规范", baseRadiusX: 130, baseRadiusZ: 95 },
       ];
 
-      distinctClusters.forEach((cId, idx) => {
-        const off = clusterOffsetsList[idx % clusterOffsetsList.length];
-        clusterCenterOffsets.set(cId, off);
-      });
-
-      // 2D force simulation for intra-cluster natural distribution
-      const simNodes = nodes.map((n) => {
-        const cId = clusterAssignment.get(n.id) || "default";
-        const cCenter = clusterCenterOffsets.get(cId) || { cx: 0, cz: 0 };
-        return {
-          id: n.id,
-          x: cCenter.cx + (Math.random() - 0.5) * 80,
-          y: cCenter.cz + (Math.random() - 0.5) * 80,
-        };
-      });
-
-      const simLinks = links.map((l) => ({
-        source: typeof l.source === "object" ? l.source.id : l.source,
-        target: typeof l.target === "object" ? l.target.id : l.target,
-      }));
-
-      const sim = d3
-        .forceSimulation(simNodes as any)
-        .force("charge", d3.forceManyBody().strength(-100))
-        .force("link", d3.forceLink(simLinks).id((d: any) => d.id).distance(38))
-        .force("collision", d3.forceCollide().radius(18))
-        .stop();
-
-      for (let i = 0; i < 90; i++) sim.tick();
-
-      const planarCoords = new Map<string, { x: number; z: number }>();
-      simNodes.forEach((sn: any) => {
-        planarCoords.set(sn.id, { x: sn.x || 0, z: sn.y || 0 });
-      });
-
-      const targetMap = new Map<string, { x: number; y: number; z: number }>();
+      // Sort nodes by degree/importance
+      const sortedNodes = [...nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
       const peakNodes = new Set<string>();
 
-      // Find top peak node for each major cluster
-      distinctClusters.forEach((cId) => {
-        const clusterNodes = nodes.filter((n) => clusterAssignment.get(n.id) === cId);
-        if (clusterNodes.length > 0) {
-          clusterNodes.sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
-          peakNodes.add(clusterNodes[0].id);
-        }
-      });
+      // Assign top 3 peak nodes
+      if (sortedNodes.length > 0) peakNodes.add(sortedNodes[0].id);
+      if (sortedNodes.length > 1) peakNodes.add(sortedNodes[1].id);
+      if (sortedNodes.length > 2) peakNodes.add(sortedNodes[2].id);
+
+      const targetMap = new Map<string, { x: number; y: number; z: number }>();
+      const steppingStones: Array<{ x: number; z: number; y: number }> = [];
+
+      // Stepping stone grid in the foreground (Screenshot 2)
+      const stonePositions = [
+        { x: 50, z: 120 }, { x: 110, z: 135 }, { x: 170, z: 110 }, { x: 220, z: 140 },
+        { x: -90, z: 130 }, { x: -140, z: 150 }, { x: -190, z: 120 }, { x: -240, z: 150 },
+        { x: 20, z: 175 }, { x: 80, z: 195 }, { x: 140, z: 180 }, { x: 200, z: 210 },
+        { x: -50, z: 190 }, { x: -110, z: 215 }, { x: -170, z: 190 }, { x: -220, z: 230 },
+        { x: 0, z: 240 }, { x: 60, z: 260 }, { x: 120, z: 250 }, { x: -70, z: 265 },
+      ];
+
+      let stoneIndex = 0;
 
       nodes.forEach((n, i) => {
         const deg = degreeMap.get(n.id) || 1;
-        const basePlanar = planarCoords.get(n.id) || { x: 0, z: 0 };
-        const isPeak = peakNodes.has(n.id);
-        const cId = clusterAssignment.get(n.id) || "default";
-        const cCenter = clusterCenterOffsets.get(cId) || { cx: 0, cz: 0 };
-
-        let tx = basePlanar.x;
-        let tz = basePlanar.z;
-        let ty = 25;
+        const ratio = deg / maxDegree;
 
         if (mode === "galaxy") {
           const phi = Math.acos(-1 + (2 * i) / totalNodes);
           const theta = Math.sqrt(totalNodes * Math.PI) * phi;
-          const r = 160 + (deg / maxDegree) * 60;
-          tx = r * Math.sin(phi) * Math.cos(theta);
-          ty = r * Math.cos(phi) * 0.7;
-          tz = r * Math.sin(phi) * Math.sin(theta);
-        } else {
-          // Terrain mode
-          if (metric === "influence") {
-            if (isPeak) {
-              ty = 230;
-              tx = cCenter.cx;
-              tz = cCenter.cz;
-            } else {
-              const ratio = deg / maxDegree;
-              ty = ratio * 190 + 20;
-              // Higher nodes gravitate toward their cluster center
-              const pull = 0.4 + (1 - ratio) * 0.6;
-              tx = cCenter.cx + (basePlanar.x - cCenter.cx) * pull;
-              tz = cCenter.cz + (basePlanar.z - cCenter.cz) * pull;
-            }
-          } else if (metric === "structure") {
-            const sorted = [...nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
-            const rank = sorted.findIndex((s) => s.id === n.id);
-            const tier = Math.floor((rank / Math.max(1, totalNodes)) * 4);
-            const ringHeights = [230, 160, 95, 25];
-            ty = ringHeights[tier] + (Math.random() - 0.5) * 6;
-
-            const pull = tier === 0 ? 0.2 : tier === 1 ? 0.5 : tier === 2 ? 0.8 : 1.1;
-            tx = cCenter.cx + (basePlanar.x - cCenter.cx) * pull;
-            tz = cCenter.cz + (basePlanar.z - cCenter.cz) * pull;
-          } else if (metric === "morphology") {
-            const t = (n.type || "").toLowerCase();
-            if (t.includes("rule") || t.includes("arch") || t.includes("skill")) ty = 230;
-            else if (t.includes("tech") || t.includes("doc") || t.includes("file") || t.includes("project")) ty = 160;
-            else if (t.includes("concept") || t.includes("entity")) ty = 95;
-            else if (t.includes("memory") || t.includes("decision")) ty = 50;
-            else ty = 25;
-
-            ty += (Math.random() - 0.5) * 5;
-          } else if (metric === "growth") {
-            const ageRatio = (totalNodes - 1 - i) / Math.max(1, totalNodes - 1);
-            if (ageRatio > 0.8) ty = 230;
-            else if (ageRatio > 0.55) ty = 160;
-            else if (ageRatio > 0.25) ty = 95;
-            else ty = 25;
-
-            ty += (Math.random() - 0.5) * 5;
-          }
+          const r = 160 + ratio * 60;
+          targetMap.set(n.id, {
+            x: r * Math.sin(phi) * Math.cos(theta),
+            y: r * Math.cos(phi) * 0.7,
+            z: r * Math.sin(phi) * Math.sin(theta),
+          });
+          return;
         }
 
-        targetMap.set(n.id, { x: tx, y: ty, z: tz });
+        // Terrain mode
+        if (peakNodes.has(n.id)) {
+          // Summit node
+          const peakIdx = Array.from(peakNodes).indexOf(n.id);
+          const m = mountainPeaksDef[peakIdx % mountainPeaksDef.length];
+          targetMap.set(n.id, { x: m.cx, y: 270, z: m.cz });
+        } else if (ratio > 0.35 || i < 15) {
+          // Mid-to-high mountain body node
+          const mIdx = i % mountainPeaksDef.length;
+          const m = mountainPeaksDef[mIdx];
+          const tierRatio = (ratio - 0.35) / 0.65;
+          const ty = Math.max(50, Math.min(230, tierRatio * 180 + 50));
+          const angle = (i * 1.37) % (Math.PI * 2);
+          const radiusScale = 1 - (ty / 300) * 0.7;
+          const rx = m.baseRadiusX * radiusScale * 0.6;
+          const rz = m.baseRadiusZ * radiusScale * 0.6;
+          const tx = m.cx + Math.cos(angle) * rx;
+          const tz = m.cz + Math.sin(angle) * rz;
+
+          targetMap.set(n.id, { x: tx, y: ty, z: tz });
+        } else {
+          // Peripheral base node sitting on stepping stone pad (Screenshot 2)
+          const stone = stonePositions[stoneIndex % stonePositions.length];
+          stoneIndex++;
+          const tx = stone.x + (Math.random() - 0.5) * 8;
+          const tz = stone.z + (Math.random() - 0.5) * 8;
+          const ty = 14;
+
+          targetMap.set(n.id, { x: tx, y: ty, z: tz });
+          steppingStones.push({ x: tx, z: tz, y: ty });
+        }
       });
 
-      // Group into final cluster objects for contour rendering
-      const clusters = distinctClusters.map((cId) => {
-        const cCenter = clusterCenterOffsets.get(cId) || { cx: 0, cz: 0 };
-        const cNodes = nodes
-          .filter((n) => clusterAssignment.get(n.id) === cId)
-          .map((n) => {
-            const t = targetMap.get(n.id) || { x: 0, y: 0, z: 0 };
-            return { id: n.id, x: t.x, z: t.z, y: t.y };
-          });
-        return {
-          id: cId,
-          center: cCenter,
-          nodes: cNodes,
-        };
-      });
-
-      return { targetMap, clusters, peakNodes };
+      return {
+        targetMap,
+        mountains: mountainPeaksDef,
+        steppingStones,
+        peakNodes,
+      };
     },
     []
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 2. Initialize Three.js Scene, Camera, Orbit Controls
+  // 2. Initialize Three.js Scene, High-Angle Camera, Orbit Controls
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
@@ -373,13 +307,13 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#0d1017");
-    scene.fog = new THREE.FogExp2("#0d1017", 0.0011);
+    scene.background = new THREE.Color("#0c0f17");
+    scene.fog = new THREE.FogExp2("#0c0f17", 0.0009);
     sceneRef.current = scene;
 
-    // Camera (Isometric angle matching Nowledge Mem Screenshot 1)
-    const camera = new THREE.PerspectiveCamera(40, width / height, 1, 3000);
-    camera.position.set(340, 240, 440);
+    // Camera: High Isometric Pitch Angle (~48° looking down, 1:1 with Screenshot 2)
+    const camera = new THREE.PerspectiveCamera(38, width / height, 1, 3000);
+    camera.position.set(380, 480, 520);
     cameraRef.current = camera;
 
     // Renderer
@@ -395,17 +329,17 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.maxDistance = 1400;
-    controls.minDistance = 120;
-    controls.target.set(-10, 65, 0);
+    controls.maxDistance = 1500;
+    controls.minDistance = 140;
+    controls.target.set(0, 90, 40);
     controlsRef.current = controls;
 
-    // Ambient Lighting (Soft moonlight glow)
+    // Ambient Moonlight
     const ambientLight = new THREE.AmbientLight("#e0f2fe", 0.95);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight("#ffffff", 0.85);
-    dirLight.position.set(200, 400, 200);
+    dirLight.position.set(200, 450, 200);
     scene.add(dirLight);
 
     // Contours Group
@@ -556,14 +490,14 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 3. Synchronize Graph Objects & Multi-Peak Topographic Contours (1:1)
+  // 3. Synchronize Graph Objects & 1:1 Terraced Mountain Contours
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene || !data.nodes || data.nodes.length === 0) return;
 
     linksDataRef.current = data.links || [];
-    const { targetMap, clusters, peakNodes } = computeTargetPositionsAndClusters(
+    const { targetMap, mountains, steppingStones, peakNodes } = computeTargetPositionsAndLandscape(
       data.nodes,
       data.links,
       heightMetric,
@@ -595,7 +529,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       const colStr = getNodeColorRef.current(n.type);
       const threeCol = new THREE.Color(colStr);
       const isPeak = peakNodes.has(n.id);
-      const radius = isPeak ? 3.4 : Math.max(1.8, Math.min(3.0, 1.8 + Math.sqrt(deg) * 0.4));
+      const radius = isPeak ? 3.6 : Math.max(1.8, Math.min(2.8, 1.8 + Math.sqrt(deg) * 0.35));
       const target = targetMap.get(n.id) || { x: 0, y: 30, z: 0 };
       const targetVec = new THREE.Vector3(target.x, target.y, target.z);
 
@@ -614,16 +548,16 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           new THREE.MeshStandardMaterial({
             color: threeCol,
             emissive: threeCol,
-            emissiveIntensity: 0.7,
+            emissiveIntensity: 0.75,
             roughness: 0.2,
             metalness: 0.1,
           })
         );
         group.add(sphere);
 
-        // Faint Subtle Aura
+        // Faint Subtle Glow
         const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(radius * 1.6, 12, 12),
+          new THREE.SphereGeometry(radius * 1.5, 12, 12),
           new THREE.MeshBasicMaterial({
             color: threeCol,
             transparent: true,
@@ -638,8 +572,8 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         let labelSprite: THREE.Sprite | undefined;
         if (isPeak) {
           const nodeLabel = (n as any).label || (n as any).title || (n as any).name || n.id;
-          labelSprite = createTextSprite(nodeLabel, "#f1f5f9");
-          labelSprite.position.set(0, radius + 7, 0);
+          labelSprite = createTextSprite(nodeLabel, "#f8fafc");
+          labelSprite.position.set(0, radius + 8, 0);
           group.add(labelSprite);
         }
 
@@ -663,7 +597,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       }
     });
 
-    // Rebuild Link Lines (Delicate semi-transparent line segments)
+    // Rebuild Link Lines (Delicate & barely visible to keep landscape clean)
     if (linksMeshRef.current) scene.remove(linksMeshRef.current);
 
     const linkPositions: number[] = [];
@@ -678,8 +612,8 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         linkPositions.push(src.currentPos.x, src.currentPos.y, src.currentPos.z);
         linkPositions.push(tgt.currentPos.x, tgt.currentPos.y, tgt.currentPos.z);
 
-        linkColors.push(src.threeColor.r * 0.45, src.threeColor.g * 0.45, src.threeColor.b * 0.45);
-        linkColors.push(tgt.threeColor.r * 0.45, tgt.threeColor.g * 0.45, tgt.threeColor.b * 0.45);
+        linkColors.push(src.threeColor.r * 0.3, src.threeColor.g * 0.3, src.threeColor.b * 0.3);
+        linkColors.push(tgt.threeColor.r * 0.3, tgt.threeColor.g * 0.3, tgt.threeColor.b * 0.3);
       }
     });
 
@@ -689,13 +623,13 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
     const linksMesh = new THREE.LineSegments(
       linksGeo,
-      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.10 })
+      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.04 })
     );
     scene.add(linksMesh);
     linksMeshRef.current = linksMesh;
 
     // ─────────────────────────────────────────────────────────────────────
-    // Rebuild Multi-Peak Cluster Contours & Ground Island Pads (1:1 with Screenshot 1)
+    // Rebuild 1:1 Terraced Mountain Contours & Stepping Stones (Screenshot 2)
     // ─────────────────────────────────────────────────────────────────────
     if (contoursGroupRef.current) {
       const cGroup = contoursGroupRef.current;
@@ -704,61 +638,49 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       }
 
       if (viewMode === "terrain") {
-        // 1. Render Topographic Ascending Tiers for each Mountain Cluster
-        clusters.forEach((cluster) => {
-          if (cluster.nodes.length === 0) return;
-
-          const isMajorCluster = cluster.nodes.length >= 3;
-          const tierLevels = [
-            { y: 230, scale: 0.28, opacity: 0.38 },
-            { y: 190, scale: 0.48, opacity: 0.30 },
-            { y: 150, scale: 0.72, opacity: 0.24 },
-            { y: 110, scale: 0.95, opacity: 0.18 },
-            { y: 70, scale: 1.25, opacity: 0.14 },
-            { y: 30, scale: 1.55, opacity: 0.10 },
+        // 1. Mountain Terraces (Left Mountain, Right Mountain, Center Hill)
+        mountains.forEach((m) => {
+          const tierSteps = [
+            { y: 270, scale: 0.22, opacity: 0.40, jitter: 0.12 },
+            { y: 225, scale: 0.40, opacity: 0.32, jitter: 0.14 },
+            { y: 175, scale: 0.62, opacity: 0.26, jitter: 0.16 },
+            { y: 125, scale: 0.88, opacity: 0.20, jitter: 0.18 },
+            { y: 75, scale: 1.18, opacity: 0.15, jitter: 0.20 },
+            { y: 28, scale: 1.52, opacity: 0.10, jitter: 0.22 },
           ];
 
-          // Compute cluster radius in X and Z
-          const maxDistX = Math.max(30, ...cluster.nodes.map((n) => Math.abs(n.x - cluster.center.cx)));
-          const maxDistZ = Math.max(25, ...cluster.nodes.map((n) => Math.abs(n.z - cluster.center.cz)));
-
-          tierLevels.forEach((tier) => {
-            if (!isMajorCluster && tier.y > 150) return;
-
-            const rx = maxDistX * tier.scale + 12;
-            const rz = maxDistZ * tier.scale + 10;
-            const points = createOrganicContourLoop(cluster.center.cx, cluster.center.cz, rx, rz, 48, 0.16);
+          tierSteps.forEach((step) => {
+            const rx = m.baseRadiusX * step.scale;
+            const rz = m.baseRadiusZ * step.scale;
+            const points = createOrganicContourLoop(m.cx, m.cz, rx, rz, 56, step.jitter);
             const geo = new THREE.BufferGeometry().setFromPoints(points);
             const mat = new THREE.LineBasicMaterial({
-              color: new THREE.Color("#7dd3fc"),
+              color: new THREE.Color("#93c5fd"),
               transparent: true,
-              opacity: tier.opacity,
+              opacity: step.opacity,
             });
             const lineLoop = new THREE.LineLoop(geo, mat);
-            lineLoop.position.y = tier.y;
+            lineLoop.position.y = step.y;
             cGroup.add(lineLoop);
           });
         });
 
-        // 2. Render Tiny Stepping Stone Contour Pads for Peripheral / Ground Nodes (Screenshot 1)
-        data.nodes.forEach((n) => {
-          const t = targetMap.get(n.id);
-          if (t && t.y <= 45 && !peakNodes.has(n.id)) {
-            const padPoints = createOrganicContourLoop(t.x, t.z, 14, 11, 20, 0.18);
-            const geo = new THREE.BufferGeometry().setFromPoints(padPoints);
-            const mat = new THREE.LineBasicMaterial({
-              color: new THREE.Color("#94a3b8"),
-              transparent: true,
-              opacity: 0.22,
-            });
-            const lineLoop = new THREE.LineLoop(geo, mat);
-            lineLoop.position.y = Math.max(10, t.y - 8);
-            cGroup.add(lineLoop);
-          }
+        // 2. Stepping Stone Island Pads in Foreground (Screenshot 2)
+        steppingStones.forEach((st) => {
+          const padPoints = createOrganicContourLoop(st.x, st.z, 16, 12, 24, 0.18);
+          const geo = new THREE.BufferGeometry().setFromPoints(padPoints);
+          const mat = new THREE.LineBasicMaterial({
+            color: new THREE.Color("#94a3b8"),
+            transparent: true,
+            opacity: 0.24,
+          });
+          const lineLoop = new THREE.LineLoop(geo, mat);
+          lineLoop.position.y = st.y - 4;
+          cGroup.add(lineLoop);
         });
       }
     }
-  }, [data, heightMetric, viewMode, computeTargetPositionsAndClusters]);
+  }, [data, heightMetric, viewMode, computeTargetPositionsAndLandscape]);
 
   const currentMetric = METRIC_CONFIG[heightMetric];
 
@@ -768,7 +690,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
       {/* ─────────────────────────────────────────────────────────────
-          1. LEFT ELEVATION STRATA HUD (1:1 with Screenshot 1)
+          1. LEFT ELEVATION STRATA HUD (1:1 with Screenshot 2)
       ───────────────────────────────────────────────────────────── */}
       {viewMode === "terrain" && (
         <div className="nl-3d-left-strata-hud">
@@ -799,7 +721,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Screenshot 1)
+          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Screenshot 2)
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-3d-control-widget">
         {/* Top View Mode Switcher: 地形 vs 知识星图 */}
