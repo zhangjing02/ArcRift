@@ -841,22 +841,22 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Screenshot)
+          2. BOTTOM-RIGHT 4D CONTROLLER (Pure Text 1:1 with Nowledge Mem)
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-3d-control-widget">
-        {/* Top View Mode Switcher: [ ⛰️ 地形 ] | [ 🌌 知识星图 ] */}
+        {/* Top View Mode Switcher: [ 地形 ] | [ 知识星图 ] */}
         <div className="nl-3d-viewmode-pill-container">
           <button
             className={`nl-3d-viewmode-pill ${viewMode === "terrain" ? "active" : ""}`}
             onClick={() => setViewMode("terrain")}
           >
-            <span>⛰️</span> 地形
+            地形
           </button>
           <button
             className={`nl-3d-viewmode-pill ${viewMode === "galaxy" ? "active" : ""}`}
             onClick={() => setViewMode("galaxy")}
           >
-            <span>🌌</span> 知识星图
+            知识星图
           </button>
         </div>
 
@@ -865,7 +865,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           <>
             <div className="nl-3d-metric-header">高度代表什么？</div>
 
-            {/* Single Horizontal Row of 4 Dimension Pills */}
+            {/* Single Horizontal Row of 4 Dimension Pills (Pure Text) */}
             <div className="nl-3d-metric-horizontal-row">
               {(Object.keys(METRIC_CONFIG) as HeightMetric[]).map((key) => {
                 const cfg = METRIC_CONFIG[key];
@@ -876,8 +876,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
                     className={`nl-3d-metric-inline-btn ${isActive ? "active" : ""}`}
                     onClick={() => setHeightMetric(key)}
                   >
-                    <span className="nl-metric-icon">{cfg.icon}</span>
-                    <span>{cfg.name}</span>
+                    {cfg.name}
                   </button>
                 );
               })}
