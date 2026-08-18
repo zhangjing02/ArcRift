@@ -1,6 +1,6 @@
 /**
  * ArcRift Electron Main Process
- * Manages background API lifecycle, system tray, and main dashboard window.
+ * Manages background API lifecycle, system tray, auto-healing, and main dashboard window.
  */
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut } = require("electron");
@@ -13,6 +13,7 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let backendProcess = null;
+let pollTimer = null;
 
 const PORT = 3001;
 const LOG_FILE = path.resolve(__dirname, "desktop.log");
@@ -24,7 +25,7 @@ function log(msg) {
   } catch {}
 }
 
-log("Starting ArcRift Electron main.js...");
+log("Starting ArcRift Electron main.js (Auto-Healing Engine)...");
 
 // Single Instance Lock: If user double clicks desktop icon again, focus the existing window!
 const gotTheLock = app.requestSingleInstanceLock();
@@ -39,6 +40,7 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+      safeReload();
     }
   });
 
@@ -93,6 +95,15 @@ if (!gotTheLock) {
       backendProcess.on("exit", (code, signal) => {
         log(`[Backend Exit] code=${code} signal=${signal}`);
         backendProcess = null;
+        if (!isQuitting) {
+          log("Backend process exited unexpectedly. Auto-healing in 1s...");
+          setTimeout(() => {
+            if (!isQuitting) {
+              startBackend();
+              ensureBackendAndLoad();
+            }
+          }, 1000);
+        }
       });
     } catch (err) {
       log(`[Backend Spawn Catch] ${err?.stack || err}`);
@@ -119,6 +130,8 @@ if (!gotTheLock) {
   }
 
   function ensureBackendAndLoad() {
+    if (pollTimer) clearInterval(pollTimer);
+
     // Check if backend is already listening
     const req = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
       if (res.statusCode === 200) {
@@ -137,12 +150,13 @@ if (!gotTheLock) {
 
     // Poll until backend is healthy
     let attempts = 0;
-    const maxAttempts = 50;
-    const pollTimer = setInterval(() => {
+    const maxAttempts = 40;
+    pollTimer = setInterval(() => {
       attempts++;
       const testReq = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
         if (res.statusCode === 200) {
           clearInterval(pollTimer);
+          pollTimer = null;
           log(`Backend healthy on attempt ${attempts}. Loading frontend.`);
           loadFrontendInWindow();
         }
@@ -150,12 +164,33 @@ if (!gotTheLock) {
       testReq.on("error", () => {
         if (attempts >= maxAttempts) {
           clearInterval(pollTimer);
+          pollTimer = null;
           log("Poll reached maxAttempts, attempting fallback load.");
           loadFrontendInWindow();
         }
       });
       testReq.end();
-    }, 400);
+    }, 300);
+  }
+
+  function safeReload() {
+    log("safeReload triggered...");
+    const req = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
+      if (res.statusCode === 200 && mainWindow && !mainWindow.isDestroyed()) {
+        log("Backend is healthy, executing in-place reloadIgnoringCache().");
+        mainWindow.webContents.reloadIgnoringCache();
+      } else {
+        log("Backend responded non-200, ensuring backend revival...");
+        ensureBackendAndLoad();
+      }
+    });
+
+    req.on("error", () => {
+      log("Backend is offline during reload, auto-spawning backend...");
+      startBackend();
+      ensureBackendAndLoad();
+    });
+    req.end();
   }
 
   function createWindow() {
@@ -186,16 +221,14 @@ if (!gotTheLock) {
       mainWindow.focus();
     });
 
-    // Immediately show as fallback
     mainWindow.show();
     mainWindow.focus();
 
-    // Keyboard Shortcuts: F5 / Ctrl+R for smooth in-place reload, F12 for DevTools
+    // Keyboard Shortcuts: F5 / Ctrl+R for safe auto-healing reload, F12 for DevTools
     mainWindow.webContents.on("before-input-event", (event, input) => {
       if (input.key === "F5" || (input.control && input.key.toLowerCase() === "r")) {
         event.preventDefault();
-        log("Shortcut reload triggered, calling reloadIgnoringCache()...");
-        mainWindow.webContents.reloadIgnoringCache();
+        safeReload();
       }
       if (input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i")) {
         event.preventDefault();
@@ -217,17 +250,14 @@ if (!gotTheLock) {
 
     mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {
       if (errorCode === -3) return; // Ignore net::ERR_ABORTED
-      log(`did-fail-load: ${errorCode} ${errorDescription}, retrying in 1.2s...`);
-      setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          loadFrontendInWindow();
-        }
-      }, 1200);
+      log(`did-fail-load: ${errorCode} ${errorDescription}, auto-healing backend...`);
+      startBackend();
+      ensureBackendAndLoad();
     });
 
     mainWindow.webContents.on("render-process-gone", (event, details) => {
       log(`Renderer process gone: ${details.reason}, auto reloading...`);
-      loadFrontendInWindow();
+      ensureBackendAndLoad();
     });
 
     mainWindow.on("close", (event) => {
@@ -268,9 +298,7 @@ if (!gotTheLock) {
         label: "重新加载 (Reload)",
         click: () => {
           log("Tray Reload clicked!");
-          if (mainWindow) {
-            mainWindow.webContents.reloadIgnoringCache();
-          }
+          safeReload();
         },
       },
       { type: "separator" },
