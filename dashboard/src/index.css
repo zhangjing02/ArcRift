@@ -4434,6 +4434,25 @@ body {
   background: #1d4ed8;
 }
 
+.nl-btn-save-edit:disabled,
+.nl-btn-cancel-edit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nl-save-success-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+  animation: fadeIn 0.2s ease;
+}
+
 /* ── Rich Markdown & Code Structure ────────────────────────── */
 .nl-rich-markdown-container {
   display: flex;

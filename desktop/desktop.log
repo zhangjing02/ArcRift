@@ -842,3 +842,32 @@ For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T10:47:20.313Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T10:47:20.349Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T10:48:43.158Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:43.159Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:45.186Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:45.207Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:45.845Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:45.846Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:46.244Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:46.245Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:46.418Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:46.419Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:46.599Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:46.600Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:46.783Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:46.789Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:49.323Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:49.325Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:49.725Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:49.727Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)
+[2026-08-18T10:48:49.908Z] [Renderer Console] [3] Access to XMLHttpRequest at 'http://localhost:3001/api/memories/mem_1e974df6-244f-48f4-9611-d68fb47a91c9' from origin 'http://127.0.0.1:3001' has been blocked by CORS policy: Method PATCH is not allowed by Access-Control-Allow-Methods in preflight response. (http://127.0.0.1:3001/:0)
+[2026-08-18T10:48:49.909Z] [Renderer Console] [3] Failed to save memory edit AxiosError: Network Error (http://127.0.0.1:3001/assets/index-Bu57By6D.js:86)

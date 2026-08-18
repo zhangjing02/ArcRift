@@ -41,6 +41,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editTab, setEditTab] = useState<"edit" | "preview" | "split">("edit");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [saveSuccessTip, setSaveSuccessTip] = useState(false);
 
   useEffect(() => {
     onSelectedMemoryChange?.(selectedMemory);
@@ -147,16 +149,39 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedMemory) return;
+    if (!selectedMemory || isSavingEdit) return;
+    setIsSavingEdit(true);
     try {
-      await updateMemory(selectedMemory.id, {
+      const res = await updateMemory(selectedMemory.id, {
         title: editTitle,
         content: editContent,
       });
+
+      const updatedMem: Memory = res.memory || {
+        ...selectedMemory,
+        title: editTitle,
+        content: editContent,
+        updatedAt: new Date(),
+      };
+
+      // 1. Immediately update active selected memory state
+      setSelectedMemory(updatedMem);
       setIsEditing(false);
-      await loadData();
-    } catch (err) {
+      setSaveSuccessTip(true);
+      setTimeout(() => setSaveSuccessTip(false), 2500);
+
+      // 2. Immediately update memory in the list state
+      setMemories((prev) =>
+        prev.map((m) => (m.id === updatedMem.id ? updatedMem : m))
+      );
+
+      // 3. Background reload
+      loadData();
+    } catch (err: any) {
       console.error("Failed to save memory edit", err);
+      alert("保存失败: " + (err?.message || "网络请求异常"));
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -255,11 +280,21 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             <span>返回记忆列表</span>
           </button>
           <div className="nl-detail-header-actions">
+            {saveSuccessTip && (
+              <span className="nl-save-success-badge">
+                <IconCheck size={13} style={{ marginRight: 4 }} />
+                已保存
+              </span>
+            )}
             {isEditing ? (
               <div className="nl-edit-actions-group">
                 <button
+                  type="button"
                   className="nl-btn-cancel-edit"
-                  onClick={() => {
+                  disabled={isSavingEdit}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     setIsEditing(false);
                     setEditTitle(selectedMemory.title);
                     setEditContent(selectedMemory.content);
@@ -268,18 +303,27 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                   ✕ 取消
                 </button>
                 <button
+                  type="button"
                   className="nl-btn-save-edit"
-                  onClick={handleSaveEdit}
+                  disabled={isSavingEdit}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSaveEdit();
+                  }}
                 >
                   <IconCheck size={14} style={{ marginRight: 4 }} />
-                  保存
+                  {isSavingEdit ? "保存中..." : "保存"}
                 </button>
               </div>
             ) : (
               <button
+                type="button"
                 className="nl-detail-header-icon-btn"
                 title="编辑记忆"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   setEditTitle(selectedMemory.title);
                   setEditContent(selectedMemory.content);
                   setIsEditing(true);
