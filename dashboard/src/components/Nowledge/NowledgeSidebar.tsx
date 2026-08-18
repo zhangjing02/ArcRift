@@ -142,7 +142,8 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
   searchQuery,
   onSearchChange,
 }) => {
-  const activeSession = sessions.find((s) => s._id === activeSessionId) || sessions[0];
+  // If activeSessionId is undefined or "all", it represents All Spaces
+  const selectedVal = activeSessionId || "all";
 
   return (
     <aside className="nl-sidebar">
@@ -253,7 +254,7 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
       <div className="nl-project-section">
         <div className="nl-section-header">当前空间 / 项目</div>
         <select
-          value={activeSession?._id || "all"}
+          value={selectedVal}
           onChange={(e) => {
             const val = e.target.value;
             if (val === "all") {
