@@ -965,22 +965,30 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. BOTTOM-RIGHT 4D CONTROLLER (Pure Text 1:1 with Nowledge Mem)
+          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Nowledge Mem Left Screenshot)
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-3d-control-widget">
-        {/* Top View Mode Switcher: [ 地形 ] | [ 知识星图 ] */}
+        {/* Top View Mode Switcher: [ ▲ 地形 ] | [ ◎ 知识星图 ] */}
         <div className="nl-3d-viewmode-pill-container">
           <button
             className={`nl-3d-viewmode-pill ${viewMode === "terrain" ? "active" : ""}`}
             onClick={() => setViewMode("terrain")}
           >
-            地形
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+            </svg>
+            <span>地形</span>
           </button>
           <button
             className={`nl-3d-viewmode-pill ${viewMode === "galaxy" ? "active" : ""}`}
             onClick={() => setViewMode("galaxy")}
           >
-            知识星图
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2a10 10 0 0 0-7.07 17.07" strokeDasharray="3 3" />
+              <path d="M12 22a10 10 0 0 0 7.07-17.07" strokeDasharray="3 3" />
+            </svg>
+            <span>知识星图</span>
           </button>
         </div>
 
@@ -989,7 +997,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           <>
             <div className="nl-3d-metric-header">高度代表什么？</div>
 
-            {/* Single Horizontal Row of 4 Dimension Pills (Pure Text) */}
+            {/* Single Horizontal Row of 4 Dimension Pills with Outline Icons */}
             <div className="nl-3d-metric-horizontal-row">
               {(Object.keys(METRIC_CONFIG) as HeightMetric[]).map((key) => {
                 const cfg = METRIC_CONFIG[key];
@@ -1000,13 +1008,37 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
                     className={`nl-3d-metric-inline-btn ${isActive ? "active" : ""}`}
                     onClick={() => setHeightMetric(key)}
                   >
-                    {cfg.name}
+                    {key === "influence" && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+                      </svg>
+                    )}
+                    {key === "structure" && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <circle cx="12" cy="12" r="7" strokeDasharray="2 3" />
+                      </svg>
+                    )}
+                    {key === "morphology" && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 12 17 22 12" />
+                      </svg>
+                    )}
+                    {key === "growth" && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    )}
+                    <span>{cfg.name}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Dynamic Explanatory Footer (No boxes, pure clean text) */}
+            {/* Dynamic Explanatory Footer (1:1 Left Screenshot) */}
             <div className="nl-3d-metric-caption-group">
               <div className="nl-metric-caption-title">{currentMetric.title}</div>
               <div className="nl-metric-caption-desc">{currentMetric.description}</div>

@@ -6337,12 +6337,12 @@ body {
 /* ── 3D FLOATING CONTROLLER (1:1 PIXEL-PERFECT WITH NOWLEDGE MEM) ── */
 .nl-3d-control-widget {
   position: absolute;
-  bottom: 64px;
-  right: 24px;
+  bottom: 74px;
+  right: 28px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
   z-index: 25;
   pointer-events: auto;
   user-select: none;
@@ -6352,73 +6352,75 @@ body {
 .nl-3d-viewmode-pill-container {
   display: inline-flex;
   align-items: center;
-  background: #141720;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 22px;
+  background: #181b22;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
   padding: 3px;
-  gap: 3px;
+  gap: 4px;
 }
 
 .nl-3d-viewmode-pill {
   display: flex;
   align-items: center;
+  gap: 6px;
   background: transparent;
   border: none;
-  color: #858e9f;
+  color: #8c96a5;
   font-size: 13px;
   font-weight: 500;
   padding: 5px 16px;
-  border-radius: 18px;
+  border-radius: 20px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .nl-3d-viewmode-pill.active {
-  background: #252936;
+  background: #282c35;
   color: #f8fafc;
 }
 
 .nl-3d-viewmode-pill:hover:not(.active) {
-  color: #e2e8f0;
+  color: #ffffff;
 }
 
 /* Section Title: 高度代表什么？ */
 .nl-3d-metric-header {
   font-size: 13px;
-  color: #94a3b8;
+  color: #f1f5f9;
   font-weight: 500;
-  margin-top: 6px;
-  margin-bottom: 2px;
+  margin-top: 2px;
+  margin-bottom: 0;
 }
 
-/* 4-Item Horizontal Row */
+/* 4-Item Horizontal Row with Spacious Gaps */
 .nl-3d-metric-horizontal-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
 }
 
 .nl-3d-metric-inline-btn {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 16px;
-  color: #858e9f;
+  border-radius: 18px;
+  color: #8c96a5;
   font-size: 12.5px;
-  font-weight: 400;
-  padding: 4px 11px;
+  font-weight: 500;
+  padding: 5px 12px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .nl-3d-metric-inline-btn:hover {
-  color: #f1f5f9;
+  color: #ffffff;
 }
 
 .nl-3d-metric-inline-btn.active {
-  background: #252936;
-  border-color: rgba(255, 255, 255, 0.16);
+  background: #282c35;
+  border-color: rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font-weight: 500;
 }
@@ -6427,8 +6429,8 @@ body {
 .nl-3d-metric-caption-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .nl-metric-caption-title {
@@ -6439,7 +6441,7 @@ body {
 
 .nl-metric-caption-desc {
   font-size: 12.5px;
-  color: #94a3b8;
+  color: #8c96a5;
   line-height: 1.5;
 }
 
