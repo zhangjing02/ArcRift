@@ -63,7 +63,7 @@ export class SqliteGraphStore implements IGraphStore {
 
     // 1. Fetch memories and create memory nodes + project/tag nodes & links
     try {
-      let memQuery = "SELECT id, title, content, unit_type, labels, importance, createdAt, evolves_from_id, evolves_relation FROM memories WHERE 1=1";
+      let memQuery = "SELECT id, sessionId, title, content, unit_type, labels, importance, createdAt, evolves_from_id, evolves_relation FROM memories WHERE 1=1";
       const memParams: any[] = [];
       if (filters.sessionId) {
         memQuery += " AND sessionId = ?";
@@ -94,6 +94,21 @@ export class SqliteGraphStore implements IGraphStore {
           });
         }
 
+        // Connect to primary project hub if sessionId is present
+        if (m.sessionId && m.sessionId !== "default" && m.sessionId !== "default-session") {
+          const projTagId = `tag:${m.sessionId}`;
+          if (!nodes.has(projTagId)) {
+            nodes.set(projTagId, {
+              id: projTagId,
+              label: m.sessionId,
+              type: "project",
+              category: "project",
+              firstSeen: ts,
+            });
+          }
+          addLink(id, projTagId, "belongs_to_project", ts);
+        }
+
         // Parse labels and connect to tag/concept nodes
         let labelList: string[] = [];
         try {
@@ -108,7 +123,19 @@ export class SqliteGraphStore implements IGraphStore {
           const tagId = `tag:${cleanLabel}`;
 
           if (!nodes.has(tagId)) {
-            const isProject = ["ArcRift", "NowledgeMem", "WechatBot", "BeBeBus", "ChronosMind"].includes(cleanLabel);
+            const isProject = [
+              "ArcRift",
+              "NowledgeMem",
+              "WechatBot",
+              "BeBeBus",
+              "ChronosMind",
+              "MoodyMusic",
+              "StockAnalysis",
+              "NotionAI",
+              "Workflow",
+              "AndroidDev",
+            ].includes(cleanLabel);
+
             nodes.set(tagId, {
               id: tagId,
               label: cleanLabel,
