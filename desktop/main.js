@@ -1,5 +1,5 @@
 /**
- * ChronosMind Electron Main Process
+ * ArcRift Electron Main Process
  * Manages background API lifecycle, system tray, and main dashboard window.
  */
 
@@ -25,11 +25,19 @@ function log(msg) {
   } catch {}
 }
 
-log("Starting ChronosMind Electron main.js...");
+log("Starting ArcRift Electron main.js...");
 
 function startBackend() {
   const backendDir = path.resolve(__dirname, "../backend");
   const backendEntry = path.resolve(backendDir, "dist/index.js");
+
+  let nodeBin = "node";
+  const bundledNode = path.resolve(backendDir, "bin/node.exe");
+  if (fs.existsSync(bundledNode)) {
+    nodeBin = bundledNode;
+  } else if (fs.existsSync("D:\\DevelopeTools\\Node\\node.exe")) {
+    nodeBin = "D:\\DevelopeTools\\Node\\node.exe";
+  }
 
   const cleanEnv = { ...process.env };
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
@@ -39,15 +47,14 @@ function startBackend() {
   cleanEnv.PORT = String(PORT);
   cleanEnv.NODE_ENV = "production";
   cleanEnv.ARCRIFT_STORAGE_MODE = "sqlite";
-  cleanEnv.SQLITE_DB_PATH = path.resolve(backendDir, "ArcRift.db");
 
-  log(`Spawning backend: node "${backendEntry}" (cwd: ${backendDir}) with DB: ${cleanEnv.SQLITE_DB_PATH}`);
+  log(`Spawning backend: "${nodeBin}" "${backendEntry}" (cwd: ${backendDir})`);
 
   try {
-    backendProcess = spawn("node", [backendEntry], {
+    backendProcess = spawn(nodeBin, [backendEntry], {
       cwd: backendDir,
       env: cleanEnv,
-      shell: true,
+      shell: false,
       windowsHide: true,
     });
 
@@ -148,7 +155,7 @@ function createWindow() {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "ChronosMind",
+    title: "ArcRift",
     icon: iconPath,
     backgroundColor: "#0d0e12",
     autoHideMenuBar: true,
