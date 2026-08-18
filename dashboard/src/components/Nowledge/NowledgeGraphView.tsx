@@ -1,7 +1,20 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
 import type { GraphData, GraphNode } from "../../types";
-import { getGraphData } from "../../api/ArcRift";
+import { getGraphData, fetchMemories } from "../../api/ArcRift";
+import {
+  IconSearch,
+  IconSparkles,
+  IconCompass,
+  IconMaximize,
+  IconRefresh,
+  IconEye,
+  IconLink,
+  IconZoomIn,
+  IconZoomOut,
+  IconSettings,
+  IconLibrary,
+} from "./Icons";
 
 interface NowledgeGraphViewProps {
   sessionId?: string;
@@ -16,12 +29,16 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const [depthScope, setDepthScope] = useState(1);
   const [viewDimension, setViewDimension] = useState<"2D" | "3D">("2D");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [activeTab, setActiveTab] = useState<"explore" | "details" | "ontology" | "maintain">("explore");
+  
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAsking, setIsAsking] = useState(false);
+  const [recentMemories, setRecentMemories] = useState<string[]>([]);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const zoomBehaviorRef = useRef<any>(null);
 
   useEffect(() => {
     loadGraph();
@@ -32,6 +49,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       const g = await getGraphData(sessionId);
       if (g && g.nodes) {
         setData(g as GraphData);
+        if (g.nodes.length > 0 && !selectedNode) {
+          setSelectedNode(g.nodes[0]);
+        }
+      }
+      const mRes = await fetchMemories({ sessionId });
+      if (mRes && mRes.memories) {
+        setRecentMemories(mRes.memories.map((m) => m.title));
       }
     } catch (err) {
       console.error("Failed to load graph data", err);
@@ -57,7 +81,6 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     return { nodes: data.nodes.filter((n: GraphNode) => matchedNodeIds.has(n.id)), links };
   }, [data, searchQuery]);
 
-  // Color mapping based on Nowledge Mem categories
   const getNodeColor = (type: string = "") => {
     switch (type.toLowerCase()) {
       case "entity":
@@ -65,7 +88,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         return "#a855f7"; // 🟣 实体
       case "memory":
       case "decision":
-        return "#38bdf8"; // 🔵 记忆
+        return "#0284c7"; // 🔵 记忆
       case "document":
       case "file":
       case "tech":
@@ -75,11 +98,10 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         return "#f97316"; // 🟠 对话
       case "skill":
       case "rule":
-      case "gotcha":
       case "architecture":
-        return "#ef4444"; // 🔴 技能 / 规则 / 避坑
+        return "#ef4444"; // 🔴 技能 / 架构
       default:
-        return "#f59e0b";
+        return "#0284c7";
     }
   };
 
@@ -105,6 +127,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         g.attr("transform", event.transform);
       });
 
+    zoomBehaviorRef.current = zoom;
     svg.call(zoom);
 
     if (filteredData.nodes.length === 0) return;
@@ -121,15 +144,15 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
     const simulation = d3
       .forceSimulation(nodes)
-      .force("link", d3.forceLink(validLinks).id((d: any) => d.id).distance(120))
-      .force("charge", d3.forceManyBody().strength(-280))
+      .force("link", d3.forceLink(validLinks).id((d: any) => d.id).distance(130))
+      .force("charge", d3.forceManyBody().strength(-320))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(40));
+      .force("collision", d3.forceCollide().radius(45));
 
-    // Glow Filter Defs
+    // Defs
     const defs = svg.append("defs");
     const filter = defs.append("filter").attr("id", "node-glow");
-    filter.append("feGaussianBlur").attr("stdDeviation", "3").attr("result", "coloredBlur");
+    filter.append("feGaussianBlur").attr("stdDeviation", "2.5").attr("result", "coloredBlur");
     const feMerge = filter.append("feMerge");
     feMerge.append("feMergeNode").attr("in", "coloredBlur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
@@ -137,13 +160,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     // Links
     const link = g
       .append("g")
-      .attr("stroke", "rgba(148, 163, 184, 0.25)")
+      .attr("stroke", "rgba(148, 163, 184, 0.2)")
       .attr("stroke-width", 1.5)
       .selectAll("line")
       .data(validLinks)
       .join("line");
 
-    // Link Labels (Relations)
+    // Link Labels
     const linkText = g
       .append("g")
       .selectAll("text")
@@ -186,17 +209,17 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     // Outer Halo
     node
       .append("circle")
-      .attr("r", 18)
+      .attr("r", (d: any) => (selectedNode?.id === d.id ? 24 : 18))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("opacity", 0.15);
+      .attr("opacity", (d: any) => (selectedNode?.id === d.id ? 0.25 : 0.12));
 
     // Main Circle
     node
       .append("circle")
       .attr("r", 12)
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("stroke", "#ffffff")
-      .attr("stroke-width", 1.5)
+      .attr("stroke", (d: any) => (selectedNode?.id === d.id ? "#38bdf8" : "rgba(255,255,255,0.85)"))
+      .attr("stroke-width", (d: any) => (selectedNode?.id === d.id ? 2.5 : 1.5))
       .attr("filter", "url(#node-glow)")
       .attr("cursor", "pointer");
 
@@ -206,7 +229,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .attr("dx", 16)
       .attr("dy", 4)
       .attr("fill", "#f8fafc")
-      .attr("font-size", "12px")
+      .attr("font-size", "11.5px")
       .attr("font-weight", "500")
       .text((d: any) => d.id);
 
@@ -227,98 +250,111 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     return () => {
       simulation.stop();
     };
-  }, [filteredData]);
+  }, [filteredData, selectedNode?.id]);
+
+  const handleZoom = (direction: "in" | "out") => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(250).call(zoomBehaviorRef.current.scaleBy, direction === "in" ? 1.3 : 0.7);
+  };
 
   const handleAskQuestion = (question: string) => {
     setAiPrompt(question);
     setIsAsking(true);
     setTimeout(() => {
+      const activeName = selectedNode ? selectedNode.id : "知识图谱";
       setAiAnswer(
-        `关于「${question}」的图谱洞察：当前在图谱中检索到了 ${data.nodes.length} 个实体与 ${data.links.length} 条拓扑关系。核心脉络聚焦于 OTA 接口参数由 Query 改为 POST Body，并明确了硬件 MQTT 错误码 12/8 的拦截流转机制。`
+        `关于「${activeName}」的图谱深度洞察：当前图谱中已连接 ${data.nodes.length} 个实体与 ${data.links.length} 条关系。核心语义关联包括架构规范、关键事件流转机制以及全局记忆沉淀。`
       );
       setIsAsking(false);
-    }, 800);
+    }, 600);
   };
+
+  const activeEntityName = selectedNode
+    ? selectedNode.id
+    : recentMemories[0] || "ChronosMind";
+
+  const secondaryEntityName = recentMemories[1] || " BeBeBus";
 
   return (
     <div className="nl-graph-view-container">
-      {/* Top Header */}
-      <div className="nl-view-header">
-        <div className="nl-view-title-group">
-          <h1 className="nl-view-title">知识图谱</h1>
-          <p className="nl-view-subtitle">
-            全图 · {data.nodes.length} 个节点，{data.links.length} 条边
-          </p>
-        </div>
-
-        {/* Top Right Action Chips (Matching Screenshot 1) */}
-        <div className="nl-graph-header-actions">
-          <button className="nl-action-chip">✨ 解读</button>
-          <button className="nl-action-chip">📄 查看</button>
-          <button className="nl-action-chip">⚙️ 本体</button>
-          <button className="nl-action-chip">☷ 图谱维护</button>
-        </div>
-      </div>
-
-      {/* Search & Scope Toolbar */}
-      <div className="nl-graph-toolbar">
-        <div className="nl-graph-search-wrap">
-          <span className="nl-search-icon">🔍</span>
-          <input
-            type="text"
-            placeholder="搜索实体、主题或问题..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="nl-graph-search-input"
-          />
-          <div className="nl-speed-pills">
-            <button
-              className={`nl-speed-pill ${searchSpeed === "smart" ? "active" : ""}`}
-              onClick={() => setSearchSpeed("smart")}
-            >
-              智能
-            </button>
-            <button
-              className={`nl-speed-pill ${searchSpeed === "fast" ? "active" : ""}`}
-              onClick={() => setSearchSpeed("fast")}
-            >
-              快速
-            </button>
+      {/* ─────────────────────────────────────────────────────────────
+          1. TOP SEARCH & SCOPE TOOLBAR (1:1 with Nowledge Mem Right Window)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="nl-graph-top-bar">
+        <div className="nl-graph-search-container">
+          <div className="nl-graph-search-input-wrap">
+            <IconSearch size={14} className="nl-graph-search-magnifier" />
+            <input
+              type="text"
+              placeholder="搜索实体、主题或问题..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="nl-graph-search-field"
+            />
           </div>
-          <div className="nl-depth-selector">
-            <span className="nl-depth-label">✨ 范围</span>
-            {[1, 2, 3, 4, 5].map((lvl) => (
+
+          <div className="nl-graph-search-controls">
+            <div className="nl-graph-mode-pills">
               <button
-                key={lvl}
-                className={`nl-depth-num ${depthScope === lvl ? "active" : ""}`}
-                onClick={() => setDepthScope(lvl)}
+                className={`nl-graph-mode-btn ${searchSpeed === "smart" ? "active" : ""}`}
+                onClick={() => setSearchSpeed("smart")}
               >
-                {lvl}
+                智能
               </button>
-            ))}
+              <button
+                className={`nl-graph-mode-btn ${searchSpeed === "fast" ? "active" : ""}`}
+                onClick={() => setSearchSpeed("fast")}
+              >
+                快捷
+              </button>
+            </div>
+
+            <div className="nl-graph-scope-group">
+              <span className="nl-scope-sparkle">✦ 范围</span>
+              {[1, 2, 3, 4, 5].map((lvl) => (
+                <button
+                  key={lvl}
+                  className={`nl-scope-num-btn ${depthScope === lvl ? "active" : ""}`}
+                  onClick={() => setDepthScope(lvl)}
+                >
+                  {lvl}
+                </button>
+              ))}
+            </div>
+
+            <button className="nl-graph-search-submit-btn" title="执行图谱检索">
+              <IconSearch size={13} />
+            </button>
           </div>
-          <button className="nl-graph-search-btn">🔍</button>
         </div>
       </div>
 
-      {/* Main Canvas & Right Explore Layout */}
-      <div className="nl-graph-body">
-        {/* Floating Canvas Card Container */}
-        <div className="nl-graph-card-container" ref={containerRef}>
-          {/* Top Floating Controls inside canvas */}
-          <div className="nl-canvas-top-tools">
-            <div className="nl-tool-group">
-              <button className="nl-canvas-btn" title="随机重排" onClick={() => loadGraph()}>🔀</button>
-              <button className="nl-canvas-btn" title="全局居中" onClick={() => loadGraph()}>🌐</button>
-              <div className="nl-dim-toggle">
+      {/* ─────────────────────────────────────────────────────────────
+          2. MAIN GRAPH BODY (Left Canvas + Right Inspector)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="nl-graph-split-body">
+        {/* LEFT PANE: Graph Canvas Box */}
+        <div className="nl-graph-canvas-box" ref={containerRef}>
+          {/* Top Canvas Toolbar Capsule */}
+          <div className="nl-canvas-floating-header">
+            {/* Left Tools Group: Zoom & 2D/3D */}
+            <div className="nl-canvas-capsule-left">
+              <button className="nl-canvas-icon-btn" onClick={() => handleZoom("out")} title="缩小">
+                <IconZoomOut size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" onClick={() => handleZoom("in")} title="放大">
+                <IconZoomIn size={13} />
+              </button>
+              <div className="nl-canvas-dim-pills">
                 <button
-                  className={`nl-dim-btn ${viewDimension === "2D" ? "active" : ""}`}
+                  className={`nl-dim-pill ${viewDimension === "2D" ? "active" : ""}`}
                   onClick={() => setViewDimension("2D")}
                 >
                   2D
                 </button>
                 <button
-                  className={`nl-dim-btn ${viewDimension === "3D" ? "active" : ""}`}
+                  className={`nl-dim-pill ${viewDimension === "3D" ? "active" : ""}`}
                   onClick={() => setViewDimension("3D")}
                 >
                   3D
@@ -326,105 +362,169 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               </div>
             </div>
 
-            <div className="nl-tool-group">
-              <button className="nl-canvas-btn" title="层级视图">📚</button>
-              <button className="nl-canvas-btn" title="聚焦核心">🎯</button>
-              <button className="nl-canvas-btn" title="关系过滤">🔗</button>
-              <button className="nl-canvas-btn" title="全屏查看">⤢</button>
+            {/* Right Tools Group: Discover, Compass, Link, Eye, Maximize, Reset */}
+            <div className="nl-canvas-capsule-right">
+              <button className="nl-canvas-icon-btn" title="发现 / 探查">
+                <IconSparkles size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="罗盘全景" onClick={() => loadGraph()}>
+                <IconCompass size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="拓扑关系">
+                <IconLink size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="视图显示">
+                <IconEye size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="全屏查看">
+                <IconMaximize size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="重置居中" onClick={() => loadGraph()}>
+                <IconRefresh size={13} />
+              </button>
             </div>
           </div>
 
           {/* D3 SVG Canvas */}
-          <svg ref={svgRef} className="nl-graph-svg"></svg>
+          <svg ref={svgRef} className="nl-graph-d3-canvas"></svg>
 
-          {/* Bottom Left Legend */}
-          <div className="nl-graph-legend">
-            <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#a855f7" }}></span>
-              <span>实体</span>
+          {/* Bottom Floating Bar inside Canvas (Matches Screenshot) */}
+          <div className="nl-canvas-bottom-bar">
+            <div className="nl-canvas-bottom-legend">
+              <span className="nl-legend-pill">
+                <span className="nl-legend-dot-purple" /> 实体
+              </span>
+              <span className="nl-legend-counter">1</span>
+              <span className="nl-legend-counter">1</span>
             </div>
-            <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#38bdf8" }}></span>
-              <span>记忆</span>
-            </div>
-            <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#10b981" }}></span>
-              <span>资料</span>
-            </div>
-            <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#f97316" }}></span>
-              <span>对话</span>
-            </div>
-            <div className="nl-legend-pill">
-              <span className="nl-legend-dot" style={{ background: "#ef4444" }}></span>
-              <span>技能</span>
+
+            <div className="nl-canvas-bottom-actions">
+              <button className="nl-floating-action-btn">
+                <IconSparkles size={12} style={{ marginRight: 4 }} />
+                发现
+              </button>
+              <button className="nl-floating-action-btn">
+                <IconMaximize size={12} style={{ marginRight: 4 }} />
+                Expand
+              </button>
+              <button className="nl-floating-action-btn highlight">
+                <IconSparkles size={12} style={{ marginRight: 4 }} />
+                探查
+              </button>
             </div>
           </div>
-
-          {/* Node Inspector Floating Badge when node clicked */}
-          {selectedNode && (
-            <div className="nl-node-inspector-floating">
-              <div className="nl-node-floating-header">
-                <span className="nl-node-badge-type">{selectedNode.type}</span>
-                <button className="nl-close-btn" onClick={() => setSelectedNode(null)}>✕</button>
-              </div>
-              <div className="nl-node-floating-title">{selectedNode.id}</div>
-            </div>
-          )}
         </div>
 
-        {/* Right Explore Drawer (Matching Screenshot 1 Right Side) */}
-        <div className="nl-graph-explore-panel">
-          <div className="nl-explore-header">探索</div>
-
-          <div className="nl-explore-prompts">
+        {/* RIGHT PANE: Knowledge Inspector & Q&A Exploration (1:1 with Right Window) */}
+        <div className="nl-graph-inspector-panel">
+          {/* Top Inspector Tabs */}
+          <div className="nl-inspector-tabs-header">
             <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("发现意想不到的关联")}
+              className={`nl-inspector-tab-btn ${activeTab === "explore" ? "active" : ""}`}
+              onClick={() => setActiveTab("explore")}
             >
-              发现意想不到的关联
+              <IconSparkles size={13} className="nl-tab-icon" />
+              <span>探查</span>
             </button>
             <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("哪里有知识空白？")}
+              className={`nl-inspector-tab-btn ${activeTab === "details" ? "active" : ""}`}
+              onClick={() => setActiveTab("details")}
             >
-              哪里有知识空白？
+              <IconLibrary size={13} className="nl-tab-icon" />
+              <span>详情</span>
             </button>
             <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("哪些说法互相矛盾？")}
+              className={`nl-inspector-tab-btn ${activeTab === "ontology" ? "active" : ""}`}
+              onClick={() => setActiveTab("ontology")}
             >
-              哪些说法互相矛盾？
+              <IconSettings size={13} className="nl-tab-icon" />
+              <span>本体</span>
             </button>
             <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("识别知识族群")}
+              className={`nl-inspector-tab-btn ${activeTab === "maintain" ? "active" : ""}`}
+              onClick={() => setActiveTab("maintain")}
             >
-              识别知识族群
-            </button>
-            <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("我的知识是如何演变的？")}
-            >
-              我的知识是如何演变的？
-            </button>
-            <button
-              className="nl-prompt-chip"
-              onClick={() => handleAskQuestion("我有哪些盲区值得去看？")}
-            >
-              我有哪些盲区值得去看？
+              <IconRefresh size={13} className="nl-tab-icon" />
+              <span>图谱维护</span>
             </button>
           </div>
 
-          {aiAnswer && (
-            <div className="nl-ai-graph-response">
-              <div className="nl-ai-graph-label">✨ 图谱洞察</div>
-              <p>{aiAnswer}</p>
+          {/* Inspector Content Body */}
+          <div className="nl-inspector-content-scroll">
+            {/* Top Center Entity Visual Disk & Title */}
+            <div className="nl-inspector-entity-hero">
+              <div className="nl-entity-circle-disk">
+                <div className="nl-entity-inner-circle" />
+              </div>
+              <h2 className="nl-entity-hero-title" title={activeEntityName}>
+                {activeEntityName.length > 24
+                  ? activeEntityName.slice(0, 24) + "..."
+                  : activeEntityName}
+              </h2>
             </div>
-          )}
 
-          {/* Ask Input Card */}
-          <div className="nl-ask-graph-card">
+            {/* Questions Stream / Q&A Prompt List (Matches Screenshot 1 Right Side) */}
+            <div className="nl-graph-questions-list">
+              <div
+                className="nl-question-card-item"
+                onClick={() =>
+                  handleAskQuestion(`关于 "${activeEntityName}" 我了解什么？`)
+                }
+              >
+                关于 "{activeEntityName}" 我了解什么？
+              </div>
+
+              <div
+                className="nl-question-card-item"
+                onClick={() =>
+                  handleAskQuestion(`什么是 "${activeEntityName}"？`)
+                }
+              >
+                什么是 "{activeEntityName}"？
+              </div>
+
+              <div
+                className="nl-question-card-item"
+                onClick={() =>
+                  handleAskQuestion(`我应该在何时使用 "${activeEntityName}"？`)
+                }
+              >
+                我应该在何时使用 "{activeEntityName}"？
+              </div>
+
+              <div
+                className="nl-question-card-item"
+                onClick={() =>
+                  handleAskQuestion(`围绕 "${activeEntityName}" 还有什么？`)
+                }
+              >
+                围绕 "{activeEntityName}" 还有什么？
+              </div>
+
+              <div
+                className="nl-question-card-item"
+                onClick={() =>
+                  handleAskQuestion(`关于 "${secondaryEntityName}" 我了解什么？`)
+                }
+              >
+                关于 "{secondaryEntityName}" 我了解什么？
+              </div>
+            </div>
+
+            {/* AI Graph Insight Answer Card */}
+            {aiAnswer && (
+              <div className="nl-graph-ai-insight-box">
+                <div className="nl-insight-header">
+                  <IconSparkles size={13} style={{ color: "#38bdf8" }} />
+                  <span>图谱智能分析</span>
+                </div>
+                <p className="nl-insight-body">{aiAnswer}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom AI Question Input */}
+          <div className="nl-graph-ask-bar">
             <input
               type="text"
               placeholder="问一下你的知识图谱..."
@@ -435,10 +535,10 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
                   handleAskQuestion(aiPrompt);
                 }
               }}
-              className="nl-ask-graph-input"
+              className="nl-graph-ask-input"
             />
             <button
-              className="nl-ask-submit-btn"
+              className="nl-graph-ask-btn"
               disabled={!aiPrompt.trim() || isAsking}
               onClick={() => handleAskQuestion(aiPrompt)}
             >
