@@ -219,42 +219,53 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       })
       .map((d: any) => ({ ...d }));
 
+    const getNodeLabel = (d: any) => {
+      const raw = d.label || d.title || d.id || "";
+      if (raw.startsWith("tag:")) return raw.slice(4);
+      // Remove leading UUIDs if any
+      const clean = raw.replace(/^[0-9a-fA-F-]{36}\s*/, "").trim();
+      return clean.length > 24 ? clean.slice(0, 22) + "…" : clean || raw;
+    };
+
+    const isProjectOrHub = (d: any) => {
+      return (
+        d.type === "project" ||
+        d.category === "project" ||
+        (d.id && typeof d.id === "string" && d.id.startsWith("tag:"))
+      );
+    };
+
     const simulation = d3
       .forceSimulation(nodes)
-      .force("link", d3.forceLink(validLinks).id((d: any) => d.id).distance(125))
-      .force("charge", d3.forceManyBody().strength(-300))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(40));
+      .force(
+        "link",
+        d3
+          .forceLink(validLinks)
+          .id((d: any) => d.id)
+          .distance((l: any) => (l.relation === "tagged_with" ? 85 : 120))
+      )
+      .force("charge", d3.forceManyBody().strength(-160).distanceMax(500))
+      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.06))
+      .force("collision", d3.forceCollide().radius((d: any) => (isProjectOrHub(d) ? 40 : 32)).strength(0.8));
 
     simulationRef.current = simulation;
 
-    // Defs
+    // Defs for glowing ring
     const defs = svg.append("defs");
     const filter = defs.append("filter").attr("id", "node-glow");
-    filter.append("feGaussianBlur").attr("stdDeviation", "2.5").attr("result", "coloredBlur");
+    filter.append("feGaussianBlur").attr("stdDeviation", "2.0").attr("result", "coloredBlur");
     const feMerge = filter.append("feMerge");
     feMerge.append("feMergeNode").attr("in", "coloredBlur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
-    // Links
+    // Delicate translucent links
     const link = g
       .append("g")
-      .attr("stroke", "rgba(148, 163, 184, 0.2)")
-      .attr("stroke-width", 1.5)
+      .attr("stroke", "rgba(148, 163, 184, 0.12)")
+      .attr("stroke-width", 1)
       .selectAll("line")
       .data(validLinks)
       .join("line");
-
-    // Link Labels
-    const linkText = g
-      .append("g")
-      .selectAll("text")
-      .data(validLinks)
-      .join("text")
-      .attr("font-size", "10px")
-      .attr("fill", "#64748b")
-      .attr("text-anchor", "middle")
-      .text((d: any) => d.relation || "");
 
     // Nodes Group
     const node = g
@@ -286,35 +297,38 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         setSelectedNode(d);
       });
 
-    // Outer Halo
+    // Outer Halo (Delicate subtle aura)
     node
       .append("circle")
       .attr("class", "graph-node-halo")
-      .attr("r", 18)
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 9 : 6))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("opacity", 0.12);
+      .attr("opacity", 0.16);
 
-    // Main Circle
+    // Main Dot (Tiny, refined starry point)
     node
       .append("circle")
       .attr("class", "graph-node-circle")
-      .attr("r", 12)
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 4.5 : 3.0))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("stroke", "rgba(255,255,255,0.85)")
-      .attr("stroke-width", 1.5)
-      .attr("filter", "url(#node-glow)")
+      .attr("stroke", "rgba(255, 255, 255, 0.75)")
+      .attr("stroke-width", 1)
       .attr("cursor", "pointer");
 
-    // Node Labels
+    // Node Clean Labels with subtle contrast outline
     node
       .append("text")
       .attr("class", "graph-node-label")
-      .attr("dx", 16)
-      .attr("dy", 4)
-      .attr("fill", "#f8fafc")
-      .attr("font-size", "11.5px")
-      .attr("font-weight", "500")
-      .text((d: any) => d.id);
+      .attr("dx", (d: any) => (isProjectOrHub(d) ? 8 : 7))
+      .attr("dy", 3.5)
+      .attr("fill", (d: any) => (isProjectOrHub(d) ? "#7dd3fc" : "#cbd5e1"))
+      .attr("font-size", (d: any) => (isProjectOrHub(d) ? "11.5px" : "11px"))
+      .attr("font-weight", (d: any) => (isProjectOrHub(d) ? "600" : "400"))
+      .attr("stroke", "#090d16")
+      .attr("stroke-width", 2.5)
+      .attr("paint-order", "stroke fill")
+      .attr("cursor", "pointer")
+      .text((d: any) => getNodeLabel(d));
 
     simulation.on("tick", () => {
       link
@@ -322,10 +336,6 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         .attr("y1", (d: any) => d.source.y)
         .attr("x2", (d: any) => d.target.x)
         .attr("y2", (d: any) => d.target.y);
-
-      linkText
-        .attr("x", (d: any) => (d.source.x + d.target.x) / 2)
-        .attr("y", (d: any) => (d.source.y + d.target.y) / 2);
 
       node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
     });
@@ -343,15 +353,16 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .selectAll(".graph-node-halo")
       .transition()
       .duration(150)
-      .attr("r", (d: any) => (d.id === selectedNode.id ? 26 : 18))
-      .attr("opacity", (d: any) => (d.id === selectedNode.id ? 0.35 : 0.12));
+      .attr("r", (d: any) => (d.id === selectedNode.id ? 14 : (d.type === "project" ? 9 : 6)))
+      .attr("opacity", (d: any) => (d.id === selectedNode.id ? 0.45 : 0.16));
 
     svg
       .selectAll(".graph-node-circle")
       .transition()
       .duration(150)
-      .attr("stroke", (d: any) => (d.id === selectedNode.id ? "#38bdf8" : "rgba(255,255,255,0.85)"))
-      .attr("stroke-width", (d: any) => (d.id === selectedNode.id ? 2.5 : 1.5));
+      .attr("r", (d: any) => (d.id === selectedNode.id ? 5.5 : (d.type === "project" ? 4.5 : 3.0)))
+      .attr("stroke", (d: any) => (d.id === selectedNode.id ? "#38bdf8" : "rgba(255, 255, 255, 0.75)"))
+      .attr("stroke-width", (d: any) => (d.id === selectedNode.id ? 2 : 1));
   }, [selectedNode]);
 
   const handleFitCanvas = () => {
