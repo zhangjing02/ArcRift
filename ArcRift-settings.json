@@ -35,9 +35,9 @@
   "ollamaExtractionModel": "deepseek-chat",
   "preferences": {
     "themeMode": "dark",
-    "uiLanguage": "zh-CN",
+    "uiLanguage": "auto",
     "fontSizeScale": "normal",
-    "launchAtLogin": true,
+    "launchAtLogin": false,
     "enableMultiSpaces": true,
     "shortcutLauncher": true,
     "shortcutSummary": true,
