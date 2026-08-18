@@ -440,22 +440,34 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
             ty = 110 + (Math.random() - 0.5) * 3; // 记忆单元 (1:1 with Screenshot 3)
           }
         } else if (metric === "growth") {
-          // Real calendar timestamp age (1:1 with Screenshot 4)
+          // Real calendar timestamp age + micro-time rank stratification (1:1 with Nowledge Mem Screenshot)
           const now = Date.now();
-          const created = (n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : now;
+          const created = (n as any).firstSeen
+            ? new Date((n as any).firstSeen).getTime()
+            : (n as any).createdAt
+            ? new Date((n as any).createdAt).getTime()
+            : now;
           const ageHours = Math.max(0, (now - created) / (1000 * 3600));
           const ageDays = ageHours / 24;
 
-          if (ageDays <= 1) {
-            // < 24 Hours -> "现在" Stratum (265px) with subtle micro-hour dispersion
-            const microOffset = Math.min(6, (ageHours / 24) * 6);
-            ty = 265 - microOffset + (Math.random() - 0.5) * 2;
+          if (ageDays <= 1.5) {
+            // "现在" Stratum Band: Spans a generous 32px height band (Y = 250 ~ 282)
+            // Even a 10-minute or 1-hour difference produces a distinct, visible step in elevation!
+            const timeRankRatio = totalNodes > 1 ? (i % 12) / 12 : 0.5;
+            const hourProgress = Math.min(1, ageHours / 24);
+            const microDelta = hourProgress * 18 + timeRankRatio * 12;
+            ty = 282 - microDelta;
           } else if (ageDays <= 7) {
-            ty = 185 - ((ageDays - 1) / 6) * 8 + (Math.random() - 0.5) * 2;
+            // "7 天" Stratum Band (Y = 175 ~ 195)
+            const progress = (ageDays - 1.5) / 5.5;
+            ty = 195 - progress * 18;
           } else if (ageDays <= 30) {
-            ty = 110 - ((ageDays - 7) / 23) * 8 + (Math.random() - 0.5) * 2;
+            // "30 天" Stratum Band (Y = 100 ~ 120)
+            const progress = (ageDays - 7) / 23;
+            ty = 120 - progress * 18;
           } else {
-            ty = 25 + (Math.random() - 0.5) * 2;
+            // "1 年以上" Stratum Band (Y = 22 ~ 32)
+            ty = 28 + (Math.random() - 0.5) * 5;
           }
         }
 
