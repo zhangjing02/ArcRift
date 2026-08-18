@@ -4269,6 +4269,171 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* ── In-place Seamless Memory Editor ────────────────────────── */
+.nl-mem-edit-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+.nl-mem-edit-title-wrap {
+  width: 100%;
+}
+
+.nl-mem-inline-edit-title {
+  width: 100%;
+  font-size: 19px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 14px;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.nl-mem-inline-edit-title:focus {
+  border-color: #6366f1;
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.nl-mem-editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nl-mem-editor-tabs {
+  display: flex;
+  gap: 4px;
+  background: #0f131a;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nl-editor-tab-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.nl-editor-tab-btn:hover {
+  color: #f1f5f9;
+}
+
+.nl-editor-tab-btn.active {
+  background: #1e293b;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.nl-editor-tip {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.nl-mem-inline-edit-textarea {
+  flex: 1;
+  min-height: calc(100vh - 280px);
+  width: 100%;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #e2e8f0;
+  background-color: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-sizing: border-box;
+  resize: vertical;
+  outline: none;
+  tab-size: 2;
+  transition: border-color 0.15s ease;
+}
+
+.nl-mem-inline-edit-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.nl-mem-preview-box {
+  flex: 1;
+  min-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding: 18px 20px;
+  background: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.nl-mem-split-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  flex: 1;
+  min-height: calc(100vh - 280px);
+}
+
+.nl-mem-inline-edit-textarea.split,
+.nl-mem-preview-box.split {
+  min-height: calc(100vh - 280px);
+}
+
+.nl-edit-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nl-btn-cancel-edit {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nl-btn-cancel-edit:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.nl-btn-save-edit {
+  display: flex;
+  align-items: center;
+  background: #2563eb;
+  border: 1px solid #3b82f6;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 1px 6px rgba(37, 99, 235, 0.3);
+}
+
+.nl-btn-save-edit:hover {
+  background: #1d4ed8;
+}
+
 /* ── Rich Markdown & Code Structure ────────────────────────── */
 .nl-rich-markdown-container {
   display: flex;

@@ -40,6 +40,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editTab, setEditTab] = useState<"edit" | "preview" | "split">("edit");
 
   useEffect(() => {
     onSelectedMemoryChange?.(selectedMemory);
@@ -254,21 +255,40 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
             <span>返回记忆列表</span>
           </button>
           <div className="nl-detail-header-actions">
-            <button
-              className={`nl-detail-header-icon-btn ${isEditing ? "editing" : ""}`}
-              title={isEditing ? "完成编辑并保存" : "编辑记忆"}
-              onClick={() => {
-                if (!isEditing) {
+            {isEditing ? (
+              <div className="nl-edit-actions-group">
+                <button
+                  className="nl-btn-cancel-edit"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditTitle(selectedMemory.title);
+                    setEditContent(selectedMemory.content);
+                  }}
+                >
+                  ✕ 取消
+                </button>
+                <button
+                  className="nl-btn-save-edit"
+                  onClick={handleSaveEdit}
+                >
+                  <IconCheck size={14} style={{ marginRight: 4 }} />
+                  保存
+                </button>
+              </div>
+            ) : (
+              <button
+                className="nl-detail-header-icon-btn"
+                title="编辑记忆"
+                onClick={() => {
                   setEditTitle(selectedMemory.title);
                   setEditContent(selectedMemory.content);
                   setIsEditing(true);
-                } else {
-                  handleSaveEdit();
-                }
-              }}
-            >
-              {isEditing ? <IconCheck size={16} /> : <IconEdit size={16} />}
-            </button>
+                  setEditTab("edit");
+                }}
+              >
+                <IconEdit size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -276,21 +296,67 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           {/* Main Markdown Content Area (Left Column) */}
           <div className="nl-mem-detail-main">
             {isEditing ? (
-              <div className="nl-mem-edit-form">
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="nl-mem-edit-title-input"
-                  placeholder="记忆标题"
-                />
-                <textarea
-                  rows={15}
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="nl-mem-edit-content-textarea"
-                  placeholder="记忆 Markdown 正文..."
-                />
+              <div className="nl-mem-edit-container">
+                <div className="nl-mem-edit-title-wrap">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="nl-mem-inline-edit-title"
+                    placeholder="记忆标题..."
+                  />
+                </div>
+                <div className="nl-mem-editor-toolbar">
+                  <div className="nl-mem-editor-tabs">
+                    <button
+                      className={`nl-editor-tab-btn ${editTab === "edit" ? "active" : ""}`}
+                      onClick={() => setEditTab("edit")}
+                    >
+                      Markdown 编辑
+                    </button>
+                    <button
+                      className={`nl-editor-tab-btn ${editTab === "preview" ? "active" : ""}`}
+                      onClick={() => setEditTab("preview")}
+                    >
+                      实时预览
+                    </button>
+                    <button
+                      className={`nl-editor-tab-btn ${editTab === "split" ? "active" : ""}`}
+                      onClick={() => setEditTab("split")}
+                    >
+                      分栏对比
+                    </button>
+                  </div>
+                  <span className="nl-editor-tip">支持 Markdown 语法与代码块</span>
+                </div>
+
+                {editTab === "edit" && (
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="nl-mem-inline-edit-textarea"
+                    placeholder="在此输入或修改记忆的 Markdown 正文..."
+                    autoFocus
+                  />
+                )}
+                {editTab === "preview" && (
+                  <div className="nl-mem-preview-box">
+                    <MarkdownRenderer content={editContent} showSummaryCard={true} />
+                  </div>
+                )}
+                {editTab === "split" && (
+                  <div className="nl-mem-split-editor">
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="nl-mem-inline-edit-textarea split"
+                      placeholder="Markdown 源码..."
+                    />
+                    <div className="nl-mem-preview-box split">
+                      <MarkdownRenderer content={editContent} showSummaryCard={true} />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="nl-mem-rendered-article">
