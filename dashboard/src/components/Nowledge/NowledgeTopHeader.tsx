@@ -137,8 +137,8 @@ export const NowledgeTopHeader: React.FC<NowledgeTopHeaderProps> = ({
       <div className="nl-top-header-right">
         <span className="nl-top-space-tag">
           {activeSession && activeSession._id !== "all"
-            ? `📁 ${activeSession.projectName}`
-            : "🌟 全部空间"}
+            ? activeSession.projectName
+            : "全部空间"}
         </span>
       </div>
     </header>

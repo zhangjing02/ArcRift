@@ -265,10 +265,10 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
           }}
           className="nl-project-select"
         >
-          <option value="all">🌟 全部空间 (All Spaces)</option>
+          <option value="all">全部空间 (All Spaces)</option>
           {sessions.map((s) => (
             <option key={s._id} value={s._id}>
-              📁 {s.projectName}
+              {s.projectName}
             </option>
           ))}
         </select>

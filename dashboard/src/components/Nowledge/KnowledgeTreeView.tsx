@@ -15,6 +15,8 @@ import {
   IconContext,
   IconLibrary,
   IconTree,
+  IconCategory,
+  IconAiNow,
 } from "./Icons";
 
 interface KnowledgeTreeViewProps {
@@ -192,7 +194,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                           className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
                           onClick={() => setSelectedMemory(m)}
                         >
-                          <span className="nl-tree-leaf-bullet">📄</span>
+                          <span className="nl-tree-leaf-bullet">
+                            <IconMemories size={11} className="nl-tree-leaf-icon" />
+                          </span>
                           <span className="nl-tree-leaf-title" title={m.title}>
                             {m.title}
                           </span>
@@ -235,7 +239,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                                   className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
                                   onClick={() => setSelectedMemory(m)}
                                 >
-                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-bullet">
+                            <IconMemories size={11} className="nl-tree-leaf-icon" />
+                          </span>
                                   <span className="nl-tree-leaf-title" title={m.title}>
                                     {m.title}
                                   </span>
@@ -282,7 +288,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                                   className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
                                   onClick={() => setSelectedMemory(m)}
                                 >
-                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-bullet">
+                            <IconMemories size={11} className="nl-tree-leaf-icon" />
+                          </span>
                                   <span className="nl-tree-leaf-title" title={m.title}>
                                     {m.title}
                                   </span>
@@ -329,7 +337,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                                   className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
                                   onClick={() => setSelectedMemory(m)}
                                 >
-                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-bullet">
+                            <IconMemories size={11} className="nl-tree-leaf-icon" />
+                          </span>
                                   <span className="nl-tree-leaf-title" title={m.title}>
                                     {m.title}
                                   </span>
@@ -344,14 +354,24 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   )}
                 </div>
 
-                {/* 1.5 按类型 */}
+                {/* 1.5 结晶 */}
+                <div
+                  className="nl-tree-node-row"
+                  onClick={() => toggle("crystals")}
+                >
+                  <span className="nl-tree-arrow">{expanded.crystals ? "▾" : "▸"}</span>
+                  <IconAiNow size={13} className="nl-tree-icon" />
+                  <span className="nl-tree-label">结晶</span>
+                </div>
+
+                {/* 1.6 按类型 */}
                 <div className="nl-tree-sub-group">
                   <div
                     className={`nl-tree-node-row ${expanded.by_type ? "open" : ""}`}
                     onClick={() => toggle("by_type")}
                   >
                     <span className="nl-tree-arrow">{expanded.by_type ? "▾" : "▸"}</span>
-                    <IconFolder size={14} className="nl-tree-icon" />
+                    <IconCategory size={13} className="nl-tree-icon" />
                     <span className="nl-tree-label">按类型</span>
                     <span className="nl-tree-count-badge">{sortedTypes.length}</span>
                   </div>
@@ -376,7 +396,9 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                                   className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
                                   onClick={() => setSelectedMemory(m)}
                                 >
-                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-bullet">
+                                    <IconMemories size={11} className="nl-tree-leaf-icon" />
+                                  </span>
                                   <span className="nl-tree-leaf-title" title={m.title}>
                                     {m.title}
                                   </span>
@@ -397,70 +419,70 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           {/* ROOT 2: 记录于 */}
           <div className="nl-tree-node-row" onClick={() => toggle("recorded_in")}>
             <span className="nl-tree-arrow">{expanded.recorded_in ? "▾" : "▸"}</span>
-            <IconCalendar size={14} className="nl-tree-icon" />
+            <IconTimeline size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">记录于</span>
           </div>
 
           {/* ROOT 3: 发生于 */}
           <div className="nl-tree-node-row" onClick={() => toggle("happened_at")}>
             <span className="nl-tree-arrow">{expanded.happened_at ? "▾" : "▸"}</span>
-            <IconTimeline size={14} className="nl-tree-icon" />
+            <IconTimeline size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">发生于</span>
           </div>
 
           {/* ROOT 4: 工作记忆 */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("context")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconContext size={14} className="nl-tree-icon" />
+            <IconCalendar size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">工作记忆</span>
           </div>
 
           {/* ROOT 5: 动态 */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("timeline")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconTimeline size={14} className="nl-tree-icon" />
+            <IconTimeline size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">动态</span>
           </div>
 
           {/* ROOT 6: Skills */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("skills")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconSkills size={14} className="nl-tree-icon" />
+            <IconSkills size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">Skills</span>
           </div>
 
           {/* ROOT 7: 会话 */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("threads")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconThreads size={14} className="nl-tree-icon" />
+            <IconThreads size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">会话</span>
           </div>
 
           {/* ROOT 8: Wiki */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("library")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconLibrary size={14} className="nl-tree-icon" />
+            <IconLibrary size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">Wiki</span>
           </div>
 
           {/* ROOT 9: 上下文 */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("context")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconContext size={14} className="nl-tree-icon" />
+            <IconContext size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">上下文</span>
           </div>
 
           {/* ROOT 10: 产物 */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("library")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconFolder size={14} className="nl-tree-icon" />
+            <IconCategory size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">产物</span>
           </div>
 
           {/* ROOT 11: Ontology */}
           <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("graph")}>
             <span className="nl-tree-arrow">▸</span>
-            <IconGraph size={14} className="nl-tree-icon" />
+            <IconFolder size={13} className="nl-tree-icon" />
             <span className="nl-tree-label">Ontology</span>
           </div>
         </div>
@@ -547,8 +569,8 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   {/* Satellite Node 3: Primary Tag */}
                   {selectedMemory.tags && selectedMemory.tags[0] && (
                     <g className="nl-graph-node">
-                      <circle cx="220" cy="180" r="14" fill="#6d28d9" stroke="#a78bfa" strokeWidth="1.5" />
-                      <text x="220" y="206" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                      <circle cx="220" cy="180" r="12" fill="#6d28d9" stroke="#a78bfa" strokeWidth="1.5" />
+                      <text x="220" y="204" fill="#94a3b8" fontSize="10" textAnchor="middle">
                         #{selectedMemory.tags[0]}
                       </text>
                     </g>
@@ -557,8 +579,8 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
                   {/* Satellite Node 4: Secondary Tag */}
                   {selectedMemory.tags && selectedMemory.tags[1] && (
                     <g className="nl-graph-node">
-                      <circle cx="380" cy="180" r="14" fill="#c2410c" stroke="#fb923c" strokeWidth="1.5" />
-                      <text x="380" y="206" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                      <circle cx="380" cy="180" r="12" fill="#d97706" stroke="#fbbf24" strokeWidth="1.5" />
+                      <text x="380" y="204" fill="#94a3b8" fontSize="10" textAnchor="middle">
                         #{selectedMemory.tags[1]}
                       </text>
                     </g>
@@ -566,41 +588,38 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
 
                   {/* Center Main Node */}
                   <g className="nl-graph-node-center">
-                    <circle cx="300" cy="120" r="32" fill="#0284c7" stroke="#bae6fd" strokeWidth="2" />
-                    <text x="300" y="125" fill="#ffffff" fontSize="12" fontWeight="600" textAnchor="middle">
-                      {selectedMemory.unitType === "decision" ? "决策" : "记忆"}
-                    </text>
+                    <circle cx="300" cy="95" r="34" fill="#0096c7" stroke="#38bdf8" strokeWidth="1.5" />
                   </g>
 
                   {/* Center Node Title Label below */}
                   <text
                     x="300"
-                    y="170"
+                    y="155"
                     fill="#f1f5f9"
                     fontSize="13"
                     fontWeight="500"
                     textAnchor="middle"
                     className="nl-graph-center-title"
                   >
-                    {selectedMemory.title.length > 28
-                      ? selectedMemory.title.slice(0, 28) + "..."
+                    {selectedMemory.title.length > 32
+                      ? selectedMemory.title.slice(0, 32) + "..."
                       : selectedMemory.title}
                   </text>
                 </svg>
 
-                {/* Graph Legend */}
+                {/* Graph Legend (Matches Screenshot 3) */}
                 <div className="nl-tree-graph-legend">
                   <span className="nl-legend-item">
                     <span className="nl-legend-dot blue" /> 记忆
                   </span>
                   <span className="nl-legend-item">
-                    <span className="nl-legend-dot green" /> 主题
+                    <span className="nl-legend-dot purple" /> 主题
                   </span>
                   <span className="nl-legend-item">
-                    <span className="nl-legend-dot purple" /> 知识结晶
+                    <span className="nl-legend-dot yellow" /> 知识结晶
                   </span>
                   <span className="nl-legend-item">
-                    <span className="nl-legend-dot orange" /> 资料
+                    <span className="nl-legend-dot green" /> 资料
                   </span>
                 </div>
               </div>
