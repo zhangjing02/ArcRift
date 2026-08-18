@@ -49,52 +49,131 @@ export class SqliteGraphStore implements IGraphStore {
     }));
   }
   async getGraphData(filters: { sessionId?: string; type?: string; relation?: string; limit?: number }): Promise<{ nodes: any[]; links: any[] }> {
-    let query = "SELECT * FROM facts WHERE 1=1";
-    const params: any[] = [];
-
-    if (filters.sessionId) {
-      query += " AND sessionId = ?";
-      params.push(filters.sessionId);
-    }
-    if (filters.type) {
-      query += " AND (subjectType = ? OR objectType = ?)";
-      params.push(filters.type, filters.type);
-    }
-    if (filters.relation) {
-      query += " AND relation = ?";
-      params.push(filters.relation);
-    }
-    
-    query += " ORDER BY timestamp DESC";
-    if (filters.limit) {
-      query += " LIMIT ?";
-      params.push(filters.limit);
-    }
-
-    const rows = this.db.prepare(query).all(...params) as any[];
-    
     const nodes = new Map<string, any>();
     const links: any[] = [];
+    const linkKeys = new Set<string>();
 
-    for (const row of rows) {
-      const ts = row.timestamp;
-      
-      if (!nodes.has(row.subject)) {
-        nodes.set(row.subject, { id: row.subject, type: row.subjectType, firstSeen: ts });
+    const addLink = (source: string, target: string, relation: string, timestamp?: string) => {
+      if (!source || !target || source === target) return;
+      const key = `${source}->${relation}->${target}`;
+      if (linkKeys.has(key)) return;
+      linkKeys.add(key);
+      links.push({ source, target, relation, timestamp: timestamp || new Date().toISOString() });
+    };
+
+    // 1. Fetch memories and create memory nodes + project/tag nodes & links
+    try {
+      let memQuery = "SELECT id, title, content, unit_type, labels, importance, createdAt, evolves_from_id, evolves_relation FROM memories WHERE 1=1";
+      const memParams: any[] = [];
+      if (filters.sessionId) {
+        memQuery += " AND sessionId = ?";
+        memParams.push(filters.sessionId);
       }
-      if (!nodes.has(row.object)) {
-        nodes.set(row.object, { id: row.object, type: row.objectType, firstSeen: ts });
+      memQuery += " ORDER BY createdAt DESC";
+      if (filters.limit) {
+        memQuery += " LIMIT ?";
+        memParams.push(filters.limit);
       }
-      
-      links.push({
-        source: row.subject,
-        target: row.object,
-        relation: row.relation,
-        timestamp: ts
-      });
+      const memories = this.db.prepare(memQuery).all(...memParams) as any[];
+
+      for (const m of memories) {
+        const id = m.id;
+        const title = m.title || "Untitled Memory";
+        const unitType = m.unit_type || "fact";
+        const ts = m.createdAt;
+
+        // Add memory node
+        if (!nodes.has(id)) {
+          nodes.set(id, {
+            id,
+            label: title,
+            type: unitType,
+            category: "memory",
+            importance: m.importance,
+            firstSeen: ts,
+          });
+        }
+
+        // Parse labels and connect to tag/concept nodes
+        let labelList: string[] = [];
+        try {
+          if (m.labels) labelList = typeof m.labels === "string" ? JSON.parse(m.labels) : m.labels;
+        } catch {
+          if (typeof m.labels === "string") labelList = m.labels.split(/[,，\s]+/);
+        }
+
+        for (const label of labelList) {
+          const cleanLabel = label.trim();
+          if (!cleanLabel) continue;
+          const tagId = `tag:${cleanLabel}`;
+
+          if (!nodes.has(tagId)) {
+            const isProject = ["ArcRift", "NowledgeMem", "WechatBot", "BeBeBus", "ChronosMind"].includes(cleanLabel);
+            nodes.set(tagId, {
+              id: tagId,
+              label: cleanLabel,
+              type: isProject ? "project" : "concept",
+              category: isProject ? "project" : "concept",
+              firstSeen: ts,
+            });
+          }
+
+          addLink(id, tagId, "tagged_with", ts);
+        }
+
+        // Evolves relation
+        if (m.evolves_from_id) {
+          addLink(id, m.evolves_from_id, m.evolves_relation || "evolves_from", ts);
+        }
+      }
+    } catch (err: any) {
+      // ignore memory table missing if any
     }
 
-    // v1.4.7: Optimized community detection using an adjacency list (O(V + E))
+    // 2. Fetch explicit memory relations from memory_relations table if present
+    try {
+      const relRows = this.db.prepare("SELECT source_id, target_id, relation_type, created_at FROM memory_relations").all() as any[];
+      for (const r of relRows) {
+        addLink(r.source_id, r.target_id, r.relation_type, r.created_at);
+      }
+    } catch {}
+
+    // 3. Fetch explicit facts / triples from facts table
+    try {
+      let query = "SELECT * FROM facts WHERE 1=1";
+      const params: any[] = [];
+      if (filters.sessionId) {
+        query += " AND sessionId = ?";
+        params.push(filters.sessionId);
+      }
+      if (filters.type) {
+        query += " AND (subjectType = ? OR objectType = ?)";
+        params.push(filters.type, filters.type);
+      }
+      if (filters.relation) {
+        query += " AND relation = ?";
+        params.push(filters.relation);
+      }
+      query += " ORDER BY timestamp DESC";
+      if (filters.limit) {
+        query += " LIMIT ?";
+        params.push(filters.limit);
+      }
+
+      const rows = this.db.prepare(query).all(...params) as any[];
+      for (const row of rows) {
+        const ts = row.timestamp;
+        if (!nodes.has(row.subject)) {
+          nodes.set(row.subject, { id: row.subject, label: row.subject, type: row.subjectType || "entity", firstSeen: ts });
+        }
+        if (!nodes.has(row.object)) {
+          nodes.set(row.object, { id: row.object, label: row.object, type: row.objectType || "entity", firstSeen: ts });
+        }
+        addLink(row.subject, row.object, row.relation, ts);
+      }
+    } catch {}
+
+    // 4. Community detection using adjacency list (O(V + E))
     const adj = new Map<string, string[]>();
     for (const link of links) {
       if (!adj.has(link.source)) adj.set(link.source, []);
@@ -106,19 +185,18 @@ export class SqliteGraphStore implements IGraphStore {
     const visited = new Set<string>();
     let communityCounter = 0;
     const nodeIds = Array.from(nodes.keys());
-    
+
     for (const startId of nodeIds) {
       if (visited.has(startId)) continue;
-      
       communityCounter++;
       const queue = [startId];
       visited.add(startId);
-      
+
       while (queue.length > 0) {
         const currentId = queue.shift()!;
         const node = nodes.get(currentId);
         if (node) node.community = communityCounter;
-        
+
         const neighbors = adj.get(currentId) || [];
         for (const neighborId of neighbors) {
           if (!visited.has(neighborId)) {
