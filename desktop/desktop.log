@@ -779,3 +779,21 @@ For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:54:26.747Z] Starting ChronosMind Electron main.js...
+[2026-08-18T06:54:26.749Z] Registering app lifecycle events...
+[2026-08-18T06:54:27.058Z] app.whenReady fired!
+[2026-08-18T06:54:27.106Z] Creating BrowserWindow...
+[2026-08-18T06:54:27.296Z] Backend already active on port 3001! Loading window.
+[2026-08-18T06:54:27.297Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T06:54:27.725Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T06:54:27.725Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T06:54:27.728Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T06:54:31.947Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:54:32.305Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)

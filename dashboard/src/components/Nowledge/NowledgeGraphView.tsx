@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import * as d3 from "d3";
 import type { GraphData, GraphNode } from "../../types";
 import { getGraphData, fetchMemories } from "../../api/ArcRift";
@@ -127,7 +127,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     return { nodes: data.nodes.filter((n: GraphNode) => matchedNodeIds.has(n.id)), links };
   }, [data, searchQuery]);
 
-  const getNodeColor = (type: string = "") => {
+  const getNodeColor = useCallback((type: string = "") => {
     switch (type.toLowerCase()) {
       case "entity":
       case "concept":
@@ -149,7 +149,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       default:
         return "#0096c7";
     }
-  };
+  }, []);
 
   // Find neighbor entities for selectedNode
   const neighbors = useMemo(() => {
