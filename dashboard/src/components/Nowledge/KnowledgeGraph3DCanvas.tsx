@@ -809,19 +809,19 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Screenshot 2)
+          2. BOTTOM-RIGHT 4D CONTROLLER (1:1 with Screenshot)
       ───────────────────────────────────────────────────────────── */}
       <div className="nl-3d-control-widget">
-        {/* Top View Mode Switcher: 地形 vs 知识星图 */}
-        <div className="nl-3d-viewmode-toggle">
+        {/* Top View Mode Switcher: [ ⛰️ 地形 ] | [ 🌌 知识星图 ] */}
+        <div className="nl-3d-viewmode-pill-container">
           <button
-            className={`nl-3d-viewmode-btn ${viewMode === "terrain" ? "active" : ""}`}
+            className={`nl-3d-viewmode-pill ${viewMode === "terrain" ? "active" : ""}`}
             onClick={() => setViewMode("terrain")}
           >
             <span>⛰️</span> 地形
           </button>
           <button
-            className={`nl-3d-viewmode-btn ${viewMode === "galaxy" ? "active" : ""}`}
+            className={`nl-3d-viewmode-pill ${viewMode === "galaxy" ? "active" : ""}`}
             onClick={() => setViewMode("galaxy")}
           >
             <span>🌌</span> 知识星图
@@ -830,30 +830,33 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
         {/* Height Dimension Section */}
         {viewMode === "terrain" && (
-          <div className="nl-3d-metric-section">
+          <>
             <div className="nl-3d-metric-header">高度代表什么？</div>
-            <div className="nl-3d-metric-grid">
+
+            {/* Single Horizontal Row of 4 Dimension Pills */}
+            <div className="nl-3d-metric-horizontal-row">
               {(Object.keys(METRIC_CONFIG) as HeightMetric[]).map((key) => {
                 const cfg = METRIC_CONFIG[key];
+                const isActive = heightMetric === key;
                 return (
                   <button
                     key={key}
-                    className={`nl-3d-metric-btn ${heightMetric === key ? "active" : ""}`}
+                    className={`nl-3d-metric-inline-btn ${isActive ? "active" : ""}`}
                     onClick={() => setHeightMetric(key)}
                   >
-                    <span>{cfg.icon}</span>
+                    <span className="nl-metric-icon">{cfg.icon}</span>
                     <span>{cfg.name}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Dynamic Explanatory Footer (Minimalist Muted 1:1) */}
-            <div className="nl-3d-metric-desc">
-              <span className="nl-metric-desc-title">{currentMetric.title}</span>
-              <p className="nl-metric-desc-text">{currentMetric.description}</p>
+            {/* Dynamic Explanatory Footer (No boxes, pure clean text) */}
+            <div className="nl-3d-metric-caption-group">
+              <div className="nl-metric-caption-title">{currentMetric.title}</div>
+              <div className="nl-metric-caption-desc">{currentMetric.description}</div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
