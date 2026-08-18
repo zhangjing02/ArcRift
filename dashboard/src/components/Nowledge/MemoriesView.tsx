@@ -2,6 +2,17 @@ import React, { useState, useEffect } from "react";
 import type { Session, Memory, ImportanceLevel, MemoryCategory, UnitType } from "../../types";
 import { getMemories, createMemory, deleteMemory, updateMemory } from "../../api/ArcRift";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import {
+  IconBack,
+  IconEdit,
+  IconPin,
+  IconGraph,
+  IconExport,
+  IconTrash,
+  IconTag,
+  IconSearch,
+  IconMemories,
+} from "./Icons";
 
 interface MemoriesViewProps {
   activeSession?: Session;
@@ -233,7 +244,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
               setIsEditing(false);
             }}
           >
-            ‹ 返回记忆列表
+            <IconBack size={13} />
+            <span>返回记忆列表</span>
           </button>
           <div className="nl-detail-header-actions">
             <button
@@ -248,7 +260,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 }
               }}
             >
-              {isEditing ? "💾 完成编辑" : "✎ 编辑"}
+              <IconEdit size={13} style={{ marginRight: 4 }} />
+              <span>{isEditing ? "完成编辑" : "编辑"}</span>
             </button>
           </div>
         </div>
@@ -292,7 +305,10 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
               {/* Pin Switch */}
               <div className="nl-sidebar-field-row">
-                <span className="nl-field-label">📌 收藏记忆</span>
+                <span className="nl-field-label">
+                  <IconPin size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                  收藏记忆
+                </span>
                 <input
                   type="checkbox"
                   className="nl-toggle-switch"
@@ -373,7 +389,8 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 className="nl-btn-graph-shortcut"
                 onClick={() => onNavigateTab("graph")}
               >
-                🌐 知识图谱
+                <IconGraph size={14} style={{ marginRight: 6 }} />
+                <span>知识图谱</span>
               </button>
 
               {/* Export & Delete Actions */}
@@ -389,21 +406,25 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                     a.click();
                   }}
                 >
-                  📥 导出
+                  <IconExport size={13} style={{ marginRight: 4 }} />
+                  <span>导出</span>
                 </button>
                 <button
                   className="nl-sidebar-action-btn danger"
                   onClick={(e) => handleDelete(e, selectedMemory.id)}
                 >
-                  🗑️ 删除
+                  <IconTrash size={13} style={{ marginRight: 4 }} />
+                  <span>删除</span>
                 </button>
               </div>
 
               {/* Tags Panel */}
               <div className="nl-sidebar-tags-section">
                 <div className="nl-tags-header">
-                  <span>🏷️ 标签</span>
-                  <button className="nl-btn-icon-tiny" title="管理标签">⚙️</button>
+                  <span>
+                    <IconTag size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                    标签
+                  </span>
                 </div>
                 <div className="nl-tags-chip-list">
                   {(selectedMemory.tags || []).map((t) => (
@@ -466,7 +487,9 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       {/* Top Search Bar with Normal / Deep Mode */}
       <form className="nl-mem-search-row" onSubmit={handleSearch}>
         <div className="nl-mem-search-input-wrap">
-          <span className="nl-search-icon">🔍</span>
+          <span className="nl-search-icon">
+            <IconSearch size={14} />
+          </span>
           <input
             type="text"
             placeholder="搜索记忆..."
@@ -487,7 +510,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
               className={`nl-mode-btn ${searchMode === "deep" ? "active" : ""}`}
               onClick={() => setSearchMode("deep")}
             >
-              ⚡ 深度
+              深度
             </button>
           </div>
         </div>
@@ -502,9 +525,6 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           <span className="nl-result-count">
             结果 <strong>{memories.length}</strong> 条
           </span>
-          <button className="nl-refresh-icon-btn" onClick={loadData} title="刷新">
-            🔄
-          </button>
           <div className="nl-status-pill-group">
             <button
               className={`nl-status-pill ${statusFilter === "active" ? "active" : ""}`}
@@ -529,16 +549,16 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
         <div className="nl-mem-right-controls">
           <button className="nl-btn-secondary">
-            🎚️ 筛选 •
+            筛选
           </button>
           <button
             className="nl-btn-primary"
             onClick={() => setIsModalOpen(true)}
           >
-            ➕ 创建记忆
+            + 创建记忆
           </button>
           <button className="nl-btn-secondary">
-            ☑️ 选择
+            选择
           </button>
         </div>
       </div>
@@ -546,7 +566,9 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       {/* Memory Horizontal List Stream (Matching Screenshot 2) */}
       {memories.length === 0 ? (
         <div className="nl-empty-state-card">
-          <div className="nl-empty-state-icon">💡</div>
+          <div className="nl-empty-state-icon">
+            <IconMemories size={36} />
+          </div>
           <h2 className="nl-empty-state-title">还没有记忆</h2>
           <p className="nl-empty-state-sub">从导入会话或连接笔记开始。</p>
           <div className="nl-empty-state-actions">

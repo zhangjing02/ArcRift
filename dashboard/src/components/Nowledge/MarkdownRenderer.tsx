@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { marked } from "marked";
+import { IconMemories } from "./Icons";
 
 interface MarkdownRendererProps {
   content: string;
@@ -7,39 +8,66 @@ interface MarkdownRendererProps {
   showSummaryCard?: boolean;
 }
 
-// Simple syntax highlighter for code blocks
+// Robust single-pass syntax highlighter for code blocks
 function highlightCode(code: string, lang?: string): string {
-  let safeCode = code
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
   const l = (lang || "").toLowerCase();
+  const escapeHtml = (str: string) =>
+    str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  if (l === "json") {
-    safeCode = safeCode
-      .replace(/"([^"]+)":/g, '<span class="token-key">"$1"</span>:')
-      .replace(/:\s*"([^"]*)"/g, ': <span class="token-string">"$1"</span>')
-      .replace(/:\s*(\b\d+(\.\d+)?\b)/g, ': <span class="token-number">$1</span>')
-      .replace(/:\s*(true|false|null)\b/g, ': <span class="token-boolean">$1</span>');
-  } else if (l === "kotlin" || l === "java" || l === "typescript" || l === "javascript" || l === "ts" || l === "js") {
-    const keywords = /\b(fun|val|var|class|interface|object|enum|override|private|public|protected|internal|import|package|if|else|when|switch|case|default|for|while|do|return|break|continue|try|catch|finally|throw|new|const|let|async|await|function|export|from|type)\b/g;
-    safeCode = safeCode.replace(keywords, '<span class="token-keyword">$1</span>');
+  if (!code) return "";
 
-    const types = /\b(String|Int|Long|Float|Double|Boolean|List|Map|Set|Array|Unit|Any|void|Promise|Response|Request|StateFlow|MutableStateFlow)\b/g;
-    safeCode = safeCode.replace(types, '<span class="token-type">$1</span>');
+  const lines = code.split("\n");
+  const highlightedLines = lines.map((line) => {
+    if (l === "json") {
+      return line.replace(
+        /("(?:\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g,
+        (match, p1, p2, p3) => {
+          if (p1) {
+            if (p2) {
+              return `<span class="token-key">${escapeHtml(p1)}</span>${p2}`;
+            }
+            return `<span class="token-string">${escapeHtml(p1)}</span>`;
+          }
+          if (p3) {
+            return `<span class="token-boolean">${p3}</span>`;
+          }
+          return `<span class="token-number">${match}</span>`;
+        }
+      );
+    }
 
-    safeCode = safeCode.replace(/(".*?"|'.*?'|`.*?`)/g, '<span class="token-string">$1</span>');
-    safeCode = safeCode.replace(/(\/\/.*$)/gm, '<span class="token-comment">$1</span>');
-  } else if (l === "log") {
-    safeCode = safeCode
-      .replace(/(\d{2}:\d{2}:\d{2}\.\d{3})/g, '<span class="token-timestamp">$1</span>')
-      .replace(/\b(GET|POST|PUT|DELETE|PATCH)\b/g, '<span class="token-method">$1</span>')
-      .replace(/\b(200|201|204)\b/g, '<span class="token-status-ok">$1</span>')
-      .replace(/\b(400|401|403|404|500|502|503)\b/g, '<span class="token-status-err">$1</span>');
-  }
+    if (l === "log") {
+      return escapeHtml(line)
+        .replace(/(\d{2}:\d{2}:\d{2}\.\d{3})/g, '<span class="token-timestamp">$1</span>')
+        .replace(/\b(GET|POST|PUT|DELETE|PATCH)\b/g, '<span class="token-method">$1</span>')
+        .replace(/\b(200|201|204)\b/g, '<span class="token-status-ok">$1</span>')
+        .replace(/\b(400|401|403|404|500|502|503)\b/g, '<span class="token-status-err">$1</span>');
+    }
 
-  return safeCode;
+    // General programming languages (Kotlin, Java, TS, JS, etc.)
+    const commentIdx = line.indexOf("//");
+    let codePart = line;
+    let commentPart = "";
+    if (commentIdx !== -1) {
+      codePart = line.substring(0, commentIdx);
+      commentPart = `<span class="token-comment">${escapeHtml(line.substring(commentIdx))}</span>`;
+    }
+
+    const tokenized = escapeHtml(codePart).replace(
+      /("(?:\\"|[^"])*"|'(?:\\'|[^'])*'|`[^`]*`)|(\b(?:fun|val|var|class|interface|object|enum|override|private|public|protected|internal|import|package|if|else|when|switch|case|default|for|while|do|return|break|continue|try|catch|finally|throw|new|const|let|async|await|function|export|from|type)\b)|(\b(?:String|Int|Long|Float|Double|Boolean|List|Map|Set|Array|Unit|Any|void|Promise|Response|Request|StateFlow|MutableStateFlow)\b)|(\b\d+\b)/g,
+      (_match, str, kw, type, num) => {
+        if (str) return `<span class="token-string">${str}</span>`;
+        if (kw) return `<span class="token-keyword">${kw}</span>`;
+        if (type) return `<span class="token-type">${type}</span>`;
+        if (num) return `<span class="token-number">${num}</span>`;
+        return _match;
+      }
+    );
+
+    return tokenized + commentPart;
+  });
+
+  return highlightedLines.join("\n");
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
@@ -50,7 +78,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // 0. Unescape literal \n and \t if present in raw string
-  let processedRaw = (content || "")
+  const processedRaw = (content || "")
     .replace(/\\n/g, "\n")
     .replace(/\\t/g, "\t")
     .replace(/\\r/g, "");
@@ -67,23 +95,31 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   // 2. Intelligent High-Quality Summary Extractor (no code lines!)
   let summaryText = "";
   
-  // Try extracting from explicit summary / description blocks
   const lines = processedRaw.split("\n");
   const candidates: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    // Skip code fences or code lines
-    if (trimmed.startsWith("```") || trimmed.startsWith("val ") || trimmed.startsWith("var ") || trimmed.startsWith("fun ") || trimmed.startsWith("class ") || trimmed.startsWith("private ") || trimmed.startsWith("import ") || trimmed.startsWith("{") || trimmed.startsWith("}") || trimmed.includes("coroutine") || trimmed.startsWith("<?xml")) {
+    if (
+      trimmed.startsWith("```") ||
+      trimmed.startsWith("val ") ||
+      trimmed.startsWith("var ") ||
+      trimmed.startsWith("fun ") ||
+      trimmed.startsWith("class ") ||
+      trimmed.startsWith("private ") ||
+      trimmed.startsWith("import ") ||
+      trimmed.startsWith("{") ||
+      trimmed.startsWith("}") ||
+      trimmed.includes("coroutine") ||
+      trimmed.startsWith("<?xml")
+    ) {
       continue;
     }
-    // Skip Markdown headers
     if (trimmed.startsWith("#")) continue;
 
-    // Clean markdown list bullets and quotes
     const cleanLine = trimmed.replace(/^[-*>\d.]+\s+/, "").replace(/[*`_]/g, "").trim();
-    if (cleanLine.length > 20 && !cleanLine.includes("{") && !cleanLine.includes("=") && !cleanLine.includes("(")) {
+    if (cleanLine.length > 15 && !cleanLine.includes("{") && !cleanLine.includes("=") && !cleanLine.includes("(")) {
       candidates.push(cleanLine);
       if (candidates.length >= 2) break;
     }
@@ -142,7 +178,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         <div className="nl-memory-summary-card">
           <div className="nl-summary-header">
             <div className="nl-summary-title">
-              <span className="nl-summary-icon">💡</span>
+              <IconMemories size={14} className="nl-summary-svg" />
               <span>核心摘要 / Summary</span>
             </div>
             <span className="nl-summary-badge">AI 提炼</span>
@@ -181,7 +217,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                   onClick={() => handleCopyCode(rawCode, idx)}
                   title="复制代码"
                 >
-                  {copiedIndex === idx ? "✓ 已复制" : "📋 复制"}
+                  {copiedIndex === idx ? "✓ 已复制" : "复制"}
                 </button>
               </div>
               <div className="nl-code-content-wrapper">
