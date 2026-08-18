@@ -283,3 +283,33 @@ export const IconZoomOut: React.FC<IconProps> = ({ size = 14, className = "", st
     <line x1="8" y1="11" x2="14" y2="11"/>
   </svg>
 );
+
+export const IconLayers: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  </svg>
+);
+
+export const IconTarget: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
+
+export const IconPointer: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <polygon points="3 3 10.07 19.97 12.58 12.58 19.97 10.07 3 3" />
+  </svg>
+);
+
+export const IconSidebarToggle: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+    <polyline points="9 10 11 12 9 14" />
+  </svg>
+);
