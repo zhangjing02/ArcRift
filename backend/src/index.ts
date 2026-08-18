@@ -131,7 +131,8 @@ app.get("/health", (_req, res) => {
 const dashboardDist = path.resolve(__dirname, "../../dashboard/dist");
 if (fs.existsSync(dashboardDist)) {
   app.use(express.static(dashboardDist));
-  app.get("*", (req, res, next) => {
+  // Express 5 compatible SPA fallback
+  app.use((req, res, next) => {
     if (req.path.startsWith("/api/")) return next();
     res.sendFile(path.join(dashboardDist, "index.html"));
   });
