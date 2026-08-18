@@ -253,7 +253,7 @@ export class SqliteMemoryStore implements IMemoryStore {
       params.push(`%${filters.query}%`, `%${filters.query}%`, `%${filters.query}%`);
     }
 
-    sql += " ORDER BY importance DESC, updatedAt DESC";
+    sql += " ORDER BY createdAt DESC, updatedAt DESC";
 
     if (filters?.limit) {
       sql += " LIMIT ?";
