@@ -379,13 +379,6 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         if (m.peakNodeId) peakNodes.add(m.peakNodeId);
       });
 
-      const timestamps = nodes
-        .map((n) => ((n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : Date.now()))
-        .sort((a, b) => b - a);
-      const minTs = timestamps[timestamps.length - 1] || Date.now();
-      const maxTs = timestamps[0] || Date.now();
-      const tsRange = Math.max(1, maxTs - minTs);
-
       const targetMap = new Map<string, { x: number; y: number; z: number }>();
       const steppingStones: Array<{ x: number; z: number; y: number }> = [];
 
@@ -436,20 +429,34 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           }
         } else if (metric === "morphology") {
           const t = (n.type || "").toLowerCase();
-          const cat = ((n as any).category || "").toLowerCase();
-          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) {
-            ty = 265 + (Math.random() - 0.5) * 6; // 技能
-          } else if (t.includes("project") || t.includes("entity") || t.includes("concept") || cat.includes("project") || n.id.startsWith("tag:")) {
-            ty = 185 + (Math.random() - 0.5) * 6; // 实体
-          } else if (t.includes("memory") || t.includes("decision") || t.includes("fact")) {
-            ty = 110 + (Math.random() - 0.5) * 6; // 记忆单元
+          if (t === "skill" || t === "rule") {
+            ty = 265 + (Math.random() - 0.5) * 4; // 技能
+          } else if (t === "project" || t === "entity" || t === "concept") {
+            ty = 185 + (Math.random() - 0.5) * 4; // 实体
+          } else if (t === "trace" || t === "thread" || t === "source") {
+            ty = 25 + (Math.random() - 0.5) * 4; // 轨迹
           } else {
-            ty = 25 + (Math.random() - 0.5) * 6; // 轨迹
+            // Default: All memories/facts/decisions strictly at 记忆单元
+            ty = 110 + (Math.random() - 0.5) * 3; // 记忆单元 (1:1 with Screenshot 3)
           }
         } else if (metric === "growth") {
-          const created = (n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : Date.now();
-          const ageRatio = (created - minTs) / tsRange;
-          ty = 25 + ageRatio * 240;
+          // Real calendar timestamp age (1:1 with Screenshot 4)
+          const now = Date.now();
+          const created = (n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : now;
+          const ageHours = Math.max(0, (now - created) / (1000 * 3600));
+          const ageDays = ageHours / 24;
+
+          if (ageDays <= 1) {
+            // < 24 Hours -> "现在" Stratum (265px) with subtle micro-hour dispersion
+            const microOffset = Math.min(6, (ageHours / 24) * 6);
+            ty = 265 - microOffset + (Math.random() - 0.5) * 2;
+          } else if (ageDays <= 7) {
+            ty = 185 - ((ageDays - 1) / 6) * 8 + (Math.random() - 0.5) * 2;
+          } else if (ageDays <= 30) {
+            ty = 110 - ((ageDays - 7) / 23) * 8 + (Math.random() - 0.5) * 2;
+          } else {
+            ty = 25 + (Math.random() - 0.5) * 2;
+          }
         }
 
         // ─────────────────────────────────────────────────────────────
