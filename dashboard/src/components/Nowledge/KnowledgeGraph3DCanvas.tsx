@@ -202,7 +202,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const pointerDownPosRef = useRef({ x: 0, y: 0 });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. Rigorous Graph Metrics (PageRank + Degree + Intrinsic Importance)
+  // 1. Rigorous Graph Metrics & Differentiated Mountain Heights
   // ─────────────────────────────────────────────────────────────────────────
   const computeTargetPositionsAndLandscape = useCallback(
     (nodes: GraphNode[], links: any[], metric: HeightMetric, mode: ViewMode3D) => {
@@ -266,22 +266,54 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         influenceMap.set(n.id, influencePercent);
       });
 
-      // 4. Mountain Peaks Configuration (Iconic Pillars in 3D Space)
-      const mountainPeaksDef = [
-        { name: "right_peak", cx: 130, cz: -40, baseRadiusX: 140, baseRadiusZ: 110 },
-        { name: "left_peak", cx: -170, cz: -70, baseRadiusX: 110, baseRadiusZ: 85 },
-        { name: "center_hill", cx: -30, cz: 45, baseRadiusX: 130, baseRadiusZ: 95 },
+      // 4. Cluster Grouping by Project / Topic
+      const clusterAssignment = new Map<string, string>();
+      nodes.forEach((n) => {
+        const sid = (n as any).sessionId || (n.id.startsWith("tag:") ? n.id.slice(4) : "ArcRift");
+        let cluster = "ArcRift";
+        if (sid.toLowerCase().includes("wechat")) cluster = "WechatBot";
+        else if (sid.toLowerCase().includes("workflow")) cluster = "Workflow";
+        else if (sid.toLowerCase().includes("notion")) cluster = "NotionAI";
+        else if (sid.toLowerCase().includes("bebe")) cluster = "BeBeBus";
+        clusterAssignment.set(n.id, cluster);
+      });
+
+      // Major Mountains with independent centers
+      const mountainBases = [
+        { id: "ArcRift", cx: 120, cz: -30, baseRadiusX: 135, baseRadiusZ: 105 },
+        { id: "WechatBot", cx: -170, cz: -60, baseRadiusX: 110, baseRadiusZ: 85 },
+        { id: "Workflow", cx: -20, cz: 55, baseRadiusX: 120, baseRadiusZ: 90 },
       ];
 
-      // Sort nodes by computed Influence Score
-      const sortedNodes = [...nodes].sort(
-        (a, b) => (influenceMap.get(b.id) || 0) - (influenceMap.get(a.id) || 0)
-      );
+      // Compute peak node and actual peak height for each mountain
+      const mountains = mountainBases.map((m) => {
+        const mNodes = nodes.filter((n) => clusterAssignment.get(n.id) === m.id);
+        let peakNode = mNodes[0];
+        let maxInf = 50;
+        mNodes.forEach((n) => {
+          const inf = influenceMap.get(n.id) || 50;
+          if (inf > maxInf) {
+            maxInf = inf;
+            peakNode = n;
+          }
+        });
+
+        // Actual Peak Height calculated strictly from its Max Influence!
+        const peakY = (maxInf / 100) * 255 + 20;
+
+        return {
+          ...m,
+          peakNodeId: peakNode ? peakNode.id : null,
+          maxInfluence: maxInf,
+          peakY,
+          nodes: mNodes,
+        };
+      });
 
       const peakNodes = new Set<string>();
-      if (sortedNodes.length > 0) peakNodes.add(sortedNodes[0].id);
-      if (sortedNodes.length > 1) peakNodes.add(sortedNodes[1].id);
-      if (sortedNodes.length > 2) peakNodes.add(sortedNodes[2].id);
+      mountains.forEach((m) => {
+        if (m.peakNodeId) peakNodes.add(m.peakNodeId);
+      });
 
       const targetMap = new Map<string, { x: number; y: number; z: number }>();
       const steppingStones: Array<{ x: number; z: number; y: number }> = [];
@@ -299,6 +331,8 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
       nodes.forEach((n, i) => {
         const inf = influenceMap.get(n.id) || 50;
+        const cId = clusterAssignment.get(n.id) || "ArcRift";
+        const m = mountains.find((mt) => mt.id === cId) || mountains[0];
 
         if (mode === "galaxy") {
           const phi = Math.acos(-1 + (2 * i) / totalNodes);
@@ -315,7 +349,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         // Calculate Y elevation strictly according to the active Dimension
         let ty = 25;
         if (metric === "influence") {
-          // Height rigorously determined by Influence Score (0 ~ 100% -> 20 ~ 275px)
+          // Height strictly determined by Influence Score (0 ~ 100% -> 20 ~ 275px)
           ty = (inf / 100) * 255 + 20;
         } else if (metric === "structure") {
           const deg = degreeMap.get(n.id) || 1;
@@ -337,16 +371,13 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           else ty = 25;
         }
 
-        // Calculate X, Z planar position (sitting on the mountain terrace or stepping stone)
+        // Calculate X, Z planar position
         if (peakNodes.has(n.id)) {
-          const peakIdx = Array.from(peakNodes).indexOf(n.id);
-          const m = mountainPeaksDef[peakIdx % mountainPeaksDef.length];
-          targetMap.set(n.id, { x: m.cx, y: Math.max(260, ty), z: m.cz });
-        } else if (inf >= 40 || ty >= 60) {
-          // Mountain terrace node
-          const mIdx = i % mountainPeaksDef.length;
-          const m = mountainPeaksDef[mIdx];
-          const radiusScale = 1 - (ty / 300) * 0.7;
+          // Summit node sits on peak of its mountain at its real calculated height!
+          targetMap.set(n.id, { x: m.cx, y: ty, z: m.cz });
+        } else if (inf >= 38 || ty >= 50) {
+          // Mountain slope node
+          const radiusScale = Math.max(0.2, 1 - (ty / m.peakY) * 0.75);
           const angle = (i * 1.37) % (Math.PI * 2);
           const rx = m.baseRadiusX * radiusScale * 0.6;
           const rz = m.baseRadiusZ * radiusScale * 0.6;
@@ -369,7 +400,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       return {
         targetMap,
         influenceMap,
-        mountains: mountainPeaksDef,
+        mountains,
         steppingStones,
         peakNodes,
       };
@@ -573,7 +604,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 3. Synchronize Graph Objects & 1:1 Terraced Mountain Contours
+  // 3. Synchronize Graph Objects & Differentiated Mountain Contours
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const scene = sceneRef.current;
@@ -653,7 +684,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         );
         group.add(halo);
 
-        // Only Peak Nodes show clean White Billboard Text Sprite (with Influence %)
+        // Only Peak Nodes show clean White Billboard Text Sprite (with real calculated Influence %)
         let labelSprite: THREE.Sprite | undefined;
         if (isPeak) {
           const nodeLabel = (n as any).label || (n as any).title || (n as any).name || n.id;
@@ -715,7 +746,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     linksMeshRef.current = linksMesh;
 
     // ─────────────────────────────────────────────────────────────────────
-    // Rebuild 1:1 Terraced Mountain Contours & Stepping Stones (Screenshot 2)
+    // Rebuild Differentiated Mountain Contours (Each mountain peaks at its own height!)
     // ─────────────────────────────────────────────────────────────────────
     if (contoursGroupRef.current) {
       const cGroup = contoursGroupRef.current;
@@ -724,29 +755,30 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       }
 
       if (viewMode === "terrain") {
-        // 1. Mountain Terraces (Left Mountain, Right Mountain, Center Hill)
-        mountains.forEach((m) => {
-          const tierSteps = [
-            { y: 270, scale: 0.22, opacity: 0.40, jitter: 0.12 },
-            { y: 225, scale: 0.40, opacity: 0.32, jitter: 0.14 },
-            { y: 175, scale: 0.62, opacity: 0.26, jitter: 0.16 },
-            { y: 125, scale: 0.88, opacity: 0.20, jitter: 0.18 },
-            { y: 75, scale: 1.18, opacity: 0.15, jitter: 0.20 },
-            { y: 28, scale: 1.52, opacity: 0.10, jitter: 0.22 },
-          ];
+        const standardElevationLevels = [28, 65, 105, 145, 185, 225, 265];
 
-          tierSteps.forEach((step) => {
-            const rx = m.baseRadiusX * step.scale;
-            const rz = m.baseRadiusZ * step.scale;
-            const points = createOrganicContourLoop(m.cx, m.cz, rx, rz, 56, step.jitter);
+        // 1. Each mountain renders contours only up to its own peak height!
+        mountains.forEach((m) => {
+          const mountainTiers = standardElevationLevels.filter((lvlY) => lvlY <= m.peakY + 10);
+
+          mountainTiers.forEach((tierY, idx) => {
+            const isSummit = idx === mountainTiers.length - 1;
+            const progress = (tierY - 28) / Math.max(1, m.peakY - 28);
+            const scale = Math.max(0.18, 1.4 - progress * 1.15);
+
+            const rx = isSummit ? 20 : m.baseRadiusX * scale;
+            const rz = isSummit ? 14 : m.baseRadiusZ * scale;
+            const opacity = 0.10 + progress * 0.30; // higher rings are more defined
+
+            const points = createOrganicContourLoop(m.cx, m.cz, rx, rz, 56, 0.14);
             const geo = new THREE.BufferGeometry().setFromPoints(points);
             const mat = new THREE.LineBasicMaterial({
               color: new THREE.Color("#93c5fd"),
               transparent: true,
-              opacity: step.opacity,
+              opacity,
             });
             const lineLoop = new THREE.LineLoop(geo, mat);
-            lineLoop.position.y = step.y;
+            lineLoop.position.y = isSummit ? m.peakY : tierY;
             cGroup.add(lineLoop);
           });
         });
