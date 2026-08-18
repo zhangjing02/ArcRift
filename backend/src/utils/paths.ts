@@ -90,6 +90,12 @@ export function getDbPath(): string {
     return process.env.SQLITE_DB_PATH;
   }
 
+  // 1. Prioritize ChronosMind.db
+  const cmDb = path.join(getAppRoot(), "backend", "ChronosMind.db");
+  if (fs.existsSync(cmDb)) {
+    return cmDb;
+  }
+
   const backendDb = path.join(getAppRoot(), "backend", "ArcRift.db");
   if (fs.existsSync(backendDb)) {
     return backendDb;
@@ -101,17 +107,17 @@ export function getDbPath(): string {
     return legacyDb;
   }
 
-  const nowledgeDb = path.join(dataDir, "NowledgeMem.db");
-  if (fs.existsSync(nowledgeDb)) {
-    return nowledgeDb;
-  }
-
-  return backendDb;
+  return cmDb;
 }
 
 /**
  * Returns the path to the application settings JSON file.
  */
 export function getSettingsPath(): string {
-  return path.join(getDataDir(), "settings.json");
+  const cmSettings = path.join(getAppRoot(), "backend", "ChronosMind-settings.json");
+  if (fs.existsSync(cmSettings)) {
+    return cmSettings;
+  }
+  return path.join(getDataDir(), "ChronosMind-settings.json");
 }
+

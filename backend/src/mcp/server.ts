@@ -607,7 +607,7 @@ const TOOLS = [
 
 // ── Server setup ────────────────────────────────────────────────────
 const server = new Server(
-  { name: "nowledge-mem", version: "2.0.0" },
+  { name: "chronosmind", version: "2.0.0" },
   { capabilities: { tools: {}, resources: {} } }
 );
 
@@ -617,7 +617,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const sessions = await sessionStore.getSessions();
   return {
     resources: sessions.map(s => ({
-      uri: `nowledgemem://spaces/${s._id}/graph`,
+      uri: `chronosmind://spaces/${s._id}/graph`,
       name: `${s.projectName} Knowledge Graph`,
       mimeType: "text/markdown",
       description: `Structured knowledge graph facts for space ${s.projectName}`,
@@ -627,7 +627,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const uri = request.params.uri;
-  const match = uri.match(/^nowledgemem:\/\/spaces\/([^/]+)\/graph$/);
+  const match = uri.match(/^chronosmind:\/\/spaces\/([^/]+)\/graph$/);
   if (!match) {
     throw new Error(`Resource not found: ${uri}`);
   }
@@ -915,7 +915,7 @@ async function run() {
   await initStorage();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logger.info("[MCP] Nowledge Mem MCP server running on stdio");
+  logger.info("[MCP] ChronosMind MCP server running on stdio");
 }
 
 run().catch((err) => {

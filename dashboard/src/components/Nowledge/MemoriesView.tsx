@@ -38,8 +38,9 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
   const loadData = async () => {
     try {
+      const targetSessionId = (activeSession?._id && activeSession._id !== "all") ? activeSession._id : undefined;
       const res = await getMemories({
-        sessionId: activeSession?._id,
+        sessionId: targetSessionId,
         query: searchQuery || undefined,
       });
       if (res.success) {
