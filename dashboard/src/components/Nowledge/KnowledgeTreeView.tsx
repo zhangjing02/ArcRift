@@ -1,34 +1,26 @@
 import React, { useState, useEffect } from "react";
-import type { Session, Memory, UnitType } from "../../types";
+import type { Session, Memory } from "../../types";
 import { fetchMemories } from "../../api/ArcRift";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import {
+  IconSearch,
+  IconMemories,
+  IconFolder,
+  IconGraph,
+  IconTag,
+  IconCalendar,
+  IconTimeline,
+  IconThreads,
+  IconSkills,
+  IconContext,
+  IconLibrary,
+  IconTree,
+} from "./Icons";
 
 interface KnowledgeTreeViewProps {
   activeSession?: Session;
   onNavigateTab?: (tab: string) => void;
 }
-
-type TreeBranchKey =
-  | "none"
-  | "all_memories"
-  | "by_project_root"
-  | "project_item"
-  | "by_date_root"
-  | "date_item"
-  | "tags_root"
-  | "tag_item"
-  | "crystals"
-  | "by_type_root"
-  | "type_item"
-  | "recorded_in"
-  | "happened_at"
-  | "working_memory"
-  | "activity"
-  | "skills"
-  | "threads"
-  | "wiki"
-  | "context"
-  | "artifacts"
-  | "ontology";
 
 export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   activeSession,
@@ -36,34 +28,31 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
 }) => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState<TreeBranchKey>("by_project_root");
-  const [selectedProject, setSelectedProject] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<string>("");
-  const [selectedTag, setSelectedTag] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<UnitType | string>("");
-  const [selectedMemoryDetail, setSelectedMemoryDetail] = useState<Memory | null>(null);
+  const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
 
-  // Tree nodes expanded states
-  const [expandedNodes, setExpandedNodes] = useState<{
-    memories: boolean;
-    byProject: boolean;
-    byDate: boolean;
-    tags: boolean;
-    byType: boolean;
-    recordedIn: boolean;
-    happenedAt: boolean;
-  }>({
-    memories: true,
-    byProject: true,
-    byDate: false,
-    tags: false,
-    byType: false,
-    recordedIn: false,
-    happenedAt: false,
+  // Tree nodes expanded states (Drawer accordion like Nowledge Mem)
+  const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({
+    root_memories: true,
+    all_memories: true,
+    by_project: false,
+    by_date: false,
+    by_tags: false,
+    by_type: false,
+    crystals: false,
+    recorded_in: false,
+    happened_at: false,
+    working_memory: false,
+    activity: false,
+    skills: false,
+    threads: false,
+    wiki: false,
+    context: false,
+    artifacts: false,
+    ontology: false,
   });
 
-  const toggleNode = (nodeKey: keyof typeof expandedNodes) => {
-    setExpandedNodes((prev) => ({ ...prev, [nodeKey]: !prev[nodeKey] }));
+  const toggle = (key: string) => {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   useEffect(() => {
@@ -73,116 +62,92 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   const loadData = async () => {
     try {
       const res = await fetchMemories({ sessionId: activeSession?._id });
-      if (res.success) {
+      if (res.success && res.memories) {
         setMemories(res.memories);
+        if (res.memories.length > 0 && !selectedMemory) {
+          setSelectedMemory(res.memories[0]);
+        }
       }
     } catch (err) {
       console.error("Failed to load memories for knowledge tree", err);
     }
   };
 
-  // Group memories by Project
+  // Group memories
   const projectGroupsMap = new Map<string, Memory[]>();
-  // Group memories by date
   const dateGroupsMap = new Map<string, Memory[]>();
-  // Group memories by tags
-  const tagCountMap = new Map<string, number>();
-  // Group memories by unit type
+  const tagGroupsMap = new Map<string, Memory[]>();
   const typeGroupsMap = new Map<string, Memory[]>();
 
   memories.forEach((m) => {
-    // 1. By Project (First-order priority)
-    // Extract project from first tag, session, or bracket title
+    // Project
     const pTag =
       (m.tags && m.tags.length > 0 ? m.tags[0] : null) ||
       (m.sessionId && m.sessionId !== "default" ? m.sessionId : null) ||
-      "ArcRift";
-    
+      "ChronosMind";
     if (!projectGroupsMap.has(pTag)) projectGroupsMap.set(pTag, []);
     projectGroupsMap.get(pTag)!.push(m);
 
-    // 2. By Date
+    // Date
     const d = new Date(m.createdAt);
-    const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    const dateStr = `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
     if (!dateGroupsMap.has(dateStr)) dateGroupsMap.set(dateStr, []);
     dateGroupsMap.get(dateStr)!.push(m);
 
-    // 3. By Tags
+    // Tags
     (m.tags || []).forEach((t) => {
-      const tagClean = t.trim();
-      if (tagClean) {
-        tagCountMap.set(tagClean, (tagCountMap.get(tagClean) || 0) + 1);
+      const clean = t.trim();
+      if (clean) {
+        if (!tagGroupsMap.has(clean)) tagGroupsMap.set(clean, []);
+        tagGroupsMap.get(clean)!.push(m);
       }
     });
 
-    // 4. By Unit Type
-    const uType = m.unitType || m.category || "fact";
+    // Type
+    const uType = m.unitType || m.category || "决策";
     if (!typeGroupsMap.has(uType)) typeGroupsMap.set(uType, []);
     typeGroupsMap.get(uType)!.push(m);
   });
 
   const sortedProjects = Array.from(projectGroupsMap.entries()).sort((a, b) => b[1].length - a[1].length);
-  const sortedTags = Array.from(tagCountMap.entries()).sort((a, b) => b[1] - a[1]);
-  const sortedDates = Array.from(dateGroupsMap.keys());
+  const sortedDates = Array.from(dateGroupsMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  const sortedTags = Array.from(tagGroupsMap.entries()).sort((a, b) => b[1].length - a[1].length);
+  const sortedTypes = Array.from(typeGroupsMap.entries()).sort((a, b) => b[1].length - a[1].length);
 
-  // Distinguish project tags vs concept tags
-  const knownProjectNames = new Set(sortedProjects.map(([p]) => p.toLowerCase()));
-  const projectTagsList = sortedTags.filter(([t]) => knownProjectNames.has(t.toLowerCase()));
-  const conceptTagsList = sortedTags.filter(([t]) => !knownProjectNames.has(t.toLowerCase()));
-
-  // Unit Types configuration
-  const unitTypeDefinitions: { key: string; name: string; desc: string; icon: string }[] = [
-    { key: "fact", name: "事实", desc: "客观确立的技术基准、数据规范与环境配置。", icon: "🏛️" },
-    { key: "preference", name: "偏好", desc: "个人与团队的工作风格、代码偏好与习惯。", icon: "⚙️" },
-    { key: "decision", name: "决策", desc: "经过论证的重大技术选型、架构改动与方案裁决。", icon: "💡" },
-    { key: "plan", name: "计划", desc: "已规划的阶段任务、路线图与后续演进安排。", icon: "🎯" },
-    { key: "procedure", name: "流程", desc: "标准操作规范、部署排查步骤与工作流法则。", icon: "⚡" },
-    { key: "learning", name: "学习", desc: "从实践、踩坑与调试中领悟提炼的经验教训。", icon: "🎓" },
-    { key: "context", name: "上下文", desc: "项目背景、团队角色与长期系统上下文信息。", icon: "📑" },
-    { key: "event", name: "事件", desc: "所有被记录的关键事件、里程碑或会话归档。", icon: "📅" },
-  ];
-
-  const getMemoriesForBranch = (): Memory[] => {
-    if (selectedBranch === "all_memories") return memories;
-    if (selectedBranch === "project_item" && selectedProject) {
-      return projectGroupsMap.get(selectedProject) || [];
-    }
-    if (selectedBranch === "date_item" && selectedDate) {
-      return dateGroupsMap.get(selectedDate) || [];
-    }
-    if (selectedBranch === "tag_item" && selectedTag) {
-      return memories.filter((m) => (m.tags || []).includes(selectedTag));
-    }
-    if (selectedBranch === "crystals") {
-      return memories.filter((m) => m.importance === "critical" || (m.importance as any) >= 0.8);
-    }
-    if (selectedBranch === "type_item" && selectedType) {
-      return memories.filter(
-        (m) => (m.unitType || m.category || "fact").toLowerCase() === selectedType.toLowerCase()
-      );
-    }
-    return [];
+  // Search filter for leaf memory items
+  const filterMems = (list: Memory[]) => {
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.content.toLowerCase().includes(q) ||
+        (m.tags || []).some((t) => t.toLowerCase().includes(q))
+    );
   };
 
-  const branchMemories = getMemoriesForBranch();
-
-  // Heatmap generation
-  const heatmapDays = Array.from({ length: 35 }, (_, i) => {
-    const dayNum = i + 1;
-    const hasActivity = dayNum === 17 || dayNum === 18 || dayNum === 23;
-    const level = dayNum === 18 ? 3 : dayNum === 17 ? 2 : hasActivity ? 1 : 0;
-    return { dayNum, level };
-  });
+  const getTimeAgo = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "刚刚";
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} 天前`;
+  };
 
   return (
     <div className="nl-knowledge-tree-layout">
       {/* ─────────────────────────────────────────────────────────────
-          LEFT: Virtual Knowledge Tree Sidebar (With Project as 1st Class)
+          LEFT: Expandable Nested Drawer Tree (Matches Screenshot 3)
       ───────────────────────────────────────────────────────────── */}
-      <div className="nl-tree-sidebar-col">
+      <aside className="nl-tree-sidebar-col">
         {/* Search in Tree */}
         <div className="nl-tree-search-wrap">
-          <span className="nl-tree-search-icon">🔍</span>
+          <IconSearch size={14} className="nl-tree-search-icon" />
           <input
             type="text"
             placeholder="在树中查找..."
@@ -192,821 +157,468 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
           />
         </div>
 
-        {/* Tree Node Hierarchy */}
+        {/* Tree Accordion Hierarchy */}
         <div className="nl-tree-nodes-list">
           {/* ROOT 1: 记忆 (Memories) */}
           <div className="nl-tree-node-group">
             <div
-              className={`nl-tree-node-row root ${selectedBranch === "all_memories" || selectedBranch === "by_project_root" ? "active" : ""}`}
-              onClick={() => {
-                toggleNode("memories");
-                setSelectedBranch("all_memories");
-                setSelectedMemoryDetail(null);
-              }}
+              className={`nl-tree-node-row ${expanded.root_memories ? "open" : ""}`}
+              onClick={() => toggle("root_memories")}
             >
-              <span className="nl-tree-arrow">{expandedNodes.memories ? "▾" : "▸"}</span>
-              <span className="nl-tree-icon">🗂️</span>
+              <span className="nl-tree-arrow">{expanded.root_memories ? "▾" : "▸"}</span>
+              <IconMemories size={14} className="nl-tree-icon" />
               <span className="nl-tree-label">记忆</span>
             </div>
 
-            {expandedNodes.memories && (
+            {expanded.root_memories && (
               <div className="nl-tree-sub-children">
-                {/* 1.1 全部记忆 */}
-                <div
-                  className={`nl-tree-node-row ${selectedBranch === "all_memories" ? "selected" : ""}`}
-                  onClick={() => {
-                    setSelectedBranch("all_memories");
-                    setSelectedMemoryDetail(null);
-                  }}
-                >
-                  <span className="nl-tree-icon">💡</span>
-                  <span className="nl-tree-label">全部记忆</span>
-                  <span className="nl-tree-count-badge">{memories.length}</span>
-                </div>
-
-                {/* 1.2 🚀 按项目 (First-order classification for Coding!) */}
+                {/* 1.1 全部记忆 (Expandable Drawer to Leaf Nodes) */}
                 <div className="nl-tree-sub-group">
                   <div
-                    className={`nl-tree-node-row ${selectedBranch === "by_project_root" ? "selected" : ""}`}
-                    onClick={() => {
-                      toggleNode("byProject");
-                      setSelectedBranch("by_project_root");
-                      setSelectedMemoryDetail(null);
-                    }}
+                    className={`nl-tree-node-row ${expanded.all_memories ? "open" : ""}`}
+                    onClick={() => toggle("all_memories")}
                   >
-                    <span className="nl-tree-arrow">{expandedNodes.byProject ? "▾" : "▸"}</span>
-                    <span className="nl-tree-icon">🚀</span>
-                    <span className="nl-tree-label">按项目 (Projects)</span>
+                    <span className="nl-tree-arrow">{expanded.all_memories ? "▾" : "▸"}</span>
+                    <IconFolder size={14} className="nl-tree-icon" />
+                    <span className="nl-tree-label">全部记忆</span>
+                    <span className="nl-tree-count-badge">{memories.length}</span>
+                  </div>
+
+                  {expanded.all_memories && (
+                    <div className="nl-tree-leafs-container">
+                      {filterMems(memories).map((m) => (
+                        <div
+                          key={m.id}
+                          className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
+                          onClick={() => setSelectedMemory(m)}
+                        >
+                          <span className="nl-tree-leaf-bullet">📄</span>
+                          <span className="nl-tree-leaf-title" title={m.title}>
+                            {m.title}
+                          </span>
+                          <span className="nl-tree-leaf-badge">MEM</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 1.2 按项目 (Projects Drawer) */}
+                <div className="nl-tree-sub-group">
+                  <div
+                    className={`nl-tree-node-row ${expanded.by_project ? "open" : ""}`}
+                    onClick={() => toggle("by_project")}
+                  >
+                    <span className="nl-tree-arrow">{expanded.by_project ? "▾" : "▸"}</span>
+                    <IconTree size={14} className="nl-tree-icon" />
+                    <span className="nl-tree-label">按项目</span>
                     <span className="nl-tree-count-badge">{sortedProjects.length}</span>
                   </div>
 
-                  {expandedNodes.byProject && (
-                    <div className="nl-tree-projects-list">
-                      {sortedProjects.map(([projName, pMems]) => (
-                        <div
-                          key={projName}
-                          className={`nl-tree-node-row leaf ${selectedBranch === "project_item" && selectedProject === projName ? "selected" : ""}`}
-                          onClick={() => {
-                            setSelectedProject(projName);
-                            setSelectedBranch("project_item");
-                            setSelectedMemoryDetail(null);
-                          }}
-                        >
-                          <span className="nl-tree-icon">📦</span>
-                          <span className="nl-tree-label">{projName}</span>
-                          <span className="nl-tree-count-badge">{pMems.length}</span>
+                  {expanded.by_project && (
+                    <div className="nl-tree-nested-subgroup">
+                      {sortedProjects.map(([pName, pMems]) => (
+                        <div key={pName} className="nl-tree-sub-project-block">
+                          <div
+                            className="nl-tree-node-row sub"
+                            onClick={() => toggle(`proj_${pName}`)}
+                          >
+                            <span className="nl-tree-arrow">{expanded[`proj_${pName}`] ? "▾" : "▸"}</span>
+                            <span className="nl-tree-label">{pName}</span>
+                            <span className="nl-tree-count-badge">{pMems.length}</span>
+                          </div>
+                          {expanded[`proj_${pName}`] && (
+                            <div className="nl-tree-leafs-container">
+                              {filterMems(pMems).map((m) => (
+                                <div
+                                  key={m.id}
+                                  className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
+                                  onClick={() => setSelectedMemory(m)}
+                                >
+                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-title" title={m.title}>
+                                    {m.title}
+                                  </span>
+                                  <span className="nl-tree-leaf-badge">MEM</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* 1.3 📅 按日期 */}
+                {/* 1.3 按日期 */}
                 <div className="nl-tree-sub-group">
                   <div
-                    className={`nl-tree-node-row ${selectedBranch === "by_date_root" ? "selected" : ""}`}
-                    onClick={() => {
-                      toggleNode("byDate");
-                      setSelectedBranch("by_date_root");
-                      setSelectedMemoryDetail(null);
-                    }}
+                    className={`nl-tree-node-row ${expanded.by_date ? "open" : ""}`}
+                    onClick={() => toggle("by_date")}
                   >
-                    <span className="nl-tree-arrow">{expandedNodes.byDate ? "▾" : "▸"}</span>
-                    <span className="nl-tree-icon">📅</span>
+                    <span className="nl-tree-arrow">{expanded.by_date ? "▾" : "▸"}</span>
+                    <IconCalendar size={14} className="nl-tree-icon" />
                     <span className="nl-tree-label">按日期</span>
+                    <span className="nl-tree-count-badge">{sortedDates.length}</span>
                   </div>
 
-                  {expandedNodes.byDate && (
-                    <div className="nl-tree-date-picker-embedded">
-                      {/* Mini Heatmap Grid in Tree */}
-                      <div className="nl-tree-mini-calendar">
-                        <div className="nl-calendar-header">
-                          <span className="nl-tree-cal-title">日历</span>
-                          <span className="nl-tree-cal-month">&lt; 2026年8月 &gt;</span>
-                        </div>
-                        <div className="nl-calendar-weekdays">
-                          <span>一</span>
-                          <span>二</span>
-                          <span>三</span>
-                          <span>四</span>
-                          <span>五</span>
-                          <span>六</span>
-                          <span>日</span>
-                        </div>
-                        <div className="nl-heatmap-grid">
-                          {heatmapDays.map((cell, idx) => (
-                            <div key={idx} className={`nl-heatmap-cell lvl-${cell.level}`} />
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Date Child Nodes */}
-                      {sortedDates.map((dateStr) => (
-                        <div
-                          key={dateStr}
-                          className={`nl-tree-node-row leaf ${selectedBranch === "date_item" && selectedDate === dateStr ? "selected" : ""}`}
-                          onClick={() => {
-                            setSelectedDate(dateStr);
-                            setSelectedBranch("date_item");
-                            setSelectedMemoryDetail(null);
-                          }}
-                        >
-                          <span className="nl-tree-icon">📅</span>
-                          <span className="nl-tree-label">{dateStr}</span>
-                          <span className="nl-tree-count-badge">
-                            {dateGroupsMap.get(dateStr)?.length}
-                          </span>
+                  {expanded.by_date && (
+                    <div className="nl-tree-nested-subgroup">
+                      {sortedDates.map(([dStr, dMems]) => (
+                        <div key={dStr}>
+                          <div
+                            className="nl-tree-node-row sub"
+                            onClick={() => toggle(`date_${dStr}`)}
+                          >
+                            <span className="nl-tree-arrow">{expanded[`date_${dStr}`] ? "▾" : "▸"}</span>
+                            <span className="nl-tree-label">{dStr}</span>
+                            <span className="nl-tree-count-badge">{dMems.length}</span>
+                          </div>
+                          {expanded[`date_${dStr}`] && (
+                            <div className="nl-tree-leafs-container">
+                              {filterMems(dMems).map((m) => (
+                                <div
+                                  key={m.id}
+                                  className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
+                                  onClick={() => setSelectedMemory(m)}
+                                >
+                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-title" title={m.title}>
+                                    {m.title}
+                                  </span>
+                                  <span className="nl-tree-leaf-badge">MEM</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* 1.4 🏷️ 标签 */}
+                {/* 1.4 标签 */}
                 <div className="nl-tree-sub-group">
                   <div
-                    className={`nl-tree-node-row ${selectedBranch === "tags_root" ? "selected" : ""}`}
-                    onClick={() => {
-                      toggleNode("tags");
-                      setSelectedBranch("tags_root");
-                      setSelectedMemoryDetail(null);
-                    }}
+                    className={`nl-tree-node-row ${expanded.by_tags ? "open" : ""}`}
+                    onClick={() => toggle("by_tags")}
                   >
-                    <span className="nl-tree-arrow">{expandedNodes.tags ? "▾" : "▸"}</span>
-                    <span className="nl-tree-icon">🏷️</span>
+                    <span className="nl-tree-arrow">{expanded.by_tags ? "▾" : "▸"}</span>
+                    <IconTag size={14} className="nl-tree-icon" />
                     <span className="nl-tree-label">标签</span>
                     <span className="nl-tree-count-badge">{sortedTags.length}</span>
                   </div>
 
-                  {expandedNodes.tags && (
-                    <div className="nl-tree-tags-list">
-                      {sortedTags.map(([tag, count]) => {
-                        const isProj = knownProjectNames.has(tag.toLowerCase());
-                        return (
+                  {expanded.by_tags && (
+                    <div className="nl-tree-nested-subgroup">
+                      {sortedTags.map(([tag, tMems]) => (
+                        <div key={tag}>
                           <div
-                            key={tag}
-                            className={`nl-tree-node-row leaf ${selectedBranch === "tag_item" && selectedTag === tag ? "selected" : ""}`}
-                            onClick={() => {
-                              setSelectedTag(tag);
-                              setSelectedBranch("tag_item");
-                              setSelectedMemoryDetail(null);
-                            }}
+                            className="nl-tree-node-row sub"
+                            onClick={() => toggle(`tag_${tag}`)}
                           >
-                            <span className="nl-tree-icon">{isProj ? "🚀" : "🏷️"}</span>
-                            <span className="nl-tree-label">{tag}</span>
-                            <span className="nl-tree-count-badge">{count}</span>
+                            <span className="nl-tree-arrow">{expanded[`tag_${tag}`] ? "▾" : "▸"}</span>
+                            <span className="nl-tree-label">#{tag}</span>
+                            <span className="nl-tree-count-badge">{tMems.length}</span>
                           </div>
-                        );
-                      })}
+                          {expanded[`tag_${tag}`] && (
+                            <div className="nl-tree-leafs-container">
+                              {filterMems(tMems).map((m) => (
+                                <div
+                                  key={m.id}
+                                  className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
+                                  onClick={() => setSelectedMemory(m)}
+                                >
+                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-title" title={m.title}>
+                                    {m.title}
+                                  </span>
+                                  <span className="nl-tree-leaf-badge">MEM</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* 1.5 💎 结晶 */}
-                <div
-                  className={`nl-tree-node-row ${selectedBranch === "crystals" ? "selected" : ""}`}
-                  onClick={() => {
-                    setSelectedBranch("crystals");
-                    setSelectedMemoryDetail(null);
-                  }}
-                >
-                  <span className="nl-tree-icon">💎</span>
-                  <span className="nl-tree-label">结晶</span>
-                  <span className="nl-tree-count-badge">
-                    {memories.filter((m) => m.importance === "critical" || (m.importance as any) >= 0.8).length}
-                  </span>
-                </div>
-
-                {/* 1.6 💡 按类型 */}
+                {/* 1.5 按类型 */}
                 <div className="nl-tree-sub-group">
                   <div
-                    className={`nl-tree-node-row ${selectedBranch === "by_type_root" ? "selected" : ""}`}
-                    onClick={() => {
-                      toggleNode("byType");
-                      setSelectedBranch("by_type_root");
-                      setSelectedMemoryDetail(null);
-                    }}
+                    className={`nl-tree-node-row ${expanded.by_type ? "open" : ""}`}
+                    onClick={() => toggle("by_type")}
                   >
-                    <span className="nl-tree-arrow">{expandedNodes.byType ? "▾" : "▸"}</span>
-                    <span className="nl-tree-icon">💡</span>
+                    <span className="nl-tree-arrow">{expanded.by_type ? "▾" : "▸"}</span>
+                    <IconFolder size={14} className="nl-tree-icon" />
                     <span className="nl-tree-label">按类型</span>
+                    <span className="nl-tree-count-badge">{sortedTypes.length}</span>
                   </div>
 
-                  {expandedNodes.byType && (
-                    <div className="nl-tree-types-list">
-                      {unitTypeDefinitions.map((uDef) => {
-                        const count = (typeGroupsMap.get(uDef.key) || []).length;
-                        return (
+                  {expanded.by_type && (
+                    <div className="nl-tree-nested-subgroup">
+                      {sortedTypes.map(([uType, tMems]) => (
+                        <div key={uType}>
                           <div
-                            key={uDef.key}
-                            className={`nl-tree-node-row leaf ${selectedBranch === "type_item" && selectedType === uDef.key ? "selected" : ""}`}
-                            onClick={() => {
-                              setSelectedType(uDef.key);
-                              setSelectedBranch("type_item");
-                              setSelectedMemoryDetail(null);
-                            }}
+                            className="nl-tree-node-row sub"
+                            onClick={() => toggle(`type_${uType}`)}
                           >
-                            <span className="nl-tree-icon">{uDef.icon}</span>
-                            <span className="nl-tree-label">{uDef.name}</span>
-                            {count > 0 && (
-                              <span className="nl-tree-count-badge">{count}</span>
-                            )}
+                            <span className="nl-tree-arrow">{expanded[`type_${uType}`] ? "▾" : "▸"}</span>
+                            <span className="nl-tree-label">{uType}</span>
+                            <span className="nl-tree-count-badge">{tMems.length}</span>
                           </div>
-                        );
-                      })}
+                          {expanded[`type_${uType}`] && (
+                            <div className="nl-tree-leafs-container">
+                              {filterMems(tMems).map((m) => (
+                                <div
+                                  key={m.id}
+                                  className={`nl-tree-leaf-row ${selectedMemory?.id === m.id ? "active" : ""}`}
+                                  onClick={() => setSelectedMemory(m)}
+                                >
+                                  <span className="nl-tree-leaf-bullet">📄</span>
+                                  <span className="nl-tree-leaf-title" title={m.title}>
+                                    {m.title}
+                                  </span>
+                                  <span className="nl-tree-leaf-badge">MEM</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
-
-                {/* 1.7 记录于 */}
-                <div
-                  className="nl-tree-node-row"
-                  onClick={() => toggleNode("recordedIn")}
-                >
-                  <span className="nl-tree-arrow">{expandedNodes.recordedIn ? "▾" : "▸"}</span>
-                  <span className="nl-tree-icon">📥</span>
-                  <span className="nl-tree-label">记录于</span>
-                </div>
-
-                {/* 1.8 发生于 */}
-                <div
-                  className="nl-tree-node-row"
-                  onClick={() => toggleNode("happenedAt")}
-                >
-                  <span className="nl-tree-arrow">{expandedNodes.happenedAt ? "▾" : "▸"}</span>
-                  <span className="nl-tree-icon">🕒</span>
-                  <span className="nl-tree-label">发生于</span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ROOT 2: 工作记录 */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "working_memory" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("working_memory");
-              setSelectedMemoryDetail(null);
-            }}
-          >
-            <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">📑</span>
-            <span className="nl-tree-label">工作记录</span>
+          {/* ROOT 2: 记录于 */}
+          <div className="nl-tree-node-row" onClick={() => toggle("recorded_in")}>
+            <span className="nl-tree-arrow">{expanded.recorded_in ? "▾" : "▸"}</span>
+            <IconCalendar size={14} className="nl-tree-icon" />
+            <span className="nl-tree-label">记录于</span>
           </div>
 
-          {/* ROOT 3: 动态 */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "activity" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("activity");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 3: 发生于 */}
+          <div className="nl-tree-node-row" onClick={() => toggle("happened_at")}>
+            <span className="nl-tree-arrow">{expanded.happened_at ? "▾" : "▸"}</span>
+            <IconTimeline size={14} className="nl-tree-icon" />
+            <span className="nl-tree-label">发生于</span>
+          </div>
+
+          {/* ROOT 4: 工作记忆 */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("context")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">⚡</span>
+            <IconContext size={14} className="nl-tree-icon" />
+            <span className="nl-tree-label">工作记忆</span>
+          </div>
+
+          {/* ROOT 5: 动态 */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("timeline")}>
+            <span className="nl-tree-arrow">▸</span>
+            <IconTimeline size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">动态</span>
           </div>
 
-          {/* ROOT 4: Skills */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "skills" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("skills");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 6: Skills */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("skills")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">❖</span>
+            <IconSkills size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">Skills</span>
           </div>
 
-          {/* ROOT 5: 会话 */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "threads" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("threads");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 7: 会话 */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("threads")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">💬</span>
+            <IconThreads size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">会话</span>
           </div>
 
-          {/* ROOT 6: Wiki */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "wiki" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("wiki");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 8: Wiki */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("library")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">📖</span>
+            <IconLibrary size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">Wiki</span>
           </div>
 
-          {/* ROOT 7: 上下文 */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "context" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("context");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 9: 上下文 */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("context")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">⊘</span>
+            <IconContext size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">上下文</span>
           </div>
 
-          {/* ROOT 8: 产物 */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "artifacts" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("artifacts");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 10: 产物 */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("library")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">📦</span>
+            <IconFolder size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">产物</span>
           </div>
 
-          {/* ROOT 9: Ontology */}
-          <div
-            className={`nl-tree-node-row root ${selectedBranch === "ontology" ? "selected" : ""}`}
-            onClick={() => {
-              setSelectedBranch("ontology");
-              setSelectedMemoryDetail(null);
-            }}
-          >
+          {/* ROOT 11: Ontology */}
+          <div className="nl-tree-node-row" onClick={() => onNavigateTab && onNavigateTab("graph")}>
             <span className="nl-tree-arrow">▸</span>
-            <span className="nl-tree-icon">🏛️</span>
+            <IconGraph size={14} className="nl-tree-icon" />
             <span className="nl-tree-label">Ontology</span>
           </div>
         </div>
-      </div>
+      </aside>
 
       {/* ─────────────────────────────────────────────────────────────
-          RIGHT: Branch Content View
+          RIGHT: Drawer Detail Canvas (1:1 with Screenshot 3)
       ───────────────────────────────────────────────────────────── */}
-      <div className="nl-tree-content-col">
-        {/* STATE 0: Empty Placeholder */}
-        {selectedBranch === "none" && (
-          <div className="nl-tree-empty-state">
-            <div className="nl-tree-empty-icon">🌿</div>
-            <h2 className="nl-tree-empty-title">选择一个分支</h2>
-            <p className="nl-tree-empty-sub">
-              从左侧树中查询 Mem 的结构：按项目分类、长期记忆、保存的会话、图谱 Wiki、上下文、工作记录、动态、产物和技能。
-            </p>
-          </div>
-        )}
-
-        {/* STATE 1: 🚀 按项目查看全部项目 (Projects Overview - First-order priority) */}
-        {selectedBranch === "by_project_root" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆 / 🚀 项目分类</div>
-              <h1 className="nl-tree-panel-title">🚀 按项目查看记忆 (Coding Projects)</h1>
-              <p className="nl-tree-panel-desc">
-                项目是 Coding 与 Agent 开发的第一顺位组织单元。系统自动识别当前代码仓库与上下文，将经验、决策、避坑与规范按项目精准沉淀。
-              </p>
-            </div>
-
-            <div className="nl-tree-tags-grid-section">
-              <div className="nl-tree-list-subheading">活跃项目 ({sortedProjects.length})</div>
-              <div className="nl-tags-2col-grid">
-                {sortedProjects.map(([pName, pMems]) => (
-                  <div
-                    key={pName}
-                    className="nl-tag-overview-card project-card"
-                    onClick={() => {
-                      setSelectedProject(pName);
-                      setSelectedBranch("project_item");
-                    }}
-                  >
-                    <div className="nl-tag-card-header">
-                      <span className="nl-tag-icon">🚀</span>
-                      <span className="nl-tag-name">{pName}</span>
-                      <span className="nl-project-badge-tag">项目</span>
-                    </div>
-                    <div className="nl-tag-card-desc">
-                      该项目已沉淀 {pMems.length} 条长期记忆与架构决策。
-                    </div>
-                    <div className="nl-tag-card-count" style={{ color: "#38bdf8", fontWeight: 600 }}>
-                      {pMems.length} 条记忆 · 点击展开
-                    </div>
-                  </div>
-                ))}
+      <main className="nl-tree-detail-canvas-col">
+        {selectedMemory ? (
+          <div className="nl-tree-memory-article-wrap">
+            {/* Top Memory Header */}
+            <div className="nl-tree-article-header">
+              <div className="nl-tree-type-badge-row">
+                <IconMemories size={15} className="nl-tree-type-icon" />
+                <span className="nl-tree-type-pill">Memory</span>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* STATE 2: 🚀 具体某个项目 (Project Memories View) */}
-        {selectedBranch === "project_item" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">
-                <span
-                  className="nl-crumb-link"
-                  onClick={() => setSelectedBranch("by_project_root")}
-                >
-                  🗂️ 记忆 / 🚀 项目分类
+              <h1 className="nl-tree-article-title">{selectedMemory.title}</h1>
+
+              <div className="nl-tree-article-meta-row">
+                <span>{getTimeAgo(selectedMemory.createdAt)}</span>
+                <span className="nl-meta-dot">•</span>
+                <span>95% confidence</span>
+                <span className="nl-meta-dot">•</span>
+                <span>
+                  {selectedMemory.importance === "critical"
+                    ? "400% importance"
+                    : selectedMemory.importance === "high"
+                    ? "250% importance"
+                    : "100% importance"}
                 </span>
               </div>
-              <h1 className="nl-tree-panel-title">🚀 项目: {selectedProject}</h1>
-              <p className="nl-tree-panel-desc">
-                《{selectedProject}》项目的专属知识记忆、架构经验与避坑约定（共 {branchMemories.length} 条）。
-              </p>
             </div>
 
-            <div className="nl-tree-memories-list-stream">
-              {branchMemories.map((m) => (
-                <div
-                  key={m.id}
-                  className="nl-tree-memory-card"
-                  onClick={() => setSelectedMemoryDetail(m)}
-                >
-                  <span className="nl-tree-card-icon">🚀</span>
-                  <div className="nl-tree-card-main">
-                    <div className="nl-tree-card-title">{m.title}</div>
-                    <div className="nl-tree-card-date">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span className="nl-tree-mem-badge">记忆</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STATE 3: 全部记忆 */}
-        {selectedBranch === "all_memories" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
-              <h1 className="nl-tree-panel-title">全部记忆</h1>
-              <p className="nl-tree-panel-desc">
-                所有记忆的精选列表。每一条都是一个可以长期使用的判断、经验、偏好、计划或约定，而不是长文档。
-              </p>
-            </div>
-
-            <div className="nl-tree-memories-list-stream">
-              <div className="nl-tree-list-subheading">深度</div>
-              {memories.map((m) => (
-                <div
-                  key={m.id}
-                  className={`nl-tree-memory-card ${selectedMemoryDetail?.id === m.id ? "active" : ""}`}
-                  onClick={() => setSelectedMemoryDetail(m)}
-                >
-                  <span className="nl-tree-card-icon">💡</span>
-                  <div className="nl-tree-card-main">
-                    <div className="nl-tree-card-title">{m.title}</div>
-                    <div className="nl-tree-card-date">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span className="nl-tree-mem-badge">记忆</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STATE 4: 按日期查看记忆 */}
-        {selectedBranch === "by_date_root" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
-              <h1 className="nl-tree-panel-title">按日期查看记忆</h1>
-              <p className="nl-tree-panel-desc">
-                在左侧日历板上方的日历回看"那天我学到了什么"。选中某一天后，它会作为树中的普通分支打开。
-              </p>
-            </div>
-
-            <div className="nl-tree-recent-dates-section">
-              <div className="nl-tree-list-subheading">最近日期</div>
-              <div className="nl-recent-dates-grid">
-                {sortedDates.map((dateStr) => (
-                  <div
-                    key={dateStr}
-                    className="nl-recent-date-card"
-                    onClick={() => {
-                      setSelectedDate(dateStr);
-                      setSelectedBranch("date_item");
-                    }}
-                  >
-                    <div className="nl-recent-date-icon">📅</div>
-                    <div className="nl-recent-date-info">
-                      <div className="nl-recent-date-text">{dateStr}</div>
-                      <div className="nl-recent-date-action">打开这一天</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STATE 5: 具体某一天 */}
-        {selectedBranch === "date_item" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">
-                <span
-                  className="nl-crumb-link"
-                  onClick={() => setSelectedBranch("by_date_root")}
-                >
-                  🗂️ 记忆 / 按日期
-                </span>
-              </div>
-              <h1 className="nl-tree-panel-title">📅 {selectedDate}</h1>
-              <p className="nl-tree-panel-desc">
-                该日期共沉淀了 {branchMemories.length} 条记忆与经验。
-              </p>
-            </div>
-
-            <div className="nl-tree-memories-list-stream">
-              {branchMemories.map((m) => (
-                <div
-                  key={m.id}
-                  className="nl-tree-memory-card"
-                  onClick={() => setSelectedMemoryDetail(m)}
-                >
-                  <span className="nl-tree-card-icon">💡</span>
-                  <div className="nl-tree-card-main">
-                    <div className="nl-tree-card-title">{m.title}</div>
-                    <div className="nl-tree-card-date">
-                      {new Date(m.createdAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                  <span className="nl-tree-mem-badge">记忆</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STATE 6: 🏷️ 标签 (With Projects Featured First) */}
-        {selectedBranch === "tags_root" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
-              <h1 className="nl-tree-panel-title">标签</h1>
-              <p className="nl-tree-panel-desc">
-                标签是你自己的归纳方式。这里将<strong>项目标签</strong>置于第一顺位，把最常用的概念放在最容易抵达的位置。
-              </p>
-            </div>
-
-            {/* Section 1: 🚀 项目标签 (First-order) */}
-            {projectTagsList.length > 0 && (
-              <div className="nl-tree-tags-grid-section">
-                <div className="nl-tree-list-subheading" style={{ color: "#38bdf8" }}>
-                  🚀 项目标签 (第一顺位)
-                </div>
-                <div className="nl-tags-2col-grid">
-                  {projectTagsList.map(([tag, count]) => (
-                    <div
-                      key={tag}
-                      className="nl-tag-overview-card project-card"
-                      onClick={() => {
-                        setSelectedTag(tag);
-                        setSelectedBranch("tag_item");
-                      }}
-                    >
-                      <div className="nl-tag-card-header">
-                        <span className="nl-tag-icon">🚀</span>
-                        <span className="nl-tag-name">{tag}</span>
-                        <span className="nl-project-badge-tag">项目</span>
-                      </div>
-                      <div className="nl-tag-card-desc">按此项目聚类的长期记忆与开发经验。</div>
-                      <div className="nl-tag-card-count" style={{ color: "#38bdf8" }}>
-                        {count} memories
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Section 2: 🏷️ 概念与技术标签 */}
-            <div className="nl-tree-tags-grid-section" style={{ marginTop: 16 }}>
-              <div className="nl-tree-list-subheading">🏷️ 技术与概念标签</div>
-              <div className="nl-tags-2col-grid">
-                {conceptTagsList.map(([tag, count]) => (
-                  <div
-                    key={tag}
-                    className="nl-tag-overview-card"
-                    onClick={() => {
-                      setSelectedTag(tag);
-                      setSelectedBranch("tag_item");
-                    }}
-                  >
-                    <div className="nl-tag-card-header">
-                      <span className="nl-tag-icon">🏷️</span>
-                      <span className="nl-tag-name">{tag}</span>
-                    </div>
-                    <div className="nl-tag-card-desc">按这个概念聚合的记忆。</div>
-                    <div className="nl-tag-card-count">{count} memories</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STATE 7: 具体某个标签 */}
-        {selectedBranch === "tag_item" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">
-                <span
-                  className="nl-crumb-link"
-                  onClick={() => setSelectedBranch("tags_root")}
-                >
-                  🗂️ 记忆 / 标签
-                </span>
-              </div>
-              <h1 className="nl-tree-panel-title">🏷️ #{selectedTag}</h1>
-              <p className="nl-tree-panel-desc">
-                包含 #{selectedTag} 标签的全部长期记忆（共 {branchMemories.length} 条）。
-              </p>
-            </div>
-
-            <div className="nl-tree-memories-list-stream">
-              {branchMemories.map((m) => (
-                <div
-                  key={m.id}
-                  className="nl-tree-memory-card"
-                  onClick={() => setSelectedMemoryDetail(m)}
-                >
-                  <span className="nl-tree-card-icon">💡</span>
-                  <div className="nl-tree-card-main">
-                    <div className="nl-tree-card-title">{m.title}</div>
-                    <div className="nl-tree-card-date">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span className="nl-tree-mem-badge">记忆</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STATE 8: 💎 结晶 */}
-        {selectedBranch === "crystals" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
-              <h1 className="nl-tree-panel-title">💎 知识结晶</h1>
-              <p className="nl-tree-panel-desc">
-                提炼的高价值核心决策与架构经验（重要度 Critical / High）。
-              </p>
-            </div>
-
-            <div className="nl-tree-memories-list-stream">
-              {branchMemories.map((m) => (
-                <div
-                  key={m.id}
-                  className="nl-tree-memory-card"
-                  onClick={() => setSelectedMemoryDetail(m)}
-                >
-                  <span className="nl-tree-card-icon">💎</span>
-                  <div className="nl-tree-card-main">
-                    <div className="nl-tree-card-title">{m.title}</div>
-                    <div className="nl-tree-card-date">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span className="nl-tree-mem-badge">结晶</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* STATE 9: 按类型与具体类型 */}
-        {(selectedBranch === "by_type_root" || selectedBranch === "type_item") && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 记忆</div>
-              <h1 className="nl-tree-panel-title">
-                {selectedType
-                  ? unitTypeDefinitions.find((u) => u.key === selectedType)?.name || selectedType
-                  : "按类型分类"}
-              </h1>
-              <p className="nl-tree-panel-desc">
-                {selectedType
-                  ? unitTypeDefinitions.find((u) => u.key === selectedType)?.desc || "所有被记录的分类记忆。"
-                  : "按 8 大认知类型（事实、偏好、决策、计划、流程、学习、上下文、事件）组织。"}
-              </p>
-            </div>
-
-            {branchMemories.length === 0 ? (
-              <div className="nl-tree-empty-state">
-                <div className="nl-tree-empty-icon">📅</div>
-                <h2 className="nl-tree-empty-title">
-                  还没有{selectedType ? unitTypeDefinitions.find((u) => u.key === selectedType)?.name : "此类型"}记录
-                </h2>
-                <p className="nl-tree-empty-sub">
-                  通过会话提炼或快速捕获沉淀更多此类知识。
-                </p>
-              </div>
-            ) : (
-              <div className="nl-tree-memories-list-stream">
-                {branchMemories.map((m) => (
-                  <div
-                    key={m.id}
-                    className="nl-tree-memory-card"
-                    onClick={() => setSelectedMemoryDetail(m)}
-                  >
-                    <span className="nl-tree-card-icon">💡</span>
-                    <div className="nl-tree-card-main">
-                      <div className="nl-tree-card-title">{m.title}</div>
-                      <div className="nl-tree-card-date">
-                        {new Date(m.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <span className="nl-tree-mem-badge">记忆</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Other Root Branches */}
-        {selectedBranch === "working_memory" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 工作记录</div>
-              <h1 className="nl-tree-panel-title">📑 每日工作简报</h1>
-              <p className="nl-tree-panel-desc">跨会话注入的即时工作态势与焦点领域。</p>
-            </div>
-            <button
-              className="nl-btn-primary"
-              onClick={() => onNavigateTab && onNavigateTab("timeline")}
-            >
-              前往时间线查看
-            </button>
-          </div>
-        )}
-
-        {selectedBranch === "threads" && (
-          <div className="nl-tree-branch-panel">
-            <div className="nl-tree-panel-header">
-              <div className="nl-tree-panel-breadcrumb">🗂️ 会话</div>
-              <h1 className="nl-tree-panel-title">💬 保存的会话记录</h1>
-              <p className="nl-tree-panel-desc">来自 Gemini、ChatGPT、Claude 与 Antigravity 的全量对话。</p>
-            </div>
-            <button
-              className="nl-btn-primary"
-              onClick={() => onNavigateTab && onNavigateTab("threads")}
-            >
-              前往会话记录列表
-            </button>
-          </div>
-        )}
-
-        {/* Selected Memory Quick Modal */}
-        {selectedMemoryDetail && (
-          <div
-            className="nl-modal-backdrop"
-            onClick={() => setSelectedMemoryDetail(null)}
-          >
-            <div
-              className="nl-modal-card"
-              style={{ maxWidth: "680px" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="nl-modal-header">
-                <h2>{selectedMemoryDetail.title}</h2>
+            {/* Knowledge Graph Interactive Canvas Box (Matches Screenshot 3) */}
+            <div className="nl-tree-graph-preview-box">
+              <div className="nl-tree-graph-header">
+                <span className="nl-tree-graph-label">图谱</span>
                 <button
-                  className="nl-close-btn"
-                  onClick={() => setSelectedMemoryDetail(null)}
+                  className="nl-tree-graph-dive-btn"
+                  onClick={() => onNavigateTab && onNavigateTab("graph")}
                 >
-                  ✕
+                  <IconGraph size={13} style={{ marginRight: 4 }} />
+                  <span>深入研究</span>
                 </button>
               </div>
-              <div className="nl-modal-body" style={{ padding: "16px 20px" }}>
-                <pre className="nl-markdown-pre" style={{ maxHeight: "360px" }}>
-                  {selectedMemoryDetail.content}
-                </pre>
-                <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
-                  {(selectedMemoryDetail.tags || []).map((t) => (
-                    <span key={t} className="nl-detail-tag-chip">
-                      #{t}
-                    </span>
-                  ))}
+
+              <div className="nl-tree-graph-canvas">
+                <svg className="nl-tree-graph-svg" viewBox="0 0 600 240">
+                  {/* Subtle Grid Background */}
+                  <defs>
+                    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
+
+                  {/* Connecting lines */}
+                  <line x1="300" y1="120" x2="160" y2="70" stroke="rgba(255,255,255,0.15)" strokeDasharray="4" />
+                  <line x1="300" y1="120" x2="440" y2="70" stroke="rgba(255,255,255,0.15)" strokeDasharray="4" />
+                  <line x1="300" y1="120" x2="220" y2="180" stroke="rgba(255,255,255,0.15)" strokeDasharray="4" />
+                  <line x1="300" y1="120" x2="380" y2="180" stroke="rgba(255,255,255,0.15)" strokeDasharray="4" />
+
+                  {/* Outer glow for main node */}
+                  <circle cx="300" cy="120" r="50" fill="url(#nodeGlow)" />
+
+                  {/* Satellite Node 1: Project / Space */}
+                  <g className="nl-graph-node">
+                    <circle cx="160" cy="70" r="16" fill="#0369a1" stroke="#38bdf8" strokeWidth="1.5" />
+                    <text x="160" y="98" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                      {selectedMemory.sessionId || "Project"}
+                    </text>
+                  </g>
+
+                  {/* Satellite Node 2: Unit Type */}
+                  <g className="nl-graph-node">
+                    <circle cx="440" cy="70" r="16" fill="#047857" stroke="#34d399" strokeWidth="1.5" />
+                    <text x="440" y="98" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                      {selectedMemory.unitType || selectedMemory.category || "决策"}
+                    </text>
+                  </g>
+
+                  {/* Satellite Node 3: Primary Tag */}
+                  {selectedMemory.tags && selectedMemory.tags[0] && (
+                    <g className="nl-graph-node">
+                      <circle cx="220" cy="180" r="14" fill="#6d28d9" stroke="#a78bfa" strokeWidth="1.5" />
+                      <text x="220" y="206" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                        #{selectedMemory.tags[0]}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Satellite Node 4: Secondary Tag */}
+                  {selectedMemory.tags && selectedMemory.tags[1] && (
+                    <g className="nl-graph-node">
+                      <circle cx="380" cy="180" r="14" fill="#c2410c" stroke="#fb923c" strokeWidth="1.5" />
+                      <text x="380" y="206" fill="#94a3b8" fontSize="11" textAnchor="middle">
+                        #{selectedMemory.tags[1]}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Center Main Node */}
+                  <g className="nl-graph-node-center">
+                    <circle cx="300" cy="120" r="32" fill="#0284c7" stroke="#bae6fd" strokeWidth="2" />
+                    <text x="300" y="125" fill="#ffffff" fontSize="12" fontWeight="600" textAnchor="middle">
+                      {selectedMemory.unitType === "decision" ? "决策" : "记忆"}
+                    </text>
+                  </g>
+
+                  {/* Center Node Title Label below */}
+                  <text
+                    x="300"
+                    y="170"
+                    fill="#f1f5f9"
+                    fontSize="13"
+                    fontWeight="500"
+                    textAnchor="middle"
+                    className="nl-graph-center-title"
+                  >
+                    {selectedMemory.title.length > 28
+                      ? selectedMemory.title.slice(0, 28) + "..."
+                      : selectedMemory.title}
+                  </text>
+                </svg>
+
+                {/* Graph Legend */}
+                <div className="nl-tree-graph-legend">
+                  <span className="nl-legend-item">
+                    <span className="nl-legend-dot blue" /> 记忆
+                  </span>
+                  <span className="nl-legend-item">
+                    <span className="nl-legend-dot green" /> 主题
+                  </span>
+                  <span className="nl-legend-item">
+                    <span className="nl-legend-dot purple" /> 知识结晶
+                  </span>
+                  <span className="nl-legend-item">
+                    <span className="nl-legend-dot orange" /> 资料
+                  </span>
                 </div>
               </div>
             </div>
+
+            {/* Rich Markdown Body */}
+            <div className="nl-tree-markdown-container">
+              <MarkdownRenderer content={selectedMemory.content} showSummaryCard={false} />
+            </div>
+          </div>
+        ) : (
+          <div className="nl-tree-empty-canvas">
+            <IconTree size={40} className="nl-empty-tree-icon" />
+            <h3>从左侧树中展开并选择一项记忆</h3>
+            <p>支持多层级抽屉展开：全部记忆、按项目、按日期、按标签与分类。</p>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };

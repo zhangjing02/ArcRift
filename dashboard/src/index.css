@@ -4130,117 +4130,346 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.nl-thread-sidebar-panel {
-  width: 320px;
-  padding: 20px;
-  overflow-y: auto;
+/* ─────────────────────────────────────────────────────────────
+   KNOWLEDGE TREE (Drawer Accordion & Graph Preview Canvas)
+───────────────────────────────────────────────────────────── */
+.nl-knowledge-tree-layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--nl-bg-base);
+}
+
+.nl-tree-sidebar-col {
+  width: 280px;
+  min-width: 280px;
+  max-width: 320px;
   background-color: #0b0d13;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
-.nl-thread-sidebar-top-actions {
-  display: flex;
-  gap: 8px;
+.nl-tree-search-wrap {
+  padding: 12px 14px;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.nl-btn-distill-primary {
-  flex: 1;
-  background-color: #0e3b2e;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #10b981;
-  padding: 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.nl-btn-distill-primary:hover {
-  background-color: #056143;
-}
-
-.nl-btn-layout-toggle {
-  background: #161922;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
-  width: 36px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.nl-covered-progress-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
+.nl-tree-search-icon {
+  position: absolute;
+  left: 24px;
+  top: 21px;
   color: #64748b;
-  padding: 4px 0;
+  pointer-events: none;
 }
 
-.nl-covered-icons {
-  display: flex;
-  gap: 4px;
-}
-
-.nl-btn-icon-subtle {
-  background: transparent;
-  border: none;
-  color: #64748b;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.nl-thread-accordion-card {
-  background-color: #12141a;
+.nl-tree-search-input {
+  width: 100%;
+  background-color: #13161f;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 6px;
-  overflow: hidden;
+  padding: 6px 10px 6px 30px;
+  color: #f1f5f9;
+  font-size: 12px;
+  outline: none;
 }
 
-.nl-accordion-header {
+.nl-tree-search-input:focus {
+  border-color: #38bdf8;
+}
+
+.nl-tree-nodes-list {
+  padding: 10px 8px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nl-tree-node-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.nl-tree-node-row {
+  display: flex;
   align-items: center;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  color: #cbd5e1;
+  font-size: 12.5px;
   cursor: pointer;
-  font-size: 13px;
-  color: #e2e8f0;
-  font-weight: 500;
+  user-select: none;
+  transition: all 0.1s ease;
+}
+
+.nl-tree-node-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: #f1f5f9;
+}
+
+.nl-tree-node-row.sub {
+  padding-left: 20px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.nl-tree-arrow {
+  font-size: 9px;
+  color: #64748b;
+  width: 10px;
+  text-align: center;
+}
+
+.nl-tree-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.nl-tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-tree-count-badge {
+  font-size: 10.5px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.nl-tree-sub-children {
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nl-tree-nested-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nl-tree-sub-project-block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Leaf items inside the tree drawer (Matches Screenshot 3) */
+.nl-tree-leafs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 4px 0;
+}
+
+.nl-tree-leaf-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 22px;
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s ease;
   user-select: none;
 }
 
-.nl-accordion-header:hover {
-  background-color: #161922;
+.nl-tree-leaf-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: #f1f5f9;
 }
 
-.nl-accordion-title {
+.nl-tree-leaf-row.active {
+  background-color: #1e293b;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.nl-tree-leaf-bullet {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.nl-tree-leaf-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-tree-leaf-badge {
+  font-size: 9.5px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Right Detail Canvas Column (Matches Screenshot 3) ── */
+.nl-tree-detail-canvas-col {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 36px;
+  background-color: #0d0f14;
+}
+
+.nl-tree-memory-article-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+}
+
+.nl-tree-article-header {
+  margin-bottom: 18px;
+}
+
+.nl-tree-type-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: #94a3b8;
+}
+
+.nl-tree-type-icon {
+  color: #94a3b8;
+}
+
+.nl-tree-type-pill {
+  font-size: 11px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.nl-tree-article-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.nl-tree-article-meta-row {
+  font-size: 12px;
+  color: #64748b;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.nl-accordion-arrow {
-  color: #64748b;
-  font-size: 11px;
+.nl-meta-dot {
+  opacity: 0.5;
 }
 
-.nl-accordion-content {
-  padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 12px;
+/* Graph Interactive Canvas Box */
+.nl-tree-graph-preview-box {
+  background-color: #131720;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.nl-tree-graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nl-tree-graph-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.nl-tree-graph-dive-btn {
+  background: transparent;
+  border: none;
   color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
-.nl-thread-info-meta-list {
+.nl-tree-graph-dive-btn:hover {
+  color: #38bdf8;
+}
+
+.nl-tree-graph-canvas {
+  height: 220px;
+  background: #0b0e14;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nl-tree-graph-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.nl-tree-graph-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 14px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.nl-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nl-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.nl-legend-dot.blue { background-color: #38bdf8; }
+.nl-legend-dot.green { background-color: #34d399; }
+.nl-legend-dot.purple { background-color: #a78bfa; }
+.nl-legend-dot.orange { background-color: #fb923c; }
+
+.nl-tree-markdown-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+}
+
+.nl-tree-empty-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 70%;
+  text-align: center;
+  color: #64748b;
+}
+
+.nl-empty-tree-icon {
+  margin-bottom: 12px;
+  opacity: 0.5;
 }
 
 .nl-info-meta-row {
