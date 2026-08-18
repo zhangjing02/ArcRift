@@ -97,8 +97,8 @@ export const KnowledgeTreeView: React.FC<KnowledgeTreeViewProps> = ({
   memories.forEach((m) => {
     // Project
     const pTag =
-      (m.tags && m.tags.length > 0 ? m.tags[0] : null) ||
       (m.sessionId && m.sessionId !== "default" ? m.sessionId : null) ||
+      (m.tags && m.tags.length > 0 ? m.tags[0] : null) ||
       "ChronosMind";
     if (!projectGroupsMap.has(pTag)) projectGroupsMap.set(pTag, []);
     projectGroupsMap.get(pTag)!.push(m);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { NowledgeSidebar } from "./components/Nowledge/NowledgeSidebar";
 import type { NavTab } from "./components/Nowledge/NowledgeSidebar";
 import { TimelineView } from "./components/Nowledge/TimelineView";
@@ -36,15 +36,9 @@ const AppContent: React.FC = () => {
     handleDeleteSession,
   } = useSessions((deletedId) => {
     if (activeSession?._id === deletedId) {
-      setActiveSession(sessions.find((s) => s._id !== deletedId) || null);
+      setActiveSession(null);
     }
   });
-
-  useEffect(() => {
-    if (!activeSession && sessions.length > 0) {
-      setActiveSession(sessions[0]);
-    }
-  }, [sessions, activeSession]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
