@@ -28,14 +28,13 @@ interface Node3DEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 1 & 2)
+// Strata & Dimension Configuration (1:1 with Nowledge Mem Screenshot 1, 2, 3)
 // ─────────────────────────────────────────────────────────────────────────────
 const METRIC_CONFIG: Record<
   HeightMetric,
   {
     title: string;
     name: string;
-    icon: string;
     description: string;
     levels: Array<{ label: string; height: number; yPercent: number }>;
   }
@@ -43,7 +42,6 @@ const METRIC_CONFIG: Record<
   influence: {
     title: "影响力地形",
     name: "影响力",
-    icon: "⛰️",
     description: "高处代表更重要、连接更强的知识。",
     levels: [
       { label: "核心枢纽", height: 270, yPercent: 86 },
@@ -55,7 +53,6 @@ const METRIC_CONFIG: Record<
   structure: {
     title: "结构深度",
     name: "结构",
-    icon: "⚙️",
     description: "外围节点逐步移除后，越高的节点越能保持连接。",
     levels: [
       { label: "核心内圈", height: 270, yPercent: 86 },
@@ -67,7 +64,6 @@ const METRIC_CONFIG: Record<
   morphology: {
     title: "知识形态",
     name: "形态",
-    icon: "❄️",
     description: "高度从原始凭据逐步走向可用知识。",
     levels: [
       { label: "技能", height: 270, yPercent: 86 },
@@ -79,7 +75,6 @@ const METRIC_CONFIG: Record<
   growth: {
     title: "记录增长",
     name: "增长",
-    icon: "🕒",
     description: "最近加入的记录位于较旧记录之上。",
     levels: [
       { label: "现在", height: 270, yPercent: 86 },
@@ -202,7 +197,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const pointerDownPosRef = useRef({ x: 0, y: 0 });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. Rigorous Graph Metrics & Differentiated Mountain Heights
+  // 1. Rigorous Multi-Dimensional Mathematics (PageRank, K-Core, Morphology, Growth)
   // ─────────────────────────────────────────────────────────────────────────
   const computeTargetPositionsAndLandscape = useCallback(
     (nodes: GraphNode[], links: any[], metric: HeightMetric, mode: ViewMode3D) => {
@@ -217,11 +212,18 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         };
       }
 
-      // 1. Degree Centrality
+      // 1. Degree Centrality & Adjacency Map
+      const adjSet = new Map<string, Set<string>>();
+      nodes.forEach((n) => adjSet.set(n.id, new Set()));
+
       const degreeMap = new Map<string, number>();
       links.forEach((l: any) => {
         const src = typeof l.source === "object" ? l.source.id : l.source;
         const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        if (adjSet.has(src) && adjSet.has(tgt) && src !== tgt) {
+          adjSet.get(src)!.add(tgt);
+          adjSet.get(tgt)!.add(src);
+        }
         degreeMap.set(src, (degreeMap.get(src) || 0) + 1);
         degreeMap.set(tgt, (degreeMap.get(tgt) || 0) + 1);
       });
@@ -266,7 +268,44 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         influenceMap.set(n.id, influencePercent);
       });
 
-      // 4. Cluster Grouping by Project / Topic
+      // 4. K-Core Peeling Algorithm (结构深度)
+      const degMap = new Map<string, number>();
+      nodes.forEach((n) => degMap.set(n.id, adjSet.get(n.id)!.size));
+
+      const kCoreMap = new Map<string, number>();
+      let curK = 1;
+      const unpeeled = new Set(nodes.map((n) => n.id));
+
+      while (unpeeled.size > 0 && curK <= 10) {
+        let hasRemoval = true;
+        while (hasRemoval) {
+          hasRemoval = false;
+          const toPeel: string[] = [];
+          for (const nid of unpeeled) {
+            if ((degMap.get(nid) || 0) < curK) {
+              toPeel.push(nid);
+            }
+          }
+          if (toPeel.length > 0) {
+            hasRemoval = true;
+            for (const pid of toPeel) {
+              unpeeled.delete(pid);
+              kCoreMap.set(pid, Math.max(0, curK - 1));
+              const neighbors = adjSet.get(pid) || new Set();
+              for (const nbr of neighbors) {
+                if (unpeeled.has(nbr)) {
+                  degMap.set(nbr, Math.max(0, (degMap.get(nbr) || 1) - 1));
+                }
+              }
+            }
+          }
+        }
+        curK++;
+      }
+      unpeeled.forEach((nid) => kCoreMap.set(nid, curK - 1));
+      const maxK = Math.max(1, ...Array.from(kCoreMap.values()));
+
+      // 5. Cluster Grouping by Project / Topic
       const clusterAssignment = new Map<string, string>();
       nodes.forEach((n) => {
         const sid = (n as any).sessionId || (n.id.startsWith("tag:") ? n.id.slice(4) : "ArcRift");
@@ -315,6 +354,14 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         if (m.peakNodeId) peakNodes.add(m.peakNodeId);
       });
 
+      // Timestamps sorted for Growth Horizon
+      const timestamps = nodes
+        .map((n) => ((n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : Date.now()))
+        .sort((a, b) => b - a);
+      const minTs = timestamps[timestamps.length - 1] || Date.now();
+      const maxTs = timestamps[0] || Date.now();
+      const tsRange = Math.max(1, maxTs - minTs);
+
       const targetMap = new Map<string, { x: number; y: number; z: number }>();
       const steppingStones: Array<{ x: number; z: number; y: number }> = [];
 
@@ -352,28 +399,38 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           // Height strictly determined by Influence Score (0 ~ 100% -> 20 ~ 275px)
           ty = (inf / 100) * 255 + 20;
         } else if (metric === "structure") {
-          const deg = degreeMap.get(n.id) || 1;
-          const kTier = deg >= 5 ? 3 : deg >= 3 ? 2 : deg >= 2 ? 1 : 0;
-          const kHeights = [25, 110, 190, 270];
-          ty = kHeights[kTier] + (Math.random() - 0.5) * 6;
+          // K-Core Peeling Depth
+          const kc = kCoreMap.get(n.id) || 0;
+          const deg = degreeMap.get(n.id) || 0;
+          if (kc >= maxK && maxK >= 2) {
+            ty = 250 + (deg / maxDegree) * 20; // 核心内圈
+          } else if (kc >= Math.ceil(maxK * 0.6)) {
+            ty = 175 + (deg / maxDegree) * 20; // 主结构层
+          } else if (kc >= 1) {
+            ty = 100 + (deg / maxDegree) * 15; // 桥接层
+          } else {
+            ty = 20 + Math.random() * 10; // 离散外圈
+          }
         } else if (metric === "morphology") {
           const t = (n.type || "").toLowerCase();
-          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) ty = 270;
-          else if (t.includes("project") || t.includes("entity") || t.includes("concept")) ty = 190;
-          else if (t.includes("memory") || t.includes("decision")) ty = 110;
-          else ty = 25;
+          const cat = ((n as any).category || "").toLowerCase();
+          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) {
+            ty = 265 + (Math.random() - 0.5) * 8; // 技能
+          } else if (t.includes("project") || t.includes("entity") || t.includes("concept") || cat.includes("project") || n.id.startsWith("tag:")) {
+            ty = 185 + (Math.random() - 0.5) * 8; // 实体/项目
+          } else if (t.includes("memory") || t.includes("decision") || t.includes("fact")) {
+            ty = 105 + (Math.random() - 0.5) * 8; // 记忆单元
+          } else {
+            ty = 25 + (Math.random() - 0.5) * 6; // 轨迹/对话
+          }
         } else if (metric === "growth") {
           const created = (n as any).firstSeen ? new Date((n as any).firstSeen).getTime() : Date.now();
-          const ageDays = Math.max(0, (Date.now() - created) / (1000 * 3600 * 24));
-          if (ageDays <= 1) ty = 270;
-          else if (ageDays <= 7) ty = 190;
-          else if (ageDays <= 30) ty = 110;
-          else ty = 25;
+          const ageRatio = (created - minTs) / tsRange; // 1 = latest, 0 = oldest
+          ty = 25 + ageRatio * 245; // Smooth continuous time horizon
         }
 
         // Calculate X, Z planar position
         if (peakNodes.has(n.id)) {
-          // Summit node sits on peak of its mountain at its real calculated height!
           targetMap.set(n.id, { x: m.cx, y: ty, z: m.cz });
         } else if (inf >= 38 || ty >= 50) {
           // Mountain slope node
@@ -768,7 +825,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
             const rx = isSummit ? 20 : m.baseRadiusX * scale;
             const rz = isSummit ? 14 : m.baseRadiusZ * scale;
-            const opacity = 0.10 + progress * 0.30; // higher rings are more defined
+            const opacity = 0.10 + progress * 0.30;
 
             const points = createOrganicContourLoop(m.cx, m.cz, rx, rz, 56, 0.14);
             const geo = new THREE.BufferGeometry().setFromPoints(points);
