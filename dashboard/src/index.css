@@ -6301,6 +6301,183 @@ body {
   overflow-y: auto;
 }
 
+/* ── 3D TOPOGRAPHIC HUD & CONTROLLER (1:1 with Nowledge Mem) ── */
+.nl-3d-left-strata-hud {
+  position: absolute;
+  top: 40px;
+  bottom: 80px;
+  left: 0;
+  width: 140px;
+  pointer-events: none;
+  z-index: 10;
+}
 
+.nl-strata-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+}
 
+.nl-strata-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
 
+.nl-strata-tick-line {
+  width: 28px;
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.nl-3d-control-widget {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 250px;
+  background: rgba(15, 19, 28, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 20;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.nl-3d-viewmode-toggle {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 3px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nl-3d-viewmode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 0;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nl-3d-viewmode-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.nl-3d-metric-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-3d-metric-header {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.nl-3d-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.nl-3d-metric-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nl-3d-metric-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.nl-3d-metric-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.nl-3d-metric-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 6px;
+  padding: 8px 10px;
+  border-left: 2px solid #38bdf8;
+}
+
+.nl-metric-desc-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.nl-metric-desc-text {
+  font-size: 10.5px;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.nl-3d-hover-tooltip {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #f8fafc;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.nl-3d-tooltip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.nl-3d-tooltip-meta {
+  color: #64748b;
+  font-size: 10.5px;
+}

@@ -12,6 +12,7 @@ interface KnowledgeGraph3DCanvasProps {
 }
 
 export type HeightMetric = "influence" | "structure" | "morphology" | "growth";
+export type ViewMode3D = "terrain" | "galaxy";
 
 interface Node3DEntry {
   raw: GraphNode;
@@ -22,84 +23,93 @@ interface Node3DEntry {
   currentPos: THREE.Vector3;
   targetPos: THREE.Vector3;
   meshGroup: THREE.Group;
-  stalkLine: THREE.Line;
-  stalkFoot: THREE.Mesh;
-  haloMesh: THREE.Mesh;
-  selectionRing?: THREE.Mesh;
+  labelSprite?: THREE.Sprite;
+  isPeak: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Strata labels configuration for HUD overlay
+// Strata & Dimension Configuration (1:1 with Nowledge Mem)
 // ─────────────────────────────────────────────────────────────────────────────
-const STRATA_CONFIG: Record<HeightMetric, {
+const METRIC_CONFIG: Record<HeightMetric, {
   title: string;
+  name: string;
+  icon: string;
   description: string;
-  levels: Array<{ label: string; height: number; color: string }>;
+  levels: Array<{ label: string; height: number; yPercent: number }>;
 }> = {
   influence: {
-    title: "影响力 (Influence)",
-    description: "度中心性越高，节点高度越高并向中心靠拢，形成峰峦地形",
+    title: "影响力地形",
+    name: "影响力",
+    icon: "⛰️",
+    description: "高处代表更重要、连接更强的知识。",
     levels: [
-      { label: "核心枢纽 (Hub)", height: 240, color: "#f472b6" },
-      { label: "高影响力", height: 170, color: "#c084fc" },
-      { label: "中等连接", height: 100, color: "#60a5fa" },
-      { label: "边缘末梢", height: 30, color: "#64748b" },
+      { label: "核心枢纽", height: 230, yPercent: 82 },
+      { label: "主结构", height: 160, yPercent: 62 },
+      { label: "普通节点", height: 95, yPercent: 42 },
+      { label: "外围边缘", height: 25, yPercent: 18 },
     ],
   },
   structure: {
-    title: "结构 (Structure)",
-    description: "K-Core 拓扑层级，内部核心节点高耸，外围结构依序呈阶梯分布",
+    title: "结构深度",
+    name: "结构",
+    icon: "⚙️",
+    description: "外围节点逐步移除后，越高的节点越能保持连接。",
     levels: [
-      { label: "核心内圈 (Core)", height: 240, color: "#f472b6" },
-      { label: "主结构层", height: 170, color: "#c084fc" },
-      { label: "桥接层", height: 100, color: "#60a5fa" },
-      { label: "离散外圈", height: 30, color: "#64748b" },
+      { label: "核心内圈", height: 230, yPercent: 82 },
+      { label: "主结构层", height: 160, yPercent: 62 },
+      { label: "桥接层", height: 95, yPercent: 42 },
+      { label: "离散外圈", height: 25, yPercent: 18 },
     ],
   },
   morphology: {
-    title: "形态 (Morphology)",
-    description: "按本体知识类型进行水平地层分阶，自底向上呈现知识结晶过程",
+    title: "知识形态",
+    name: "形态",
+    icon: "❄️",
+    description: "高度从原始凭据逐步走向可用知识。",
     levels: [
-      { label: "知识结晶 / 规则", height: 240, color: "#f472b6" },
-      { label: "技术规范 / 架构", height: 170, color: "#c084fc" },
-      { label: "概念 / 实体", height: 100, color: "#60a5fa" },
-      { label: "记忆 / 决策", height: 50, color: "#34d399" },
-      { label: "原始记录 / 对话", height: 15, color: "#64748b" },
+      { label: "技能", height: 230, yPercent: 82 },
+      { label: "实体", height: 160, yPercent: 62 },
+      { label: "记忆单元", height: 95, yPercent: 42 },
+      { label: "轨迹", height: 25, yPercent: 18 },
     ],
   },
   growth: {
-    title: "增长 (Growth)",
-    description: "时间地层剖面，最新产生的记忆悬浮顶层，历史知识沉入地基",
+    title: "记录增长",
+    name: "增长",
+    icon: "🕒",
+    description: "最近加入的记录位于较旧记录之上。",
     levels: [
-      { label: "现在 (Recent)", height: 240, color: "#f472b6" },
-      { label: "7 天内", height: 165, color: "#c084fc" },
-      { label: "30 天内", height: 95, color: "#60a5fa" },
-      { label: "1 年以上 (History)", height: 25, color: "#64748b" },
+      { label: "现在", height: 230, yPercent: 82 },
+      { label: "7 天", height: 160, yPercent: 62 },
+      { label: "30 天", height: 95, yPercent: 42 },
+      { label: "1 年以上", height: 25, yPercent: 18 },
     ],
   },
 };
 
-// Create billboard canvas text sprite
+// Create clean, minimalist floating text sprite for peak nodes
 function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Sprite {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  canvas.width = 384;
-  canvas.height = 80;
+  canvas.width = 512;
+  canvas.height = 72;
 
   const cleanText = rawText
     .replace(/^tag:/, "")
     .replace(/^[0-9a-fA-F-]{36}\s*/, "")
     .trim();
-  const text = cleanText.length > 20 ? cleanText.slice(0, 18) + "…" : cleanText;
+  const text = cleanText.length > 22 ? cleanText.slice(0, 20) + "…" : cleanText;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(11, 15, 25, 0.82)";
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
-  ctx.lineWidth = 1.5;
+  
+  // Minimalist translucent capsule
+  ctx.fillStyle = "rgba(10, 14, 22, 0.75)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+  ctx.lineWidth = 1;
 
-  const r = 12;
-  const w = Math.min(canvas.width - 12, Math.max(100, text.length * 15 + 28));
-  const h = 36;
+  const r = 6;
+  const w = Math.min(canvas.width - 16, Math.max(120, text.length * 16 + 32));
+  const h = 32;
   const x = (canvas.width - w) / 2;
   const y = (canvas.height - h) / 2;
 
@@ -108,10 +118,11 @@ function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Spr
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = "500 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  // Fine white text
+  ctx.font = "500 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = color || "#cbd5e1";
+  ctx.fillStyle = color || "#e2e8f0";
   ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -122,8 +133,22 @@ function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Spr
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(30, 6.25, 1);
+  sprite.scale.set(38, 5.3, 1);
   return sprite;
+}
+
+// Generate organic contour loop points at specific elevation
+function createContourLoop(centerX: number, centerZ: number, radiusX: number, radiusZ: number, pointsCount = 48, jitter = 0.18): THREE.Vector3[] {
+  const points: THREE.Vector3[] = [];
+  for (let i = 0; i <= pointsCount; i++) {
+    const angle = (i / pointsCount) * Math.PI * 2;
+    // Harmonic wave for natural organic isoline curvature
+    const harmonic = 1 + Math.sin(angle * 3 + 1.2) * jitter + Math.cos(angle * 5 - 0.6) * (jitter * 0.5);
+    const x = centerX + Math.cos(angle) * radiusX * harmonic;
+    const z = centerZ + Math.sin(angle) * radiusZ * harmonic;
+    points.push(new THREE.Vector3(x, 0, z));
+  }
+  return points;
 }
 
 export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
@@ -133,6 +158,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   getNodeColor,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<ViewMode3D>("terrain");
   const [heightMetric, setHeightMetric] = useState<HeightMetric>("influence");
   const [hoveredNode, setHoveredNode] = useState<{ label: string; type?: string; color: string; degree: number } | null>(null);
 
@@ -151,13 +177,11 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const elevationGridGroupRef = useRef<THREE.Group | null>(null);
+  const contoursGroupRef = useRef<THREE.Group | null>(null);
 
   // Graph Data & Object References
   const nodeEntriesRef = useRef<Map<string, Node3DEntry>>(new Map());
   const linksMeshRef = useRef<THREE.LineSegments | null>(null);
-  const particlesMeshRef = useRef<THREE.Points | null>(null);
-  const particleDataRef = useRef<Array<{ linkIdx: number; progress: number; speed: number }>>([]);
   const linksDataRef = useRef<any[]>([]);
 
   const raycasterRef = useRef(new THREE.Raycaster());
@@ -166,10 +190,10 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   const pointerDownPosRef = useRef({ x: 0, y: 0 });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 1. Target Position Generator (Pure function, zero side effects)
+  // 1. Target Position Generator (Computes natural clusters & height tiers)
   // ─────────────────────────────────────────────────────────────────────────
   const computeTargetPositions = useCallback(
-    (nodes: GraphNode[], links: any[], metric: HeightMetric) => {
+    (nodes: GraphNode[], links: any[], metric: HeightMetric, mode: ViewMode3D) => {
       const totalNodes = nodes.length;
       if (totalNodes === 0) return new Map<string, { x: number; y: number; z: number }>();
 
@@ -182,8 +206,8 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       });
       const maxDegree = Math.max(1, ...Array.from(degreeMap.values()));
 
-      // 2D force simulation for natural planar layout
-      const simNodes = nodes.map((n) => ({ id: n.id, x: (Math.random() - 0.5) * 350, y: (Math.random() - 0.5) * 350 }));
+      // 2D force simulation for natural planar cluster layout
+      const simNodes = nodes.map((n) => ({ id: n.id, x: (Math.random() - 0.5) * 320, y: (Math.random() - 0.5) * 320 }));
       const simLinks = links.map((l) => ({
         source: typeof l.source === "object" ? l.source.id : l.source,
         target: typeof l.target === "object" ? l.target.id : l.target,
@@ -191,12 +215,12 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
       const sim = d3
         .forceSimulation(simNodes as any)
-        .force("charge", d3.forceManyBody().strength(-160))
-        .force("link", d3.forceLink(simLinks).id((d: any) => d.id).distance(65))
+        .force("charge", d3.forceManyBody().strength(-140))
+        .force("link", d3.forceLink(simLinks).id((d: any) => d.id).distance(60))
         .force("center", d3.forceCenter(0, 0))
         .stop();
 
-      for (let i = 0; i < 80; i++) sim.tick();
+      for (let i = 0; i < 90; i++) sim.tick();
 
       const planarCoords = new Map<string, { x: number; z: number }>();
       simNodes.forEach((sn: any) => {
@@ -210,49 +234,59 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         const basePlanar = planarCoords.get(n.id) || { x: 0, z: 0 };
         let tx = basePlanar.x;
         let tz = basePlanar.z;
-        let ty = 30;
+        let ty = 25;
 
-        if (metric === "influence") {
-          const ratio = deg / maxDegree;
-          ty = ratio * 230 + 25;
-          const pull = 0.45 + (1 - ratio) * 0.55;
-          tx = basePlanar.x * pull;
-          tz = basePlanar.z * pull;
-        } else if (metric === "structure") {
-          const sorted = [...nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
-          const rank = sorted.findIndex((s) => s.id === n.id);
-          const tier = Math.floor((rank / Math.max(1, totalNodes)) * 4);
-          const ringRadii = [60, 140, 220, 320];
-          const ringHeights = [240, 170, 100, 30];
-          ty = ringHeights[tier] + (Math.random() - 0.5) * 12;
+        if (mode === "galaxy") {
+          // Galaxy view: Spherical constellation layout
+          const phi = Math.acos(-1 + (2 * i) / totalNodes);
+          const theta = Math.sqrt(totalNodes * Math.PI) * phi;
+          const r = 160 + (deg / maxDegree) * 60;
+          tx = r * Math.sin(phi) * Math.cos(theta);
+          ty = r * Math.cos(phi) * 0.7;
+          tz = r * Math.sin(phi) * Math.sin(theta);
+        } else {
+          // Terrain view: Rigorous Topographic Stratification
+          if (metric === "influence") {
+            const ratio = deg / maxDegree;
+            ty = ratio * 210 + 20;
+            // Higher nodes pulled gently toward the ridge/peak
+            const pull = 0.55 + (1 - ratio) * 0.45;
+            tx = basePlanar.x * pull;
+            tz = basePlanar.z * pull;
+          } else if (metric === "structure") {
+            const sorted = [...nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
+            const rank = sorted.findIndex((s) => s.id === n.id);
+            const tier = Math.floor((rank / Math.max(1, totalNodes)) * 4);
+            const ringRadii = [45, 110, 190, 290];
+            const ringHeights = [230, 160, 95, 25];
+            ty = ringHeights[tier] + (Math.random() - 0.5) * 8;
 
-          const angle = (i / totalNodes) * Math.PI * 2 + tier * 0.8;
-          const r = ringRadii[tier] + (Math.random() - 0.5) * 25;
-          tx = Math.cos(angle) * r;
-          tz = Math.sin(angle) * r;
-        } else if (metric === "morphology") {
-          const t = (n.type || "").toLowerCase();
-          if (t.includes("rule") || t.includes("arch") || t.includes("skill")) ty = 240;
-          else if (t.includes("tech") || t.includes("doc") || t.includes("file")) ty = 170;
-          else if (t.includes("concept") || t.includes("entity")) ty = 100;
-          else if (t.includes("memory") || t.includes("decision")) ty = 50;
-          else ty = 15;
+            const angle = (i / totalNodes) * Math.PI * 2 + tier * 0.7;
+            const r = ringRadii[tier] + (Math.random() - 0.5) * 20;
+            tx = Math.cos(angle) * r;
+            tz = Math.sin(angle) * r;
+          } else if (metric === "morphology") {
+            const t = (n.type || "").toLowerCase();
+            if (t.includes("rule") || t.includes("arch") || t.includes("skill")) ty = 230;
+            else if (t.includes("tech") || t.includes("doc") || t.includes("file") || t.includes("project")) ty = 160;
+            else if (t.includes("concept") || t.includes("entity")) ty = 95;
+            else if (t.includes("memory") || t.includes("decision")) ty = 50;
+            else ty = 25;
 
-          ty += (Math.random() - 0.5) * 8;
-          tx = basePlanar.x * 0.95;
-          tz = basePlanar.z * 0.95;
-        } else if (metric === "growth") {
-          const ageRatio = i / Math.max(1, totalNodes - 1);
-          if (ageRatio > 0.8) ty = 240;
-          else if (ageRatio > 0.55) ty = 165;
-          else if (ageRatio > 0.25) ty = 95;
-          else ty = 25;
+            ty += (Math.random() - 0.5) * 6;
+            tx = basePlanar.x * 0.92;
+            tz = basePlanar.z * 0.92;
+          } else if (metric === "growth") {
+            const ageRatio = (totalNodes - 1 - i) / Math.max(1, totalNodes - 1);
+            if (ageRatio > 0.8) ty = 230;
+            else if (ageRatio > 0.55) ty = 160;
+            else if (ageRatio > 0.25) ty = 95;
+            else ty = 25;
 
-          ty += (Math.random() - 0.5) * 10;
-          const angle = ageRatio * Math.PI * 4;
-          const r = 70 + ageRatio * 190;
-          tx = Math.cos(angle) * r;
-          tz = Math.sin(angle) * r;
+            ty += (Math.random() - 0.5) * 6;
+            tx = basePlanar.x * 0.92;
+            tz = basePlanar.z * 0.92;
+          }
         }
 
         targetMap.set(n.id, { x: tx, y: ty, z: tz });
@@ -264,7 +298,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 2. Initialize Three.js Scene ONCE on Mount (Never re-initialized)
+  // 2. Initialize Three.js Scene, Camera, Topographic Contours & Loop
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
@@ -273,115 +307,81 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 600;
 
-    // 1. Scene
+    // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#080b12");
-    scene.fog = new THREE.FogExp2(0x080b12, 0.0014);
+    scene.background = new THREE.Color("#0c0f17");
+    scene.fog = new THREE.FogExp2("#0c0f17", 0.0012);
     sceneRef.current = scene;
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(50, width / height, 1, 3000);
-    camera.position.set(0, 320, 520);
+    // Camera (Isometric angle matching Nowledge Mem Screenshot 1)
+    const camera = new THREE.PerspectiveCamera(42, width / height, 1, 3000);
+    camera.position.set(380, 290, 480);
     cameraRef.current = camera;
 
-    // 3. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
-    container.innerHTML = "";
+    renderer.toneMappingExposure = 1.05;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 4. OrbitControls
+    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.rotateSpeed = 0.75;
+    controls.dampingFactor = 0.06;
     controls.maxDistance = 1400;
-    controls.minDistance = 60;
+    controls.minDistance = 120;
     controls.target.set(0, 80, 0);
     controlsRef.current = controls;
 
-    // 5. Lighting
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 1.4);
+    // Ambient Lighting (Soft moonlight glow)
+    const ambientLight = new THREE.AmbientLight("#e0f2fe", 0.9);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(200, 500, 300);
+    const dirLight = new THREE.DirectionalLight("#ffffff", 0.8);
+    dirLight.position.set(200, 400, 200);
     scene.add(dirLight);
 
-    const blueLight = new THREE.PointLight(0x60a5fa, 2.5, 900);
-    blueLight.position.set(-250, 200, -100);
-    scene.add(blueLight);
+    // Contours Group
+    const contoursGroup = new THREE.Group();
+    scene.add(contoursGroup);
+    contoursGroupRef.current = contoursGroup;
 
-    const purpleLight = new THREE.PointLight(0xa855f7, 2.0, 800);
-    purpleLight.position.set(250, 150, 200);
-    scene.add(purpleLight);
-
-    // 6. Base Floor Grid & Elevation Strata Rings
-    const elevationGroup = new THREE.Group();
-    scene.add(elevationGroup);
-    elevationGridGroupRef.current = elevationGroup;
-
-    [80, 160, 240, 320, 420].forEach((r) => {
-      const ringGeo = new THREE.RingGeometry(r - 0.6, r + 0.6, 64);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0x3b82f6,
-        transparent: true,
-        opacity: r === 420 ? 0.08 : 0.04,
-        side: THREE.DoubleSide,
-      });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0;
-      elevationGroup.add(ring);
-    });
-
-    const axisMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.04 });
-    const axisGeoX = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-450, 0, 0), new THREE.Vector3(450, 0, 0)]);
-    const axisGeoZ = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -450), new THREE.Vector3(0, 0, 450)]);
-    elevationGroup.add(new THREE.Line(axisGeoX, axisMat));
-    elevationGroup.add(new THREE.Line(axisGeoZ, axisMat));
-
-    // 7. Mouse and Pointer Event Listeners
-    const handlePointerDown = (e: MouseEvent) => {
+    // Raycaster Pointer Events
+    const handlePointerDown = (e: PointerEvent) => {
       isPointerDownRef.current = true;
       pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
     };
 
-    const handlePointerMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mousePosRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mousePosRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     };
 
-    const handlePointerUp = (e: MouseEvent) => {
+    const handlePointerUp = (e: PointerEvent) => {
       isPointerDownRef.current = false;
       const dx = Math.abs(e.clientX - pointerDownPosRef.current.x);
       const dy = Math.abs(e.clientY - pointerDownPosRef.current.y);
-      if (dx > 4 || dy > 4) return; // drag/orbit, not a click
+      if (dx < 5 && dy < 5) {
+        raycasterRef.current.setFromCamera(mousePosRef.current, camera);
+        const meshes: THREE.Object3D[] = [];
+        nodeEntriesRef.current.forEach((entry) => {
+          meshes.push(entry.meshGroup.children[0]); // Core sphere
+        });
 
-      if (!cameraRef.current || !sceneRef.current) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const mouse = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
-      );
-      raycasterRef.current.setFromCamera(mouse, cameraRef.current);
-
-      const clickableMeshes: THREE.Object3D[] = [];
-      nodeEntriesRef.current.forEach((n) => clickableMeshes.push(n.meshGroup));
-
-      const intersects = raycasterRef.current.intersectObjects(clickableMeshes, true);
-      if (intersects.length > 0) {
-        let topObj: THREE.Object3D | null = intersects[0].object;
-        while (topObj && !topObj.userData?.nodeId) topObj = topObj.parent;
-        if (topObj && topObj.userData?.nodeId) {
-          const entry = nodeEntriesRef.current.get(topObj.userData.nodeId);
-          if (entry && onNodeSelectRef.current) {
-            onNodeSelectRef.current(entry.raw);
+        const intersects = raycasterRef.current.intersectObjects(meshes, false);
+        if (intersects.length > 0) {
+          const hitMesh = intersects[0].object;
+          const hitGroup = hitMesh.parent;
+          if (hitGroup && hitGroup.userData && hitGroup.userData.nodeId) {
+            const hitId = hitGroup.userData.nodeId;
+            const entry = nodeEntriesRef.current.get(hitId);
+            if (entry) {
+              onNodeSelectRef.current(entry.raw);
+            }
           }
         }
       }
@@ -391,12 +391,11 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     renderer.domElement.addEventListener("pointermove", handlePointerMove);
     renderer.domElement.addEventListener("pointerup", handlePointerUp);
 
-    // 8. ResizeObserver on Container (Handles sidebar expand/collapse cleanly)
+    // Resize Observer
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const w = Math.floor(entry.contentRect.width);
-        const h = Math.floor(entry.contentRect.height);
-        if (w > 0 && h > 0 && rendererRef.current && cameraRef.current) {
+        const { width: w, height: h } = entry.contentRect;
+        if (w > 0 && h > 0 && cameraRef.current && rendererRef.current) {
           cameraRef.current.aspect = w / h;
           cameraRef.current.updateProjectionMatrix();
           rendererRef.current.setSize(w, h);
@@ -405,98 +404,73 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     });
     resizeObserver.observe(container);
 
-    // 9. Continuous Animation Loop
+    // Animation Loop
     let animId = 0;
     const animate = () => {
       animId = requestAnimationFrame(animate);
       controls.update();
 
-      // Lerp node positions
-      const lerpFactor = 0.08;
-      let isMoving = false;
+      const entries = nodeEntriesRef.current;
 
-      nodeEntriesRef.current.forEach((entry) => {
-        if (entry.currentPos.distanceTo(entry.targetPos) > 0.05) {
-          entry.currentPos.lerp(entry.targetPos, lerpFactor);
-          isMoving = true;
-        }
+      // Smooth Morphing of Node Positions
+      entries.forEach((entry) => {
+        entry.currentPos.lerp(entry.targetPos, 0.08);
         entry.meshGroup.position.copy(entry.currentPos);
-
-        // Update stalk lines
-        const posAttr = entry.stalkLine.geometry.attributes.position as THREE.BufferAttribute;
-        posAttr.setXYZ(0, entry.currentPos.x, entry.currentPos.y, entry.currentPos.z);
-        posAttr.setXYZ(1, entry.currentPos.x, 0, entry.currentPos.z);
-        posAttr.needsUpdate = true;
-
-        entry.stalkFoot.position.set(entry.currentPos.x, 0.2, entry.currentPos.z);
       });
 
-      // Update link line vertices
-      if (isMoving && linksMeshRef.current && linksDataRef.current.length > 0) {
+      // Update Link Line Positions
+      if (linksMeshRef.current && linksDataRef.current) {
         const posAttr = linksMeshRef.current.geometry.attributes.position as THREE.BufferAttribute;
-        let idx = 0;
-        linksDataRef.current.forEach((l: any) => {
-          const srcId = typeof l.source === "object" ? l.source.id : l.source;
-          const tgtId = typeof l.target === "object" ? l.target.id : l.target;
-          const src = nodeEntriesRef.current.get(srcId);
-          const tgt = nodeEntriesRef.current.get(tgtId);
-          if (src && tgt) {
-            posAttr.setXYZ(idx++, src.currentPos.x, src.currentPos.y, src.currentPos.z);
-            posAttr.setXYZ(idx++, tgt.currentPos.x, tgt.currentPos.y, tgt.currentPos.z);
-          }
-        });
-        posAttr.needsUpdate = true;
-      }
+        if (posAttr) {
+          const array = posAttr.array as Float32Array;
+          let idx = 0;
 
-      // Update particle stream
-      if (particlesMeshRef.current && linksDataRef.current.length > 0) {
-        const pPosAttr = particlesMeshRef.current.geometry.attributes.position as THREE.BufferAttribute;
-        const pData = particleDataRef.current;
-        const links = linksDataRef.current;
+          linksDataRef.current.forEach((l: any) => {
+            const srcId = typeof l.source === "object" ? l.source.id : l.source;
+            const tgtId = typeof l.target === "object" ? l.target.id : l.target;
+            const src = entries.get(srcId);
+            const tgt = entries.get(tgtId);
 
-        for (let i = 0; i < pData.length; i++) {
-          const p = pData[i];
-          p.progress = (p.progress + p.speed) % 1.0;
-          const link = links[p.linkIdx % links.length];
-          if (!link) continue;
-
-          const srcId = typeof link.source === "object" ? link.source.id : link.source;
-          const tgtId = typeof link.target === "object" ? link.target.id : link.target;
-          const src = nodeEntriesRef.current.get(srcId);
-          const tgt = nodeEntriesRef.current.get(tgtId);
-
-          if (src && tgt) {
-            const px = src.currentPos.x + (tgt.currentPos.x - src.currentPos.x) * p.progress;
-            const py = src.currentPos.y + (tgt.currentPos.y - src.currentPos.y) * p.progress;
-            const pz = src.currentPos.z + (tgt.currentPos.z - src.currentPos.z) * p.progress;
-            pPosAttr.setXYZ(i, px, py, pz);
-          }
-        }
-        pPosAttr.needsUpdate = true;
-      }
-
-      // Raycast hover detection
-      if (cameraRef.current && !isPointerDownRef.current) {
-        raycasterRef.current.setFromCamera(mousePosRef.current, cameraRef.current);
-        const clickableMeshes: THREE.Object3D[] = [];
-        nodeEntriesRef.current.forEach((n) => clickableMeshes.push(n.meshGroup));
-
-        const intersects = raycasterRef.current.intersectObjects(clickableMeshes, true);
-        if (intersects.length > 0) {
-          let topObj: THREE.Object3D | null = intersects[0].object;
-          while (topObj && !topObj.userData?.nodeId) topObj = topObj.parent;
-          if (topObj && topObj.userData?.nodeId) {
-            const entry = nodeEntriesRef.current.get(topObj.userData.nodeId);
-            if (entry) {
-              const label = (entry.raw as any).label || (entry.raw as any).name || entry.id;
-              setHoveredNode({ label, type: entry.raw.type, color: entry.color, degree: entry.degree });
-              renderer.domElement.style.cursor = "pointer";
+            if (src && tgt && idx + 5 < array.length) {
+              array[idx++] = src.currentPos.x;
+              array[idx++] = src.currentPos.y;
+              array[idx++] = src.currentPos.z;
+              array[idx++] = tgt.currentPos.x;
+              array[idx++] = tgt.currentPos.y;
+              array[idx++] = tgt.currentPos.z;
             }
-          }
-        } else {
-          setHoveredNode(null);
-          renderer.domElement.style.cursor = "default";
+          });
+          posAttr.needsUpdate = true;
         }
+      }
+
+      // Hover Raycasting
+      raycasterRef.current.setFromCamera(mousePosRef.current, camera);
+      const meshes: THREE.Object3D[] = [];
+      entries.forEach((entry) => {
+        meshes.push(entry.meshGroup.children[0]);
+      });
+
+      const intersects = raycasterRef.current.intersectObjects(meshes, false);
+      if (intersects.length > 0) {
+        const hitMesh = intersects[0].object;
+        const hitGroup = hitMesh.parent;
+        if (hitGroup && hitGroup.userData && hitGroup.userData.nodeId) {
+          const hitId = hitGroup.userData.nodeId;
+          const entry = entries.get(hitId);
+          if (entry) {
+            setHoveredNode({
+              label: (entry.raw as any).label || (entry.raw as any).name || entry.raw.id,
+              type: entry.raw.type,
+              color: entry.color,
+              degree: entry.degree,
+            });
+            renderer.domElement.style.cursor = "pointer";
+          }
+        }
+      } else {
+        setHoveredNode(null);
+        renderer.domElement.style.cursor = "default";
       }
 
       renderer.render(scene, camera);
@@ -518,14 +492,14 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
   }, []); // Run ONCE on mount
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 3. Synchronize Graph Objects only when Data actually changes (ID set change)
+  // 3. Synchronize Graph Objects & Topographic Contour Layers
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene || !data.nodes || data.nodes.length === 0) return;
 
     linksDataRef.current = data.links || [];
-    const targetMap = computeTargetPositions(data.nodes, data.links, heightMetric);
+    const targetMap = computeTargetPositions(data.nodes, data.links, heightMetric, viewMode);
 
     const degreeMap = new Map<string, number>();
     data.links.forEach((l: any) => {
@@ -535,6 +509,9 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       degreeMap.set(tgt, (degreeMap.get(tgt) || 0) + 1);
     });
 
+    const sortedByDegree = [...data.nodes].sort((a, b) => (degreeMap.get(b.id) || 1) - (degreeMap.get(a.id) || 1));
+    const peakNodeIds = new Set(sortedByDegree.slice(0, 3).map((n) => n.id));
+
     const existingMap = nodeEntriesRef.current;
     const currentIds = new Set(data.nodes.map((n) => n.id));
 
@@ -542,8 +519,6 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
     existingMap.forEach((entry, id) => {
       if (!currentIds.has(id)) {
         scene.remove(entry.meshGroup);
-        scene.remove(entry.stalkLine);
-        scene.remove(entry.stalkFoot);
         existingMap.delete(id);
       }
     });
@@ -553,35 +528,36 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       const deg = degreeMap.get(n.id) || 1;
       const colStr = getNodeColorRef.current(n.type);
       const threeCol = new THREE.Color(colStr);
-      const radius = Math.max(2.4, Math.min(6.5, 2.4 + Math.sqrt(deg) * 0.9));
+      const isPeak = peakNodeIds.has(n.id);
+      const radius = isPeak ? 3.6 : Math.max(1.8, Math.min(3.2, 1.8 + Math.sqrt(deg) * 0.45));
       const target = targetMap.get(n.id) || { x: 0, y: 30, z: 0 };
       const targetVec = new THREE.Vector3(target.x, target.y, target.z);
 
       let entry = existingMap.get(n.id);
       if (entry) {
-        // Node already exists: smoothly update its target position without recreating mesh
         entry.raw = n;
         entry.degree = deg;
         entry.targetPos.copy(targetVec);
       } else {
-        // Create new node mesh
         const group = new THREE.Group();
         group.userData = { nodeId: n.id };
 
+        // Micro-Sphere Star Point
         const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(radius, 20, 20),
+          new THREE.SphereGeometry(radius, 16, 16),
           new THREE.MeshStandardMaterial({
             color: threeCol,
             emissive: threeCol,
-            emissiveIntensity: 0.6,
-            roughness: 0.3,
+            emissiveIntensity: 0.65,
+            roughness: 0.25,
             metalness: 0.1,
           })
         );
         group.add(sphere);
 
+        // Faint Subtle Glow (Small aura)
         const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(radius * 2.0, 16, 16),
+          new THREE.SphereGeometry(radius * 1.8, 12, 12),
           new THREE.MeshBasicMaterial({
             color: threeCol,
             transparent: true,
@@ -592,30 +568,18 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         );
         group.add(halo);
 
-        const nodeLabel = (n as any).label || (n as any).name || n.id;
-        const labelSprite = createTextSprite(nodeLabel, colStr);
-        labelSprite.position.set(0, radius + 7, 0);
-        group.add(labelSprite);
+        // Only Peak Nodes show clean White Billboard Sprite
+        let labelSprite: THREE.Sprite | undefined;
+        if (isPeak) {
+          const nodeLabel = (n as any).label || (n as any).title || (n as any).name || n.id;
+          labelSprite = createTextSprite(nodeLabel, "#f1f5f9");
+          labelSprite.position.set(0, radius + 6, 0);
+          group.add(labelSprite);
+        }
 
-        const initialPos = new THREE.Vector3(target.x, 0, target.z);
+        const initialPos = new THREE.Vector3(target.x, target.y, target.z);
         group.position.copy(initialPos);
         scene.add(group);
-
-        const stalkGeo = new THREE.BufferGeometry().setFromPoints([initialPos, new THREE.Vector3(target.x, 0, target.z)]);
-        const stalkLine = new THREE.Line(
-          stalkGeo,
-          new THREE.LineBasicMaterial({ color: threeCol, transparent: true, opacity: 0.22 })
-        );
-        scene.add(stalkLine);
-
-        const footGeo = new THREE.RingGeometry(2, 4.5, 16);
-        const stalkFoot = new THREE.Mesh(
-          footGeo,
-          new THREE.MeshBasicMaterial({ color: threeCol, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
-        );
-        stalkFoot.rotation.x = Math.PI / 2;
-        stalkFoot.position.set(target.x, 0.2, target.z);
-        scene.add(stalkFoot);
 
         entry = {
           raw: n,
@@ -626,17 +590,15 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           currentPos: initialPos,
           targetPos: targetVec,
           meshGroup: group,
-          stalkLine,
-          stalkFoot,
-          haloMesh: halo,
+          labelSprite,
+          isPeak,
         };
         existingMap.set(n.id, entry);
       }
     });
 
-    // Rebuild Link Segments
+    // Rebuild Link Lines (Ultra-faint lines 0.4px feel)
     if (linksMeshRef.current) scene.remove(linksMeshRef.current);
-    if (particlesMeshRef.current) scene.remove(particlesMeshRef.current);
 
     const linkPositions: number[] = [];
     const linkColors: number[] = [];
@@ -650,8 +612,8 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         linkPositions.push(src.currentPos.x, src.currentPos.y, src.currentPos.z);
         linkPositions.push(tgt.currentPos.x, tgt.currentPos.y, tgt.currentPos.z);
 
-        linkColors.push(src.threeColor.r * 0.7, src.threeColor.g * 0.7, src.threeColor.b * 0.7);
-        linkColors.push(tgt.threeColor.r * 0.7, tgt.threeColor.g * 0.7, tgt.threeColor.b * 0.7);
+        linkColors.push(src.threeColor.r * 0.5, src.threeColor.g * 0.5, src.threeColor.b * 0.5);
+        linkColors.push(tgt.threeColor.r * 0.5, tgt.threeColor.g * 0.5, tgt.threeColor.b * 0.5);
       }
     });
 
@@ -661,239 +623,131 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
     const linksMesh = new THREE.LineSegments(
       linksGeo,
-      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32 })
+      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12 })
     );
     scene.add(linksMesh);
     linksMeshRef.current = linksMesh;
 
-    // Rebuild Link Particles
-    const numParticles = Math.min(60, data.links.length * 2);
-    const particleGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(numParticles * 3);
-    const pCol = new Float32Array(numParticles * 3);
-    const pData: Array<{ linkIdx: number; progress: number; speed: number }> = [];
-
-    for (let p = 0; p < numParticles; p++) {
-      pData.push({
-        linkIdx: p % Math.max(1, data.links.length),
-        progress: Math.random(),
-        speed: 0.003 + Math.random() * 0.004,
-      });
-      pCol[p * 3] = 0.8;
-      pCol[p * 3 + 1] = 0.9;
-      pCol[p * 3 + 2] = 1.0;
-    }
-    particleGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
-    particleGeo.setAttribute("color", new THREE.BufferAttribute(pCol, 3));
-
-    const particleSystem = new THREE.Points(
-      particleGeo,
-      new THREE.PointsMaterial({
-        size: 4,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.85,
-        blending: THREE.AdditiveBlending,
-      })
-    );
-    scene.add(particleSystem);
-    particlesMeshRef.current = particleSystem;
-    particleDataRef.current = pData;
-  }, [data.nodes, data.links, computeTargetPositions]);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 4. Update Target Positions when Height Metric changes (Smooth in-place transition)
-  // ─────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!data.nodes || data.nodes.length === 0) return;
-    const targetMap = computeTargetPositions(data.nodes, data.links, heightMetric);
-
-    nodeEntriesRef.current.forEach((entry, id) => {
-      const target = targetMap.get(id);
-      if (target) {
-        entry.targetPos.set(target.x, target.y, target.z);
+    // Rebuild Topographic Contour Landscape Rings (1:1 with Screenshot 1)
+    if (contoursGroupRef.current) {
+      const cGroup = contoursGroupRef.current;
+      while (cGroup.children.length > 0) {
+        cGroup.remove(cGroup.children[0]);
       }
-    });
 
-    // Update strata rings in elevation group
-    const elevGroup = elevationGridGroupRef.current;
-    if (elevGroup) {
-      while (elevGroup.children.length > 7) {
-        elevGroup.remove(elevGroup.children[elevGroup.children.length - 1]);
-      }
-      STRATA_CONFIG[heightMetric].levels.forEach((lvl) => {
-        const ringGeo = new THREE.RingGeometry(218, 220, 64);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(lvl.color),
-          transparent: true,
-          opacity: 0.18,
-          side: THREE.DoubleSide,
+      if (viewMode === "terrain") {
+        const contourTiers = [
+          { y: 230, rx: 42, rz: 32, opacity: 0.35 },
+          { y: 195, rx: 70, rz: 55, opacity: 0.28 },
+          { y: 160, rx: 110, rz: 85, opacity: 0.22 },
+          { y: 125, rx: 160, rz: 125, opacity: 0.18 },
+          { y: 90, rx: 215, rz: 170, opacity: 0.14 },
+          { y: 55, rx: 270, rz: 220, opacity: 0.11 },
+          { y: 20, rx: 330, rz: 275, opacity: 0.08 },
+        ];
+
+        contourTiers.forEach((tier) => {
+          const points = createContourLoop(0, 0, tier.rx, tier.rz, 56, 0.22);
+          const geo = new THREE.BufferGeometry().setFromPoints(points);
+          const mat = new THREE.LineBasicMaterial({
+            color: new THREE.Color("#7dd3fc"),
+            transparent: true,
+            opacity: tier.opacity,
+          });
+          const lineLoop = new THREE.LineLoop(geo, mat);
+          lineLoop.position.y = tier.y;
+          cGroup.add(lineLoop);
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = lvl.height;
-        elevGroup.add(ring);
-      });
-    }
-  }, [heightMetric, data.nodes, data.links, computeTargetPositions]);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 5. Update Selection Visuals & Camera Focus (Zero canvas rebuild)
-  // ─────────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    nodeEntriesRef.current.forEach((entry) => {
-      const isSelected = selectedNode?.id === entry.id;
-      if (isSelected) {
-        if (!entry.selectionRing) {
-          const ring = new THREE.Mesh(
-            new THREE.TorusGeometry(12, 0.9, 12, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 })
-          );
-          entry.selectionRing = ring;
-          entry.meshGroup.add(ring);
-        }
-        (entry.haloMesh.material as THREE.MeshBasicMaterial).opacity = 0.25;
-      } else {
-        if (entry.selectionRing) {
-          entry.meshGroup.remove(entry.selectionRing);
-          entry.selectionRing.geometry.dispose();
-          entry.selectionRing = undefined;
-        }
-        (entry.haloMesh.material as THREE.MeshBasicMaterial).opacity = 0.08;
-      }
-    });
-
-    // Smoothly pan camera controls target to selected node
-    if (controlsRef.current && selectedNode) {
-      const entry = nodeEntriesRef.current.get(selectedNode.id);
-      if (entry) {
-        controlsRef.current.target.lerp(entry.targetPos, 0.4);
       }
     }
-  }, [selectedNode]);
+  }, [data, heightMetric, viewMode, computeTargetPositions]);
 
-  const activeStrata = STRATA_CONFIG[heightMetric];
+  const currentMetric = METRIC_CONFIG[heightMetric];
 
   return (
-    <div
-      className="nl-graph-3d-canvas"
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "absolute",
-        inset: 0,
-        overflow: "hidden",
-        background: "#080b12",
-      }}
-    >
-      {/* 3D WebGL Canvas Container */}
+    <div className="nl-graph-3d-wrapper" style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {/* 3D Canvas Mount Point */}
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
-      {/* ── 3D Mode Height Selector Panel (Bottom-Right, 1:1 Nowledge Mem Style) ── */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 52,
-          right: 14,
-          zIndex: 20,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 6,
-          pointerEvents: "auto",
-        }}
-      >
-        <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 500 }}>高度代表什么？</div>
-
-        {/* Height Metric Capsule Buttons */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            background: "rgba(18, 22, 32, 0.88)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            borderRadius: 20,
-            padding: "3px 6px",
-            boxShadow: "0 6px 24px rgba(0, 0, 0, 0.4)",
-          }}
-        >
-          {(["influence", "structure", "morphology", "growth"] as HeightMetric[]).map((m) => {
-            const icons: Record<HeightMetric, string> = {
-              influence: "▲ 影响力",
-              structure: "🝯 结构",
-              morphology: "◈ 形态",
-              growth: "⬆ 增长",
-            };
-            const active = heightMetric === m;
-            return (
-              <button
-                key={m}
-                onClick={() => setHeightMetric(m)}
-                style={{
-                  fontSize: 11,
-                  fontWeight: active ? 600 : 400,
-                  padding: "3px 9px",
-                  borderRadius: 14,
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  background: active ? "rgba(96, 165, 250, 0.22)" : "transparent",
-                  color: active ? "#60a5fa" : "#64748b",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {icons[m]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Compact active metric description */}
-        <div
-          style={{
-            fontSize: 10,
-            color: "#64748b",
-            maxWidth: 240,
-            textAlign: "right",
-            lineHeight: 1.3,
-          }}
-        >
-          {activeStrata.description}
-        </div>
-      </div>
-
-      {/* ── Hover Tooltip ── */}
-      {hoveredNode && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 54,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(13, 18, 30, 0.94)",
-            border: `1px solid ${hoveredNode.color}55`,
-            borderRadius: 8,
-            padding: "6px 14px",
-            fontSize: 11.5,
-            color: "#f1f5f9",
-            fontFamily: "inherit",
-            pointerEvents: "none",
-            backdropFilter: "blur(12px)",
-            boxShadow: `0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px ${hoveredNode.color}33`,
-            textAlign: "center",
-            zIndex: 25,
-          }}
-        >
-          <div style={{ fontWeight: 600, color: hoveredNode.color, marginBottom: 1 }}>
-            {hoveredNode.label}
-          </div>
-          <div style={{ fontSize: 10, color: "#94a3b8" }}>
-            类型: {hoveredNode.type || "未知"} | 连接数: {hoveredNode.degree}
-          </div>
+      {/* ─────────────────────────────────────────────────────────────
+          1. LEFT ELEVATION STRATA HUD (1:1 with Screenshot 1, 2, 3, 4)
+      ───────────────────────────────────────────────────────────── */}
+      {viewMode === "terrain" && (
+        <div className="nl-3d-left-strata-hud">
+          {currentMetric.levels.map((lvl, idx) => (
+            <div
+              key={idx}
+              className="nl-strata-level-row"
+              style={{
+                position: "absolute",
+                top: `${100 - lvl.yPercent}%`,
+                left: 20,
+              }}
+            >
+              <span className="nl-strata-label">{lvl.label}</span>
+              <div className="nl-strata-tick-line" />
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Hover Node Tooltip */}
+      {hoveredNode && (
+        <div className="nl-3d-hover-tooltip">
+          <span className="nl-3d-tooltip-dot" style={{ backgroundColor: hoveredNode.color }} />
+          <span className="nl-3d-tooltip-title">{hoveredNode.label}</span>
+          <span className="nl-3d-tooltip-meta">({hoveredNode.degree} 条连接)</span>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          2. BOTTOM-RIGHT 4D DIMENSION CONTROLLER (1:1 with Screenshot 1)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="nl-3d-control-widget">
+        {/* Top View Mode Switcher: 地形 vs 知识星图 */}
+        <div className="nl-3d-viewmode-toggle">
+          <button
+            className={`nl-3d-viewmode-btn ${viewMode === "terrain" ? "active" : ""}`}
+            onClick={() => setViewMode("terrain")}
+          >
+            <span>⛰️</span> 地形
+          </button>
+          <button
+            className={`nl-3d-viewmode-btn ${viewMode === "galaxy" ? "active" : ""}`}
+            onClick={() => setViewMode("galaxy")}
+          >
+            <span>🌌</span> 知识星图
+          </button>
+        </div>
+
+        {/* Height Dimension Section */}
+        {viewMode === "terrain" && (
+          <div className="nl-3d-metric-section">
+            <div className="nl-3d-metric-header">高度代表什么？</div>
+            <div className="nl-3d-metric-grid">
+              {(Object.keys(METRIC_CONFIG) as HeightMetric[]).map((key) => {
+                const cfg = METRIC_CONFIG[key];
+                return (
+                  <button
+                    key={key}
+                    className={`nl-3d-metric-btn ${heightMetric === key ? "active" : ""}`}
+                    onClick={() => setHeightMetric(key)}
+                  >
+                    <span>{cfg.icon}</span>
+                    <span>{cfg.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dynamic Explanatory Footer */}
+            <div className="nl-3d-metric-desc">
+              <span className="nl-metric-desc-title">{currentMetric.title}</span>
+              <p className="nl-metric-desc-text">{currentMetric.description}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
