@@ -4217,11 +4217,18 @@ body {
   color: #94a3b8;
 }
 
-.nl-tree-arrow {
-  font-size: 9px;
+.nl-tree-arrow-wrap {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #64748b;
-  width: 10px;
-  text-align: center;
+  flex-shrink: 0;
+}
+
+.nl-tree-node-row:hover .nl-tree-arrow-wrap {
+  color: #cbd5e1;
 }
 
 .nl-tree-icon {
