@@ -429,15 +429,17 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           ty = 25 + ageRatio * 245; // Smooth continuous time horizon
         }
 
-        // Calculate X, Z planar position
+        // Calculate X, Z planar position with golden-spiral dispersion
         if (peakNodes.has(n.id)) {
           targetMap.set(n.id, { x: m.cx, y: ty, z: m.cz });
-        } else if (inf >= 38 || ty >= 50) {
-          // Mountain slope node
-          const radiusScale = Math.max(0.2, 1 - (ty / m.peakY) * 0.75);
-          const angle = (i * 1.37) % (Math.PI * 2);
-          const rx = m.baseRadiusX * radiusScale * 0.6;
-          const rz = m.baseRadiusZ * radiusScale * 0.6;
+        } else if (inf >= 35 || ty >= 45) {
+          // Mountain slope node with golden ratio angular & radial dispersion
+          const heightProgress = Math.max(0, Math.min(1, (ty - 25) / Math.max(1, m.peakY - 25)));
+          const radiusScale = Math.max(0.25, 1.35 - heightProgress * 1.05);
+          const radialSpread = 0.75 + ((i * 13) % 17) * 0.03; // spreads across the terrace width
+          const angle = i * 2.39996; // Golden angle (approx 137.5 deg) gives perfect organic scatter
+          const rx = m.baseRadiusX * radiusScale * radialSpread * 0.55;
+          const rz = m.baseRadiusZ * radiusScale * radialSpread * 0.55;
           const tx = m.cx + Math.cos(angle) * rx;
           const tz = m.cz + Math.sin(angle) * rz;
 
@@ -701,7 +703,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       const colStr = getNodeColorRef.current(n.type);
       const threeCol = new THREE.Color(colStr);
       const isPeak = peakNodes.has(n.id);
-      const radius = isPeak ? 3.6 : Math.max(1.8, Math.min(2.8, 1.8 + Math.sqrt(deg) * 0.35));
+      const radius = isPeak ? 2.2 : Math.max(1.0, Math.min(1.6, 1.0 + Math.sqrt(deg) * 0.12));
       const target = targetMap.get(n.id) || { x: 0, y: 30, z: 0 };
       const targetVec = new THREE.Vector3(target.x, target.y, target.z);
 
@@ -715,7 +717,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         const group = new THREE.Group();
         group.userData = { nodeId: n.id };
 
-        // Micro-Sphere Star Point (Clean gemstone feel)
+        // Micro-Sphere Star Point (Clean delicate gemstone feel)
         const sphere = new THREE.Mesh(
           new THREE.SphereGeometry(radius, 16, 16),
           new THREE.MeshStandardMaterial({
@@ -730,11 +732,11 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
         // Faint Subtle Glow
         const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(radius * 1.5, 12, 12),
+          new THREE.SphereGeometry(radius * 1.35, 12, 12),
           new THREE.MeshBasicMaterial({
             color: threeCol,
             transparent: true,
-            opacity: 0.08,
+            opacity: 0.06,
             side: THREE.BackSide,
             depthWrite: false,
           })
