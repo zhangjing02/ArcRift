@@ -363,6 +363,51 @@ body {
   gap: 10px;
 }
 
+.nl-top-space-selector-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nl-top-space-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 3px 22px 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #cbd5e1;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.nl-top-space-select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.nl-top-space-select:focus {
+  border-color: #38bdf8;
+  background-color: #141822;
+}
+
+.nl-top-space-select option {
+  background-color: #12151c;
+  color: #e2e8f0;
+}
+
+.nl-top-space-arrow {
+  position: absolute;
+  right: 7px;
+  pointer-events: none;
+  font-size: 8px;
+  color: #94a3b8;
+}
+
 .nl-top-space-tag {
   font-size: 11px;
   padding: 2px 8px;

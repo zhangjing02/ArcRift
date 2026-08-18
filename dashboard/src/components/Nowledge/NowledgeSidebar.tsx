@@ -1,5 +1,4 @@
 import React from "react";
-import type { Session } from "../../types";
 
 export type NavTab =
   | "timeline"
@@ -19,11 +18,9 @@ export type NavTab =
 interface SidebarProps {
   currentTab: NavTab;
   onTabChange: (tab: NavTab) => void;
-  sessions: Session[];
-  activeSessionId?: string;
-  onSessionSelect: (session: Session) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  threadsCount?: number;
 }
 
 /* Minimalist Monochrome SVG Icons (1:1 with Nowledge Mem Screenshot 1) */
@@ -136,15 +133,10 @@ const IconUser = () => (
 export const NowledgeSidebar: React.FC<SidebarProps> = ({
   currentTab,
   onTabChange,
-  sessions,
-  activeSessionId,
-  onSessionSelect,
   searchQuery,
   onSearchChange,
+  threadsCount = 0,
 }) => {
-  // If activeSessionId is undefined or "all", it represents All Spaces
-  const selectedVal = activeSessionId || "all";
-
   return (
     <aside className="nl-sidebar">
       {/* Top Search Pill (Matching Screenshot 1) */}
@@ -190,8 +182,8 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
         >
           <span className="nl-nav-icon"><IconChat /></span>
           <span className="nl-nav-text">会话记录</span>
-          {sessions.length > 0 && (
-            <span className="nl-nav-badge">{sessions.length}</span>
+          {threadsCount > 0 && (
+            <span className="nl-nav-badge">{threadsCount}</span>
           )}
         </button>
 
@@ -250,30 +242,7 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
         <div className="nl-pinned-empty">还没有收藏</div>
       </div>
 
-      {/* Project Selector */}
-      <div className="nl-project-section">
-        <div className="nl-section-header">当前空间 / 项目</div>
-        <select
-          value={selectedVal}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "all") {
-              onSessionSelect(null as any);
-            } else {
-              const found = sessions.find((s) => s._id === val);
-              if (found) onSessionSelect(found);
-            }
-          }}
-          className="nl-project-select"
-        >
-          <option value="all">全部空间 (All Spaces)</option>
-          {sessions.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.projectName}
-            </option>
-          ))}
-        </select>
-      </div>
+
 
       {/* Sidebar Footer (Monochrome) */}
       <div className="nl-sidebar-footer">

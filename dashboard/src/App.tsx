@@ -65,19 +65,19 @@ const AppContent: React.FC = () => {
           setCurrentTab(tab);
           setSelectedMemoryTitle(null);
         }}
-        sessions={sessions}
-        activeSessionId={activeSession?._id}
-        onSessionSelect={setActiveSession}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        threadsCount={sessions.length}
       />
 
       {/* 2. Main Workspace */}
       <main className="nl-main-workspace">
-        {/* Global Top Header Bar */}
+        {/* Global Top Header Bar with Space Selector */}
         <NowledgeTopHeader
           currentTab={currentTab}
           activeSession={activeSession}
+          sessions={sessions}
+          onSessionSelect={setActiveSession}
           selectedMemoryTitle={selectedMemoryTitle}
         />
 

@@ -20,12 +20,16 @@ import {
 interface NowledgeTopHeaderProps {
   currentTab: NavTab;
   activeSession: Session | null;
+  sessions?: Session[];
+  onSessionSelect?: (session: Session | null) => void;
   selectedMemoryTitle?: string | null;
 }
 
 export const NowledgeTopHeader: React.FC<NowledgeTopHeaderProps> = ({
   currentTab,
   activeSession,
+  sessions = [],
+  onSessionSelect,
   selectedMemoryTitle,
 }) => {
   const getTabDetails = () => {
@@ -135,11 +139,37 @@ export const NowledgeTopHeader: React.FC<NowledgeTopHeaderProps> = ({
       </div>
 
       <div className="nl-top-header-right">
-        <span className="nl-top-space-tag">
-          {activeSession && activeSession._id !== "all"
-            ? activeSession.projectName
-            : "全部空间"}
-        </span>
+        {onSessionSelect ? (
+          <div className="nl-top-space-selector-wrap">
+            <select
+              className="nl-top-space-select"
+              value={activeSession?._id || "all"}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "all") {
+                  onSessionSelect(null);
+                } else {
+                  const found = sessions.find((s) => s._id === val);
+                  if (found) onSessionSelect(found);
+                }
+              }}
+            >
+              <option value="all">全部空间 (All Spaces)</option>
+              {sessions.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.projectName}
+                </option>
+              ))}
+            </select>
+            <span className="nl-top-space-arrow">▾</span>
+          </div>
+        ) : (
+          <span className="nl-top-space-tag">
+            {activeSession && activeSession._id !== "all"
+              ? activeSession.projectName
+              : "全部空间"}
+          </span>
+        )}
       </div>
     </header>
   );
