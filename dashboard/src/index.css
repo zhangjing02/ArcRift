@@ -3334,13 +3334,242 @@ body {
   margin-bottom: 20px;
 }
 
-.nl-markdown-pre {
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.7;
-  color: #cbd5e1;
-  white-space: pre-wrap;
+/* ── Rich Markdown & Code Structure ────────────────────────── */
+.nl-rich-markdown-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
+
+/* 1. Top Executive Summary Card (Nowledge Mem Style) */
+.nl-memory-summary-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-left: 3px solid #38bdf8;
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.nl-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.nl-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.02em;
+}
+
+.nl-summary-icon {
+  font-size: 15px;
+}
+
+.nl-summary-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.nl-summary-text {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+/* 2. Structured Markdown Body */
+.nl-markdown-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nl-markdown-html {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #cbd5e1;
+}
+
+.nl-markdown-html h1,
+.nl-markdown-html h2,
+.nl-markdown-html h3,
+.nl-markdown-html h4 {
+  color: #f8fafc;
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.nl-markdown-html h1 {
+  font-size: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.nl-markdown-html h2 {
+  font-size: 17px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 6px;
+}
+
+.nl-markdown-html h3 {
+  font-size: 15px;
+}
+
+.nl-markdown-html p {
+  margin: 0 0 12px 0;
+}
+
+.nl-markdown-html ul,
+.nl-markdown-html ol {
+  padding-left: 20px;
+  margin: 0 0 12px 0;
+}
+
+.nl-markdown-html li {
+  margin-bottom: 4px;
+}
+
+.nl-markdown-html blockquote {
+  border-left: 3px solid #64748b;
+  background: rgba(30, 41, 59, 0.4);
+  padding: 10px 16px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+  color: #94a3b8;
+}
+
+.nl-markdown-html table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 13px;
+}
+
+.nl-markdown-html th,
+.nl-markdown-html td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.nl-markdown-html th {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.nl-markdown-html tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.nl-markdown-html code {
+  background: rgba(255, 255, 255, 0.08);
+  color: #7dd3fc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+}
+
+.nl-markdown-html hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 20px 0;
+}
+
+/* 3. Code Block Container */
+.nl-code-block-card {
+  background: #090c10;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 12px 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.nl-code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #13171f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nl-code-lang-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+}
+
+.nl-code-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+}
+
+.nl-btn-copy-code {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nl-btn-copy-code:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+.nl-code-content-wrapper {
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+.nl-code-pre {
+  margin: 0;
+  padding: 0;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+
+/* Syntax Tokens */
+.token-key { color: #7dd3fc; }
+.token-string { color: #86efac; }
+.token-number { color: #fde047; }
+.token-boolean { color: #f472b6; }
+.token-keyword { color: #c084fc; font-weight: 600; }
+.token-type { color: #38bdf8; }
+.token-comment { color: #64748b; font-style: italic; }
+.token-timestamp { color: #94a3b8; }
+.token-method { color: #fde047; font-weight: 600; }
+.token-status-ok { color: #86efac; }
+.token-status-err { color: #f87171; }
+
 
 .nl-mem-detail-sidebar {
   width: 320px;

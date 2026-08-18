@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Session, Memory, ImportanceLevel, MemoryCategory, UnitType } from "../../types";
 import { getMemories, createMemory, deleteMemory, updateMemory } from "../../api/ArcRift";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface MemoriesViewProps {
   activeSession?: Session;
@@ -270,7 +271,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
               <div className="nl-mem-rendered-article">
                 <h1 className="nl-mem-article-title">{selectedMemory.title}</h1>
                 <div className="nl-mem-article-content">
-                  <pre className="nl-markdown-pre">{selectedMemory.content}</pre>
+                  <MarkdownRenderer content={selectedMemory.content} showSummaryCard={true} />
                 </div>
               </div>
             )}
