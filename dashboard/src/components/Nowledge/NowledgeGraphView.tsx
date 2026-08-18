@@ -6,7 +6,6 @@ import {
   IconSearch,
   IconSparkles,
   IconMaximize,
-  IconRefresh,
   IconLink,
   IconSettings,
   IconLibrary,
@@ -14,6 +13,9 @@ import {
   IconTarget,
   IconPointer,
   IconSidebarToggle,
+  IconLasso,
+  IconGlobe,
+  IconNetwork,
 } from "./Icons";
 
 interface NowledgeGraphViewProps {
@@ -29,9 +31,14 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const [depthScope, setDepthScope] = useState(1);
   const [viewDimension, setViewDimension] = useState<"2D" | "3D">("2D");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [activeTab, setActiveTab] = useState<"explore" | "details" | "ontology" | "maintain">("explore");
+  
+  // Tabs: 解读 | 查看 | 本体 | 图谱维护 (1:1 with Nowledge Mem Screenshot 1)
+  const [activeTab, setActiveTab] = useState<"interpret" | "view" | "ontology" | "maintain">("interpret");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showCommunities, setShowCommunities] = useState(true);
+  const [isConnectingMemory, setIsConnectingMemory] = useState(false);
+  const [isLassoActive, setIsLassoActive] = useState(false);
+  const [selectMode, setSelectMode] = useState<"select" | "pan">("select");
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
@@ -97,7 +104,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         return "#a855f7"; // 🟣 实体
       case "memory":
       case "decision":
-        return "#0284c7"; // 🔵 记忆
+        return "#0096c7"; // 🔵 记忆 (Nowledge Mem Teal/Cyan)
       case "document":
       case "file":
       case "tech":
@@ -110,7 +117,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       case "architecture":
         return "#ef4444"; // 🔴 技能 / 架构
       default:
-        return "#0284c7";
+        return "#0096c7";
     }
   };
 
@@ -391,12 +398,15 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       <div className="nl-graph-split-body">
         {/* LEFT PANE: Graph Canvas Box */}
         <div className="nl-graph-canvas-box" ref={containerRef}>
-          {/* Top Canvas Toolbar Capsule (1:1 Match with Screenshot Tooltips) */}
+          {/* Top Canvas Toolbar Capsule (Exact 1:1 Tooltips & Shortkey Badges) */}
           <div className="nl-canvas-floating-header">
             {/* Left Tools: Overview/Explore + 2D/3D */}
             <div className="nl-canvas-capsule-left">
-              <button className="nl-canvas-icon-btn active" title="总览 / 探索模式">
-                <IconSparkles size={13} />
+              <button className="nl-canvas-icon-btn active" title="总览">
+                <IconNetwork size={13} />
+              </button>
+              <button className="nl-canvas-icon-btn" title="探索">
+                <IconGlobe size={13} />
               </button>
               <div className="nl-canvas-dim-pills">
                 <button
@@ -414,26 +424,38 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               </div>
             </div>
 
-            {/* Right Tools Group: Community, Fit, Pointer, Link, Refresh, Fullscreen, Sidebar */}
+            {/* Right Tools Group: Community, Fit, Select, Link, Lasso, Fullscreen, Sidebar */}
             <div className="nl-canvas-capsule-right">
               <button
                 className={`nl-canvas-icon-btn ${showCommunities ? "purple-glow" : ""}`}
                 onClick={() => setShowCommunities(!showCommunities)}
-                title="隐藏/显示社区气泡 C"
+                title="隐藏社区气泡 C"
               >
                 <IconLayers size={13} />
               </button>
               <button className="nl-canvas-icon-btn" onClick={handleFitCanvas} title="将图谱适配到画布 F">
                 <IconTarget size={13} />
               </button>
-              <button className="nl-canvas-icon-btn" title="指针选择模式">
+              <button
+                className={`nl-canvas-icon-btn ${selectMode === "select" ? "active" : ""}`}
+                onClick={() => setSelectMode(selectMode === "select" ? "pan" : "select")}
+                title="选择 S"
+              >
                 <IconPointer size={13} />
               </button>
-              <button className="nl-canvas-icon-btn" title="显示关系拓扑">
+              <button
+                className={`nl-canvas-icon-btn ${isConnectingMemory ? "teal-glow" : ""}`}
+                onClick={() => setIsConnectingMemory(!isConnectingMemory)}
+                title="连接记忆 L"
+              >
                 <IconLink size={13} />
               </button>
-              <button className="nl-canvas-icon-btn" title="重新布局 / 刷新" onClick={() => loadGraph()}>
-                <IconRefresh size={13} />
+              <button
+                className={`nl-canvas-icon-btn ${isLassoActive ? "purple-glow" : ""}`}
+                onClick={() => setIsLassoActive(!isLassoActive)}
+                title={isLassoActive ? "退出套索 A" : "套索选择 A"}
+              >
+                <IconLasso size={13} />
               </button>
               <button className="nl-canvas-icon-btn" title="全屏查看">
                 <IconMaximize size={13} />
@@ -448,6 +470,22 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Interactive "连接两条记忆" Dropdown Banner (Screenshot 3) */}
+          {isConnectingMemory && (
+            <div className="nl-connect-memories-banner">
+              <div className="nl-connect-banner-left">
+                <span className="nl-connect-banner-icon"><IconLink size={14} /></span>
+                <div className="nl-connect-banner-text">
+                  <span className="nl-connect-banner-title">连接两条记忆</span>
+                  <span className="nl-connect-banner-desc">先选择第一条记忆，再选择要连到的那条记忆。</span>
+                </div>
+              </div>
+              <button className="nl-connect-banner-cancel" onClick={() => setIsConnectingMemory(false)}>
+                取消
+              </button>
+            </div>
+          )}
 
           {/* D3 SVG Canvas */}
           <svg ref={svgRef} className="nl-graph-d3-canvas"></svg>
@@ -479,24 +517,25 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT PANE: Knowledge Inspector & Q&A Exploration */}
+        {/* RIGHT PANE: Knowledge Inspector & Q&A Exploration (1:1 with Nowledge Mem Screenshots) */}
         {isSidebarOpen && (
           <div className="nl-graph-inspector-panel">
-            {/* Top Inspector Tabs */}
+            {/* Top Inspector Tabs: 解读 | 查看 | 本体 | 图谱维护 (1:1 with Screenshot 1) */}
             <div className="nl-inspector-tabs-header">
               <button
-                className={`nl-inspector-tab-btn ${activeTab === "explore" ? "active" : ""}`}
-                onClick={() => setActiveTab("explore")}
+                className={`nl-inspector-tab-btn ${activeTab === "interpret" ? "active" : ""}`}
+                onClick={() => setActiveTab("interpret")}
               >
                 <IconSparkles size={13} className="nl-tab-icon" />
-                <span>探查</span>
+                <span>解读</span>
               </button>
               <button
-                className={`nl-inspector-tab-btn ${activeTab === "details" ? "active" : ""}`}
-                onClick={() => setActiveTab("details")}
+                className={`nl-inspector-tab-btn ${activeTab === "view" ? "active" : ""}`}
+                onClick={() => setActiveTab("view")}
               >
                 <IconLibrary size={13} className="nl-tab-icon" />
-                <span>详情</span>
+                <span>查看</span>
+                <span className="nl-tab-dot-online">•</span>
               </button>
               <button
                 className={`nl-inspector-tab-btn ${activeTab === "ontology" ? "active" : ""}`}
@@ -509,7 +548,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
                 className={`nl-inspector-tab-btn ${activeTab === "maintain" ? "active" : ""}`}
                 onClick={() => setActiveTab("maintain")}
               >
-                <IconRefresh size={13} className="nl-tab-icon" />
+                <span className="nl-tab-icon" style={{ fontSize: 13, lineHeight: 1 }}>☷</span>
                 <span>图谱维护</span>
               </button>
             </div>

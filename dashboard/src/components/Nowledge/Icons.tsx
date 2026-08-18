@@ -313,3 +313,22 @@ export const IconSidebarToggle: React.FC<IconProps> = ({ size = 14, className = 
     <polyline points="9 10 11 12 9 14" />
   </svg>
 );
+
+export const IconLasso: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M7 22a5 5 0 0 1-2-4c0-3.87 3.85-7 8.5-7s8.5 3.13 8.5 7a5 5 0 0 1-2 4" />
+    <path d="M5 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0" />
+    <path d="M12 11V2" />
+    <path d="m15 5-3-3-3 3" />
+  </svg>
+);
+
+export const IconNetwork: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <circle cx="6" cy="6" r="3" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="12" cy="18" r="3" />
+    <line x1="8.5" y1="7.5" x2="10.5" y2="15.5" />
+    <line x1="15.5" y1="7.5" x2="13.5" y2="15.5" />
+  </svg>
+);
