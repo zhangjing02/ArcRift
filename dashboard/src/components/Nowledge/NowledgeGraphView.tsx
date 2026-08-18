@@ -220,7 +220,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .map((d: any) => ({ ...d }));
 
     const getNodeLabel = (d: any) => {
-      const raw = d.label || d.title || d.id || "";
+      const raw = d.label || d.title || d.name || d.id || "";
       if (raw.startsWith("tag:")) return raw.slice(4);
       // Remove leading UUIDs if any
       const clean = raw.replace(/^[0-9a-fA-F-]{36}\s*/, "").trim();
@@ -235,6 +235,31 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       );
     };
 
+    // Calculate node degree for representative selection
+    const degreeMap = new Map<string, number>();
+    validLinks.forEach((l: any) => {
+      const src = typeof l.source === "object" ? l.source.id : l.source;
+      const tgt = typeof l.target === "object" ? l.target.id : l.target;
+      degreeMap.set(src, (degreeMap.get(src) || 0) + 1);
+      degreeMap.set(tgt, (degreeMap.get(tgt) || 0) + 1);
+    });
+
+    // Select top 6-8 prominent nodes to show labels by default
+    const prominentSet = new Set<string>();
+    nodes.forEach((n) => {
+      if (isProjectOrHub(n)) prominentSet.add(n.id);
+    });
+    const sortedByDegree = [...nodes].sort(
+      (a, b) => (degreeMap.get(b.id) || 0) - (degreeMap.get(a.id) || 0)
+    );
+    let addedMemories = 0;
+    for (const n of sortedByDegree) {
+      if (!prominentSet.has(n.id) && addedMemories < 5) {
+        prominentSet.add(n.id);
+        addedMemories++;
+      }
+    }
+
     const simulation = d3
       .forceSimulation(nodes)
       .velocityDecay(0.68) // High viscous fluid damping: calm, steady, zero violent wobble
@@ -243,10 +268,10 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         d3
           .forceLink(validLinks)
           .id((d: any) => d.id)
-          .distance((l: any) => (l.relation === "tagged_with" ? 75 : 110))
+          .distance((l: any) => (l.relation === "tagged_with" ? 80 : 120))
           .strength(0.2)
       )
-      .force("charge", d3.forceManyBody().strength(-100).distanceMax(380).distanceMin(15))
+      .force("charge", d3.forceManyBody().strength(-110).distanceMax(380).distanceMin(15))
       .force("center", d3.forceCenter(width / 2, height / 2).strength(0.03))
       .force("collision", d3.forceCollide().radius((d: any) => (isProjectOrHub(d) ? 36 : 28)).strength(0.7));
 
@@ -264,22 +289,121 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     feMerge.append("feMergeNode").attr("in", "coloredBlur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
-    // Delicate translucent links
-    const link = g
-      .append("g")
-      .attr("stroke", "rgba(148, 163, 184, 0.10)")
-      .attr("stroke-width", 1)
+    // Ultra-faint, delicate stardust links (Almost invisible by default, exactly like Nowledge Mem)
+    const linkGroup = g.append("g").attr("class", "graph-links-group");
+    const link = linkGroup
       .selectAll("line")
       .data(validLinks)
       .join("line")
+      .attr("stroke", "rgba(255, 255, 255, 0.04)")
+      .attr("stroke-width", 0.65)
       .attr("x1", (d: any) => d.source.x)
       .attr("y1", (d: any) => d.source.y)
       .attr("x2", (d: any) => d.target.x)
       .attr("y2", (d: any) => d.target.y);
 
+    // Dynamic graph spotlight helper
+    const spotlightGraph = (activeId: string | null) => {
+      if (!activeId) {
+        // Reset to quiet cosmic state
+        link
+          .transition()
+          .duration(200)
+          .attr("stroke", "rgba(255, 255, 255, 0.04)")
+          .attr("stroke-width", 0.65);
+
+        nodeGroup.each(function (d: any) {
+          const group = d3.select(this);
+          const isProm = prominentSet.has(d.id);
+          const isProj = isProjectOrHub(d);
+
+          group
+            .select(".graph-node-halo")
+            .transition()
+            .duration(200)
+            .attr("r", isProj ? 7 : 4)
+            .attr("opacity", isProj ? 0.16 : 0.10);
+
+          group
+            .select(".graph-node-circle")
+            .transition()
+            .duration(200)
+            .attr("r", isProj ? 3.5 : 2.0)
+            .attr("stroke", "rgba(255, 255, 255, 0.6)")
+            .attr("stroke-width", 0.6);
+
+          group
+            .select(".graph-node-label")
+            .transition()
+            .duration(200)
+            .attr("opacity", isProm ? 0.85 : 0)
+            .attr("fill", isProj ? "#7dd3fc" : "#cbd5e1");
+        });
+        return;
+      }
+
+      // Find neighbor IDs
+      const neighbors = new Set<string>([activeId]);
+      validLinks.forEach((l: any) => {
+        const src = typeof l.source === "object" ? l.source.id : l.source;
+        const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        if (src === activeId) neighbors.add(tgt);
+        if (tgt === activeId) neighbors.add(src);
+      });
+
+      // Highlight active links
+      link
+        .transition()
+        .duration(150)
+        .attr("stroke", (l: any) => {
+          const src = typeof l.source === "object" ? l.source.id : l.source;
+          const tgt = typeof l.target === "object" ? l.target.id : l.target;
+          return src === activeId || tgt === activeId
+            ? "rgba(56, 189, 248, 0.45)"
+            : "rgba(255, 255, 255, 0.015)";
+        })
+        .attr("stroke-width", (l: any) => {
+          const src = typeof l.source === "object" ? l.source.id : l.source;
+          const tgt = typeof l.target === "object" ? l.target.id : l.target;
+          return src === activeId || tgt === activeId ? 1.2 : 0.4;
+        });
+
+      // Spotlight active node & neighbors
+      nodeGroup.each(function (d: any) {
+        const group = d3.select(this);
+        const isSelf = d.id === activeId;
+        const isNeighbor = neighbors.has(d.id);
+        const isProm = prominentSet.has(d.id);
+        const isProj = isProjectOrHub(d);
+
+        group
+          .select(".graph-node-halo")
+          .transition()
+          .duration(150)
+          .attr("r", isSelf ? 14 : isNeighbor ? 8 : (isProj ? 7 : 4))
+          .attr("opacity", isSelf ? 0.45 : isNeighbor ? 0.22 : 0.05);
+
+        group
+          .select(".graph-node-circle")
+          .transition()
+          .duration(150)
+          .attr("r", isSelf ? 5.0 : isNeighbor ? 3.2 : (isProj ? 3.5 : 2.0))
+          .attr("stroke", isSelf ? "#38bdf8" : isNeighbor ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.3)")
+          .attr("stroke-width", isSelf ? 2.0 : isNeighbor ? 1.0 : 0.5);
+
+        group
+          .select(".graph-node-label")
+          .transition()
+          .duration(150)
+          .attr("opacity", isSelf || isNeighbor ? 1 : (isProm ? 0.35 : 0))
+          .attr("fill", isSelf ? "#38bdf8" : isNeighbor ? "#f1f5f9" : (isProj ? "#7dd3fc" : "#64748b"));
+      });
+    };
+
     // Nodes Group
-    const node = g
+    const nodeGroup = g
       .append("g")
+      .attr("class", "graph-nodes-group")
       .selectAll("g")
       .data(nodes)
       .join("g")
@@ -300,47 +424,54 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           })
           .on("end", (event, d) => {
             if (!event.active) simulation.alphaTarget(0);
-            // Gentle release without snap back
             d.fx = null;
             d.fy = null;
           })
       )
+      .on("mouseenter", (_, d) => {
+        spotlightGraph(d.id);
+      })
+      .on("mouseleave", () => {
+        spotlightGraph(selectedNode ? selectedNode.id : null);
+      })
       .on("click", (e, d) => {
         e.stopPropagation();
         setSelectedNode(d);
+        spotlightGraph(d.id);
       });
 
     // Outer Halo (Delicate subtle aura)
-    node
+    nodeGroup
       .append("circle")
       .attr("class", "graph-node-halo")
-      .attr("r", (d: any) => (isProjectOrHub(d) ? 8 : 5))
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 7 : 4))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("opacity", 0.15);
+      .attr("opacity", (d: any) => (isProjectOrHub(d) ? 0.16 : 0.10));
 
     // Main Dot (Tiny, refined starry point)
-    node
+    nodeGroup
       .append("circle")
       .attr("class", "graph-node-circle")
-      .attr("r", (d: any) => (isProjectOrHub(d) ? 4.0 : 2.6))
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 3.5 : 2.0))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("stroke", "rgba(255, 255, 255, 0.75)")
-      .attr("stroke-width", 0.8)
+      .attr("stroke", "rgba(255, 255, 255, 0.65)")
+      .attr("stroke-width", 0.6)
       .attr("cursor", "pointer");
 
-    // Node Clean Labels with subtle contrast outline
-    node
+    // Node Clean Labels - ONLY PROMINENT NODES VISIBLE BY DEFAULT!
+    nodeGroup
       .append("text")
       .attr("class", "graph-node-label")
       .attr("dx", (d: any) => (isProjectOrHub(d) ? 8 : 6))
       .attr("dy", 3.5)
       .attr("fill", (d: any) => (isProjectOrHub(d) ? "#7dd3fc" : "#cbd5e1"))
-      .attr("font-size", (d: any) => (isProjectOrHub(d) ? "11px" : "10.5px"))
+      .attr("font-size", (d: any) => (isProjectOrHub(d) ? "11px" : "10px"))
       .attr("font-weight", (d: any) => (isProjectOrHub(d) ? "600" : "400"))
       .attr("stroke", "#090d16")
       .attr("stroke-width", 2.5)
       .attr("paint-order", "stroke fill")
       .attr("cursor", "pointer")
+      .attr("opacity", (d: any) => (prominentSet.has(d.id) ? 0.85 : 0))
       .text((d: any) => getNodeLabel(d));
 
     simulation.on("tick", () => {
@@ -350,8 +481,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         .attr("x2", (d: any) => d.target.x)
         .attr("y2", (d: any) => d.target.y);
 
-      node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+      nodeGroup.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
     });
+
+    // Initial spotlight on selected node if any
+    if (selectedNode) {
+      spotlightGraph(selectedNode.id);
+    }
 
     return () => {
       simulation.stop();
@@ -360,22 +496,32 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
   // 2. LIGHTWEIGHT SELECTION HIGHLIGHT (Zero physics restart!)
   useEffect(() => {
-    if (!svgRef.current || !selectedNode) return;
+    if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
-    svg
-      .selectAll(".graph-node-halo")
-      .transition()
-      .duration(150)
-      .attr("r", (d: any) => (d.id === selectedNode.id ? 14 : (d.type === "project" ? 9 : 6)))
-      .attr("opacity", (d: any) => (d.id === selectedNode.id ? 0.45 : 0.16));
+    if (!selectedNode) {
+      svg.selectAll(".graph-links-group line")
+        .transition().duration(200)
+        .attr("stroke", "rgba(255, 255, 255, 0.04)")
+        .attr("stroke-width", 0.65);
+      return;
+    }
 
-    svg
-      .selectAll(".graph-node-circle")
+    const activeId = selectedNode.id;
+    svg.selectAll(".graph-links-group line")
       .transition()
       .duration(150)
-      .attr("r", (d: any) => (d.id === selectedNode.id ? 5.5 : (d.type === "project" ? 4.5 : 3.0)))
-      .attr("stroke", (d: any) => (d.id === selectedNode.id ? "#38bdf8" : "rgba(255, 255, 255, 0.75)"))
-      .attr("stroke-width", (d: any) => (d.id === selectedNode.id ? 2 : 1));
+      .attr("stroke", (l: any) => {
+        const src = typeof l.source === "object" ? l.source.id : l.source;
+        const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        return src === activeId || tgt === activeId
+          ? "rgba(56, 189, 248, 0.45)"
+          : "rgba(255, 255, 255, 0.015)";
+      })
+      .attr("stroke-width", (l: any) => {
+        const src = typeof l.source === "object" ? l.source.id : l.source;
+        const tgt = typeof l.target === "object" ? l.target.id : l.target;
+        return src === activeId || tgt === activeId ? 1.2 : 0.4;
+      });
   }, [selectedNode]);
 
   const handleFitCanvas = () => {
@@ -392,11 +538,19 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       );
   };
 
+  const getCleanName = (nodeOrId: any) => {
+    if (!nodeOrId) return "";
+    const raw = typeof nodeOrId === "object" ? nodeOrId.label || nodeOrId.title || nodeOrId.name || nodeOrId.id : nodeOrId;
+    if (typeof raw !== "string") return "";
+    if (raw.startsWith("tag:")) return raw.slice(4);
+    return raw.replace(/^[0-9a-fA-F-]{36}\s*/, "").trim() || raw;
+  };
+
   const handleAskQuestion = (question: string) => {
     setAiPrompt(question);
     setIsAsking(true);
     setTimeout(() => {
-      const activeName = selectedNode ? selectedNode.id : "知识图谱";
+      const activeName = selectedNode ? getCleanName(selectedNode) : "知识图谱";
       setAiAnswer(
         `关于「${activeName}」的图谱深度洞察：当前图谱中已连接 ${data.nodes.length} 个实体与 ${data.links.length} 条关系。核心语义关联包括架构规范、关键事件流转机制以及全局记忆沉淀。`
       );
@@ -413,10 +567,10 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   };
 
   const activeEntityName = selectedNode
-    ? selectedNode.id
-    : recentMemories[0] || "ChronosMind";
+    ? getCleanName(selectedNode)
+    : getCleanName(recentMemories[0]) || "ChronosMind";
 
-  const secondaryEntityName = neighbors[0] || recentMemories[1] || "BeBeBus";
+  const secondaryEntityName = getCleanName(neighbors[0]) || getCleanName(recentMemories[1]) || "BeBeBus";
   const activeColor = getNodeColor(selectedNode?.type || "");
 
   return (
