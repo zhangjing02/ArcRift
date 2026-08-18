@@ -59,6 +59,8 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
   const zoomBehaviorRef = useRef<any>(null);
   const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
 
+  const [memoriesMap, setMemoriesMap] = useState<Map<string, any>>(new Map());
+
   useEffect(() => {
     loadGraph();
   }, [sessionId]);
@@ -111,6 +113,11 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       const mRes = await fetchMemories({ sessionId });
       if (mRes && mRes.memories) {
         setRecentMemories(mRes.memories.map((m) => m.title));
+        const map = new Map<string, any>();
+        mRes.memories.forEach((m: any) => {
+          map.set(m.id, m);
+        });
+        setMemoriesMap(map);
       }
     } catch (err) {
       console.error("Failed to load graph data", err);
@@ -914,41 +921,182 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
                 </>
               )}
 
-              {/* ── TAB 2: 查看 (Node Properties & Relations) ── */}
-              {activeTab === "view" && (
-                <div className="nl-inspector-view-tab">
-                  <div className="nl-view-section-header">实体元数据</div>
-                  <div className="nl-view-property-table">
-                    <div className="nl-view-prop-row">
-                      <span className="nl-prop-label">实体名称</span>
-                      <span className="nl-prop-val">{selectedNode?.id || "未选择"}</span>
-                    </div>
-                    <div className="nl-view-prop-row">
-                      <span className="nl-prop-label">类型</span>
-                      <span className="nl-prop-val">{selectedNode?.type || "Entity"}</span>
-                    </div>
-                    <div className="nl-view-prop-row">
-                      <span className="nl-prop-label">关联边数</span>
-                      <span className="nl-prop-val">{connectedLinks.length} 条</span>
-                    </div>
-                  </div>
+              {/* ── TAB 2: 查看 (Node / Memory Inspector 1:1 with Nowledge Mem) ── */}
+              {activeTab === "view" && (() => {
+                const mem = selectedNode ? memoriesMap.get(selectedNode.id) : null;
+                const isMem = !!mem;
+                const cleanTitle = selectedNode ? getCleanName(selectedNode) : "未选择节点";
+                const unitType = isMem ? (mem.unit_type || "fact") : (selectedNode?.type || "entity");
 
-                  <div className="nl-view-section-header" style={{ marginTop: 16 }}>拓扑关系 ({connectedLinks.length})</div>
-                  <div className="nl-connected-links-list">
-                    {connectedLinks.map((l: any, idx: number) => {
-                      const src = typeof l.source === "object" ? l.source.id : l.source;
-                      const tgt = typeof l.target === "object" ? l.target.id : l.target;
-                      return (
-                        <div key={idx} className="nl-link-item-row">
-                          <span className="nl-link-node">{src}</span>
-                          <span className="nl-link-rel">--[{l.relation || "rel"}]--&gt;</span>
-                          <span className="nl-link-node">{tgt}</span>
+                // Parse labels
+                let tags: string[] = [];
+                if (isMem && mem.labels) {
+                  try {
+                    tags = typeof mem.labels === "string" ? JSON.parse(mem.labels) : mem.labels;
+                  } catch {
+                    if (typeof mem.labels === "string") tags = mem.labels.split(/[,，\s]+/);
+                  }
+                }
+
+                // Format importance percentage
+                const rawImp = isMem ? mem.importance : "medium";
+                let impPercent = 80;
+                if (typeof rawImp === "number") impPercent = Math.round(rawImp * 100);
+                else if (rawImp === "high" || rawImp === "critical") impPercent = 100;
+                else if (rawImp === "low") impPercent = 50;
+
+                // Format date
+                const formatDate = (iso?: string) => {
+                  if (!iso) return "2026/8/17";
+                  try {
+                    const d = new Date(iso);
+                    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+                  } catch {
+                    return "2026/8/17";
+                  }
+                };
+
+                return (
+                  <div className="nl-inspector-view-tab">
+                    {/* Top Unit Type Badge & Hero Title */}
+                    <div className="nl-view-node-header">
+                      <span className="nl-view-badge" style={{ backgroundColor: `${activeColor}22`, color: activeColor, borderColor: `${activeColor}44` }}>
+                        {isMem ? `🔵 ${unitType === "decision" ? "决策" : unitType === "learning" ? "学习" : unitType === "rule" ? "规则" : "记忆"}` : `🟣 ${selectedNode?.type === "project" ? "项目" : "实体"}`}
+                      </span>
+                      <h2 className="nl-view-node-title">{cleanTitle}</h2>
+                    </div>
+
+                    {/* Section: 为什么并存 */}
+                    <div className="nl-view-info-card">
+                      <div className="nl-view-info-card-header">
+                        <span className="nl-info-title">为什么并存</span>
+                        <span className="nl-info-count">{connectedLinks.length} 条可见连接</span>
+                      </div>
+                      <p className="nl-info-desc">
+                        {isMem
+                          ? "这是一条保存下来的记忆，它如此稳定，是因为已经配对了搜索、检索等预期阶段的实体。"
+                          : `这是图谱中的核心枢纽概念，聚合了 ${connectedLinks.length} 条沉淀记忆与上下文拓扑。`}
+                      </p>
+                    </div>
+
+                    {/* Section: 下一步 */}
+                    {isMem && (
+                      <div className="nl-view-info-card">
+                        <div className="nl-view-info-card-header">
+                          <span className="nl-info-title">下一步</span>
                         </div>
-                      );
-                    })}
+                        <p className="nl-info-desc">
+                          自动提取历史上下文，生成更精细的关系网络连接。
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Section: 包含上下文标签 */}
+                    {tags.length > 0 && (
+                      <div className="nl-view-tags-section">
+                        <div className="nl-view-section-label">包含上下文标签</div>
+                        <div className="nl-view-tags-pills">
+                          {tags.map((t, i) => (
+                            <span key={i} className="nl-context-tag-pill">
+                              🏷️ {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Actions Row */}
+                    <div className="nl-view-quick-actions">
+                      <button className="nl-view-action-chip" onClick={() => handleAskQuestion(`围绕 "${cleanTitle}" 还有什么？`)}>
+                        <span>◈</span> 打开完整上下文
+                      </button>
+                      <button className="nl-view-action-chip" onClick={() => handleRunMaintain("归并记忆")}>
+                        <span>☷</span> 归并记忆
+                      </button>
+                    </div>
+
+                    {/* Section: 详细内容 / 题名 */}
+                    {isMem && mem.content && (
+                      <div className="nl-view-content-section">
+                        <div className="nl-view-section-label">题名 / 摘要 / 详细内容</div>
+                        <div className="nl-view-markdown-box">
+                          {mem.content}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section: 可见网络 / 拓扑关系 */}
+                    <div className="nl-view-network-section">
+                      <div className="nl-view-section-header-row">
+                        <span className="nl-view-section-label">可见网络</span>
+                        <span className="nl-network-count">{connectedLinks.length} 条连接</span>
+                      </div>
+
+                      {connectedLinks.length === 0 ? (
+                        <div className="nl-network-empty-tip">当前节点在全局图谱中未连接到其他实体。</div>
+                      ) : (
+                        <div className="nl-connected-links-list">
+                          {connectedLinks.map((l: any, idx: number) => {
+                            const src = typeof l.source === "object" ? l.source.id : l.source;
+                            const tgt = typeof l.target === "object" ? l.target.id : l.target;
+                            const srcClean = getCleanName(src);
+                            const tgtClean = getCleanName(tgt);
+                            const isSelfSrc = src === selectedNode?.id;
+                            const otherId = isSelfSrc ? tgt : src;
+                            const otherClean = isSelfSrc ? tgtClean : srcClean;
+
+                            return (
+                              <div
+                                key={idx}
+                                className="nl-link-item-row clickable"
+                                onClick={() => {
+                                  const targetNode = data.nodes.find((n) => n.id === otherId);
+                                  if (targetNode) setSelectedNode(targetNode);
+                                }}
+                              >
+                                <span className="nl-link-node">{otherClean}</span>
+                                <span className="nl-link-rel">({l.relation || "related_to"})</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Metadata: 重要性 / 更新 / 创建 */}
+                    <div className="nl-view-metadata-footer">
+                      <div className="nl-meta-row">
+                        <span className="nl-meta-k">重要性</span>
+                        <span className="nl-meta-v">{impPercent}%</span>
+                      </div>
+                      <div className="nl-meta-row">
+                        <span className="nl-meta-k">更新</span>
+                        <span className="nl-meta-v">{formatDate(isMem ? (mem.updatedAt || mem.createdAt) : undefined)}</span>
+                      </div>
+                      <div className="nl-meta-row">
+                        <span className="nl-meta-k">创建</span>
+                        <span className="nl-meta-v">{formatDate(isMem ? mem.createdAt : undefined)}</span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Buttons: 连接 / 剪裁 / 取消选择 */}
+                    <div className="nl-view-footer-actions">
+                      <button className="nl-footer-btn" onClick={() => setIsConnectingMemory(true)}>
+                        <IconLink size={12} />
+                        <span>连接</span>
+                      </button>
+                      <button className="nl-footer-btn" onClick={() => handleRunMaintain("剪裁记忆")}>
+                        <span>✂️</span>
+                        <span>剪裁</span>
+                      </button>
+                      <button className="nl-footer-btn cancel" onClick={() => setSelectedNode(null)}>
+                        <span>✕</span>
+                        <span>取消选择</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* ── TAB 3: 本体 (Ontology Schema) ── */}
               {activeTab === "ontology" && (
