@@ -237,16 +237,22 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
     const simulation = d3
       .forceSimulation(nodes)
+      .velocityDecay(0.68) // High viscous fluid damping: calm, steady, zero violent wobble
       .force(
         "link",
         d3
           .forceLink(validLinks)
           .id((d: any) => d.id)
-          .distance((l: any) => (l.relation === "tagged_with" ? 85 : 120))
+          .distance((l: any) => (l.relation === "tagged_with" ? 75 : 110))
+          .strength(0.2)
       )
-      .force("charge", d3.forceManyBody().strength(-160).distanceMax(500))
-      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.06))
-      .force("collision", d3.forceCollide().radius((d: any) => (isProjectOrHub(d) ? 40 : 32)).strength(0.8));
+      .force("charge", d3.forceManyBody().strength(-100).distanceMax(380).distanceMin(15))
+      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.03))
+      .force("collision", d3.forceCollide().radius((d: any) => (isProjectOrHub(d) ? 36 : 28)).strength(0.7));
+
+    // Pre-warm 120 iterations in memory so initial render is 100% stable and fully settled
+    simulation.stop();
+    for (let i = 0; i < 120; ++i) simulation.tick();
 
     simulationRef.current = simulation;
 
@@ -261,11 +267,15 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     // Delicate translucent links
     const link = g
       .append("g")
-      .attr("stroke", "rgba(148, 163, 184, 0.12)")
+      .attr("stroke", "rgba(148, 163, 184, 0.10)")
       .attr("stroke-width", 1)
       .selectAll("line")
       .data(validLinks)
-      .join("line");
+      .join("line")
+      .attr("x1", (d: any) => d.source.x)
+      .attr("y1", (d: any) => d.source.y)
+      .attr("x2", (d: any) => d.target.x)
+      .attr("y2", (d: any) => d.target.y);
 
     // Nodes Group
     const node = g
@@ -274,11 +284,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
       .data(nodes)
       .join("g")
       .attr("class", "graph-node-group")
+      .attr("transform", (d: any) => `translate(${d.x},${d.y})`)
       .call(
         d3
           .drag<any, any>()
           .on("start", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
+            // Very gentle micro-alpha, only local spring reacts - NO global screen shock!
+            if (!event.active) simulation.alphaTarget(0.015).restart();
             d.fx = d.x;
             d.fy = d.y;
           })
@@ -288,6 +300,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
           })
           .on("end", (event, d) => {
             if (!event.active) simulation.alphaTarget(0);
+            // Gentle release without snap back
             d.fx = null;
             d.fy = null;
           })
@@ -301,28 +314,28 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     node
       .append("circle")
       .attr("class", "graph-node-halo")
-      .attr("r", (d: any) => (isProjectOrHub(d) ? 9 : 6))
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 8 : 5))
       .attr("fill", (d: any) => getNodeColor(d.type))
-      .attr("opacity", 0.16);
+      .attr("opacity", 0.15);
 
     // Main Dot (Tiny, refined starry point)
     node
       .append("circle")
       .attr("class", "graph-node-circle")
-      .attr("r", (d: any) => (isProjectOrHub(d) ? 4.5 : 3.0))
+      .attr("r", (d: any) => (isProjectOrHub(d) ? 4.0 : 2.6))
       .attr("fill", (d: any) => getNodeColor(d.type))
       .attr("stroke", "rgba(255, 255, 255, 0.75)")
-      .attr("stroke-width", 1)
+      .attr("stroke-width", 0.8)
       .attr("cursor", "pointer");
 
     // Node Clean Labels with subtle contrast outline
     node
       .append("text")
       .attr("class", "graph-node-label")
-      .attr("dx", (d: any) => (isProjectOrHub(d) ? 8 : 7))
+      .attr("dx", (d: any) => (isProjectOrHub(d) ? 8 : 6))
       .attr("dy", 3.5)
       .attr("fill", (d: any) => (isProjectOrHub(d) ? "#7dd3fc" : "#cbd5e1"))
-      .attr("font-size", (d: any) => (isProjectOrHub(d) ? "11.5px" : "11px"))
+      .attr("font-size", (d: any) => (isProjectOrHub(d) ? "11px" : "10.5px"))
       .attr("font-weight", (d: any) => (isProjectOrHub(d) ? "600" : "400"))
       .attr("stroke", "#090d16")
       .attr("stroke-width", 2.5)

@@ -80,20 +80,26 @@ const STRATA_CONFIG: Record<HeightMetric, {
 };
 
 // Create billboard canvas text sprite
-function createTextSprite(text: string, color: string = "#ffffff"): THREE.Sprite {
+function createTextSprite(rawText: string, color: string = "#ffffff"): THREE.Sprite {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   canvas.width = 384;
-  canvas.height = 96;
+  canvas.height = 80;
+
+  const cleanText = rawText
+    .replace(/^tag:/, "")
+    .replace(/^[0-9a-fA-F-]{36}\s*/, "")
+    .trim();
+  const text = cleanText.length > 20 ? cleanText.slice(0, 18) + "…" : cleanText;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(10, 14, 24, 0.78)";
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
-  ctx.lineWidth = 2;
+  ctx.fillStyle = "rgba(11, 15, 25, 0.82)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
+  ctx.lineWidth = 1.5;
 
-  const r = 16;
-  const w = Math.min(canvas.width - 8, Math.max(120, text.length * 16 + 32));
-  const h = 42;
+  const r = 12;
+  const w = Math.min(canvas.width - 12, Math.max(100, text.length * 15 + 28));
+  const h = 36;
   const x = (canvas.width - w) / 2;
   const y = (canvas.height - h) / 2;
 
@@ -102,11 +108,11 @@ function createTextSprite(text: string, color: string = "#ffffff"): THREE.Sprite
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  ctx.font = "500 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = color;
-  ctx.fillText(text.length > 16 ? text.slice(0, 15) + "..." : text, canvas.width / 2, canvas.height / 2);
+  ctx.fillStyle = color || "#cbd5e1";
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -116,7 +122,7 @@ function createTextSprite(text: string, color: string = "#ffffff"): THREE.Sprite
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(38, 9.5, 1);
+  sprite.scale.set(30, 6.25, 1);
   return sprite;
 }
 
@@ -547,7 +553,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       const deg = degreeMap.get(n.id) || 1;
       const colStr = getNodeColorRef.current(n.type);
       const threeCol = new THREE.Color(colStr);
-      const radius = Math.max(3.8, Math.min(13, 3.8 + Math.sqrt(deg) * 2.1));
+      const radius = Math.max(2.4, Math.min(6.5, 2.4 + Math.sqrt(deg) * 0.9));
       const target = targetMap.get(n.id) || { x: 0, y: 30, z: 0 };
       const targetVec = new THREE.Vector3(target.x, target.y, target.z);
 
@@ -563,19 +569,19 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         group.userData = { nodeId: n.id };
 
         const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(radius, 24, 24),
+          new THREE.SphereGeometry(radius, 20, 20),
           new THREE.MeshStandardMaterial({
             color: threeCol,
             emissive: threeCol,
-            emissiveIntensity: 0.65,
-            roughness: 0.25,
-            metalness: 0.2,
+            emissiveIntensity: 0.6,
+            roughness: 0.3,
+            metalness: 0.1,
           })
         );
         group.add(sphere);
 
         const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(radius * 2.3, 16, 16),
+          new THREE.SphereGeometry(radius * 2.0, 16, 16),
           new THREE.MeshBasicMaterial({
             color: threeCol,
             transparent: true,
@@ -588,7 +594,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
         const nodeLabel = (n as any).label || (n as any).name || n.id;
         const labelSprite = createTextSprite(nodeLabel, colStr);
-        labelSprite.position.set(0, radius + 10, 0);
+        labelSprite.position.set(0, radius + 7, 0);
         group.add(labelSprite);
 
         const initialPos = new THREE.Vector3(target.x, 0, target.z);
