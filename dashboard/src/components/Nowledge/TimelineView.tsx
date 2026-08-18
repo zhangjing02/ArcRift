@@ -5,6 +5,7 @@ import {
   createMemory,
   fetchSessions,
 } from "../../api/ArcRift";
+import { IconGlobe, IconFileDoc, IconBook } from "./Icons";
 
 interface TimelineViewProps {
   activeSession?: Session;
@@ -36,8 +37,10 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const [expandedMemoryIds, setExpandedMemoryIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Heatmap generation state
-  const [calendarMonth, setCalendarMonth] = useState("2026年8月");
+  // Real Calendar View Month state
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth() + 1); // 1-12
 
   useEffect(() => {
     loadData();
@@ -46,7 +49,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const loadData = async () => {
     try {
       const res = await fetchMemories({ sessionId: activeSession?._id });
-      if (res.success) {
+      if (res.success && res.memories) {
         setMemories(res.memories);
       }
       const sRes = await fetchSessions();
@@ -99,10 +102,27 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     });
   };
 
+  const handlePrevMonth = () => {
+    if (viewMonth === 1) {
+      setViewYear((y) => y - 1);
+      setViewMonth(12);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 12) {
+      setViewYear((y) => y + 1);
+      setViewMonth(1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
   // Group memories into date clusters and consecutive blocks
   const formatDateLabel = (dateStr: string | Date) => {
     const d = new Date(dateStr);
-    const now = new Date();
     const isToday =
       d.getDate() === now.getDate() &&
       d.getMonth() === now.getMonth() &&
@@ -143,13 +163,12 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     dayGroupsMap.get(label)!.memories.push(m);
   });
 
-  // Inject sample/real system event
+  // Inject system event
   const todayLabel = "今天";
   if (!dayGroupsMap.has(todayLabel)) {
     dayGroupsMap.set(todayLabel, { dateLabel: todayLabel, memories: [], events: [] });
   }
 
-  // Add rule review event for demonstration / audit log
   const firstDay = Array.from(dayGroupsMap.keys())[0] || todayLabel;
   dayGroupsMap.get(firstDay)?.events.push({
     id: "evt_rule_review",
@@ -160,19 +179,45 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     source: "system",
   });
 
-  // Calculate stats for Right Sidebar
+  // Stats for Right Sidebar
   const totalMemoriesCount = memories.length;
-  const totalCrystalsCount = memories.filter((m) => m.importance === "critical" || (m.importance as any) >= 0.9).length;
+  const totalCrystalsCount = memories.filter(
+    (m) => m.importance === "critical" || (m.importance as any) >= 0.9
+  ).length;
   const totalTopicsCount = Math.max(1, allSessions.length);
   const totalResourceGroups = 0;
 
-  // Generate 35 calendar cells (5 weeks * 7 days)
+  // Real Memory Counts Calculation per day (YYYY-MM-DD)
+  const memoryCountsByDate = new Map<string, number>();
+  memories.forEach((m) => {
+    const d = new Date(m.createdAt);
+    const dateKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+    memoryCountsByDate.set(dateKey, (memoryCountsByDate.get(dateKey) || 0) + 1);
+  });
+
+  // Calculate real Calendar Grid (35 cells: 5 rows x 7 cols)
+  const firstDayObj = new Date(viewYear, viewMonth - 1, 1);
+  const startDayOfWeek = (firstDayObj.getDay() + 6) % 7; // Monday = 0
+  const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+
   const heatmapDays = Array.from({ length: 35 }, (_, i) => {
-    const dayNum = i + 1;
-    // Active cells for demo match screenshot
-    const hasActivity = dayNum === 17 || dayNum === 18 || dayNum === 23 || dayNum === 24;
-    const level = dayNum === 18 ? 3 : dayNum === 17 ? 2 : hasActivity ? 1 : 0;
-    return { dayNum, level };
+    const dayNum = i - startDayOfWeek + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) {
+      return { dayNum: null, level: 0, count: 0, isToday: false, dateKey: "" };
+    }
+    const dateKey = `${viewYear}-${viewMonth.toString().padStart(2, "0")}-${dayNum.toString().padStart(2, "0")}`;
+    const count = memoryCountsByDate.get(dateKey) || 0;
+    const isToday =
+      viewYear === now.getFullYear() &&
+      viewMonth === now.getMonth() + 1 &&
+      dayNum === now.getDate();
+
+    let level = 0;
+    if (count === 1) level = 1;
+    else if (count >= 2 && count <= 4) level = 2;
+    else if (count > 4) level = 3;
+
+    return { dayNum, level, count, isToday, dateKey };
   });
 
   return (
@@ -205,9 +250,15 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           />
           <div className="nl-composer-actions">
             <div className="nl-composer-tools">
-              <button className="nl-tool-btn" title="添加链接">🌍</button>
-              <button className="nl-tool-btn" title="插入文件">📄</button>
-              <button className="nl-tool-btn" title="关联资料库">📖</button>
+              <button className="nl-tool-btn" title="添加链接">
+                <IconGlobe size={14} />
+              </button>
+              <button className="nl-tool-btn" title="插入文件">
+                <IconFileDoc size={14} />
+              </button>
+              <button className="nl-tool-btn" title="关联资料库">
+                <IconBook size={14} />
+              </button>
             </div>
             <button
               onClick={handleQuickSubmit}
@@ -298,68 +349,84 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                     <div className="nl-grouped-card-top">
                       <span className="nl-group-arrow">▸</span>
                       <span className="nl-group-title-strong">
-                        {savedCount} memories saved
+                        连续保存了 {savedCount} 条记忆
                       </span>
-                      <span className="nl-group-time-span">
+                      <span className="nl-group-time-range">
                         {firstTime} - {lastTime}
                       </span>
                     </div>
-                    <div className="nl-grouped-card-desc">
-                      Grouped from {savedCount} consecutive save cards. Expand to inspect each one.
+                    <div className="nl-grouped-preview-titles">
+                      {group.memories.slice(0, 3).map((m, idx) => (
+                        <span key={m.id} className="nl-preview-title-item">
+                          {idx + 1}. {m.title}
+                          {idx < 2 && idx < group.memories.length - 1 ? " · " : ""}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 ) : (
-                  /* Expanded Individual Save Cards */
-                  <div className="nl-individual-cards-list">
-                    {savedCount > 2 && isGroupExpanded && (
-                      <button
-                        className="nl-group-collapse-toggle-btn"
-                        onClick={() => toggleGroupExpand(groupId)}
-                      >
-                        ▾ 收起 {savedCount} 条连续保存卡片
-                      </button>
-                    )}
-
-                    {group.memories.map((mem) => {
-                      const isMemExpanded = expandedMemoryIds.has(mem.id);
-                      const timeStr = new Date(mem.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  <div className="nl-timeline-items-list">
+                    {/* Render individual memory items */}
+                    {group.memories.map((m) => {
+                      const isExpanded = expandedMemoryIds.has(m.id);
+                      const timeStr = new Date(m.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
 
                       return (
-                        <div key={mem.id} className="nl-timeline-card-item">
-                          <div className="nl-card-time-marker">{timeStr}</div>
-                          <div className="nl-timeline-card-content">
-                            <div className="nl-card-heading">
-                              <h3 className="nl-card-title-text">{mem.title}</h3>
+                        <div key={m.id} className="nl-timeline-item-card">
+                          <div className="nl-timeline-item-main">
+                            <div className="nl-timeline-item-header">
+                              <h3
+                                className="nl-item-title"
+                                onClick={() => toggleMemoryExpand(m.id)}
+                              >
+                                {m.title}
+                              </h3>
+                              <span className="nl-item-time">{timeStr}</span>
                             </div>
-                            <div className="nl-card-body-text">
-                              {isMemExpanded ? mem.content : mem.content.slice(0, 150) + (mem.content.length > 150 ? "..." : "")}
-                            </div>
-                            <div className="nl-card-footer-bar">
-                              {mem.content.length > 150 && (
-                                <button
-                                  className="nl-card-expand-link"
-                                  onClick={() => toggleMemoryExpand(mem.id)}
-                                >
-                                  {isMemExpanded ? "收起" : "展开"}
-                                </button>
-                              )}
-                              <span className="nl-saved-badge">■ 已保存</span>
+
+                            {/* Collapsible Content */}
+                            {isExpanded && (
+                              <div className="nl-item-expanded-body">
+                                <p className="nl-item-full-text">{m.content}</p>
+                                {m.tags && m.tags.length > 0 && (
+                                  <div className="nl-item-tags-row">
+                                    {m.tags.map((t) => (
+                                      <span key={t} className="nl-tag-badge">
+                                        #{t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="nl-item-footer">
+                              <button
+                                className="nl-btn-text-action"
+                                onClick={() => toggleMemoryExpand(m.id)}
+                              >
+                                {isExpanded ? "收起" : "展开"}
+                              </button>
+                              <span className="nl-badge-saved">已保存</span>
                             </div>
                           </div>
                         </div>
                       );
                     })}
+
+                    {/* Render Events */}
+                    {group.events.map((evt) => (
+                      <div key={evt.id} className="nl-timeline-event-row">
+                        <span className="nl-event-bullet">•</span>
+                        <span className="nl-event-title">{evt.title}</span>
+                        <span className="nl-event-time">{evt.time}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-
-                {/* Events list */}
-                {group.events.map((evt) => (
-                  <div key={evt.id} className="nl-timeline-event-row">
-                    <span className="nl-event-dot">•</span>
-                    <span className="nl-event-title">{evt.title}</span>
-                    <span className="nl-event-time">{evt.time}</span>
-                  </div>
-                ))}
               </div>
             );
           })}
@@ -396,22 +463,24 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           </div>
         </div>
 
-        {/* Activity Heatmap Calendar */}
+        {/* Activity Heatmap Calendar (Real Data Driven) */}
         <div className="nl-widget-card">
           <div className="nl-calendar-header">
             <span className="nl-widget-title">活动日历</span>
             <div className="nl-month-nav">
               <button
                 className="nl-month-arrow"
-                onClick={() => setCalendarMonth("2026年7月")}
+                onClick={handlePrevMonth}
                 title="上个月"
               >
                 ‹
               </button>
-              <span className="nl-current-month-text">{calendarMonth}</span>
+              <span className="nl-current-month-text">
+                {viewYear}年{viewMonth}月
+              </span>
               <button
                 className="nl-month-arrow"
-                onClick={() => setCalendarMonth("2026年8月")}
+                onClick={handleNextMonth}
                 title="下个月"
               >
                 ›
@@ -433,8 +502,12 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             {heatmapDays.map((cell, idx) => (
               <div
                 key={idx}
-                className={`nl-heatmap-cell lvl-${cell.level}`}
-                title={`第 ${cell.dayNum} 天`}
+                className={`nl-heatmap-cell ${cell.dayNum ? `lvl-${cell.level}` : "empty"} ${cell.isToday ? "today" : ""}`}
+                title={
+                  cell.dayNum
+                    ? `${viewYear}年${viewMonth}月${cell.dayNum}日: ${cell.count} 条记录`
+                    : ""
+                }
               />
             ))}
           </div>

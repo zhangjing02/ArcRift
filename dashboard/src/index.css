@@ -517,16 +517,19 @@ body {
 .nl-tool-btn {
   background: transparent;
   border: none;
-  color: var(--nl-text-muted);
-  font-size: 15px;
+  color: #64748b;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s ease;
 }
 
 .nl-tool-btn:hover {
-  color: var(--nl-text);
-  background-color: #242730;
+  color: #cbd5e1;
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .nl-submit-btn {
@@ -3183,15 +3186,43 @@ body {
 
 .nl-heatmap-cell {
   aspect-ratio: 1;
-  background-color: #161922;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  background-color: #12141a;
+  border-radius: 2.5px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: all 0.12s ease;
 }
 
-.nl-heatmap-cell.lvl-0 { background-color: #161922; }
-.nl-heatmap-cell.lvl-1 { background-color: #0e3b2e; }
-.nl-heatmap-cell.lvl-2 { background-color: #056143; }
-.nl-heatmap-cell.lvl-3 { background-color: #10b981; }
+.nl-heatmap-cell.empty {
+  opacity: 0.2;
+  background-color: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.02);
+}
+
+.nl-heatmap-cell.lvl-0 {
+  background-color: #12141a;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.nl-heatmap-cell.lvl-1 {
+  background-color: #1a2230;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.nl-heatmap-cell.lvl-2 {
+  background-color: #263345;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.nl-heatmap-cell.lvl-3 {
+  background-color: #3b4d66;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.nl-heatmap-cell.today {
+  border: 1.5px solid #64748b;
+  background-color: #1a1e27;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.06);
+}
 
 .nl-heatmap-legend {
   display: flex;
