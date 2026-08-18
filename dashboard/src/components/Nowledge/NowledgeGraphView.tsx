@@ -18,6 +18,7 @@ import {
   IconNetwork,
   IconFolder,
 } from "./Icons";
+import { KnowledgeGraph3DCanvas } from "./KnowledgeGraph3DCanvas";
 
 interface NowledgeGraphViewProps {
   sessionId?: string;
@@ -549,8 +550,17 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
             </div>
           )}
 
-          {/* D3 SVG Canvas */}
-          <svg ref={svgRef} className="nl-graph-d3-canvas"></svg>
+          {/* 2D SVG vs 3D Canvas Switcher */}
+          {viewDimension === "2D" ? (
+            <svg ref={svgRef} className="nl-graph-d3-canvas"></svg>
+          ) : (
+            <KnowledgeGraph3DCanvas
+              data={filteredData}
+              selectedNode={selectedNode}
+              onNodeSelect={setSelectedNode}
+              getNodeColor={getNodeColor}
+            />
+          )}
 
           {/* Bottom Floating Bar inside Canvas (Exact match with Screenshot 2) */}
           <div className="nl-canvas-bottom-bar">

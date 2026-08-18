@@ -1722,6 +1722,127 @@ body {
   color: #ffffff;
 }
 
+/* ── 3D GRAPH CANVAS & CONTROLS (1:1 with Nowledge Mem 3D Screenshots) ── */
+.nl-3d-graph-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #121622 0%, #090b10 100%);
+}
+
+.nl-3d-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.nl-3d-floating-controls-panel {
+  position: absolute;
+  bottom: 60px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.nl-3d-mode-capsule {
+  display: flex;
+  background-color: rgba(18, 22, 30, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+  pointer-events: auto;
+}
+
+.nl-3d-mode-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nl-3d-mode-btn.active {
+  background-color: #242b3b;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.nl-3d-height-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.nl-3d-height-title {
+  font-size: 11px;
+  color: #64748b;
+  margin-right: 4px;
+}
+
+.nl-3d-metric-pills {
+  display: flex;
+  background-color: rgba(18, 22, 30, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.nl-3d-metric-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.nl-3d-metric-btn:hover {
+  color: #cbd5e1;
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.nl-3d-metric-btn.active {
+  background-color: #222836;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.nl-3d-metric-desc-card {
+  text-align: right;
+  padding-right: 4px;
+}
+
+.nl-3d-desc-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.nl-3d-desc-sub {
+  font-size: 10.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
 /* ─────────────────────────────────────────────────────────────
    5. THREADS & THREAD DETAIL (Screenshot 2)
 ───────────────────────────────────────────────────────────── */
