@@ -244,6 +244,16 @@ export const IconMaximize: React.FC<IconProps> = ({ size = 14, className = "", s
   </svg>
 );
 
+// Compress / exit-fullscreen icon: arrows pointing inward toward center
+export const IconCompress: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M4 14h6v6" />
+    <path d="M20 10h-6V4" />
+    <path d="m10 20-6-6" />
+    <path d="m14 4 6 6" />
+  </svg>
+);
+
 export const IconRefresh: React.FC<IconProps> = ({ size = 14, className = "", style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
     <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />

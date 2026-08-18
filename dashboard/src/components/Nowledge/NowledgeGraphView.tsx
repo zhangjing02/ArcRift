@@ -6,6 +6,7 @@ import {
   IconSearch,
   IconSparkles,
   IconMaximize,
+  IconCompress,
   IconLink,
   IconSettings,
   IconLibrary,
@@ -62,7 +63,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     loadGraph();
   }, [sessionId]);
 
-  // Keyboard shortcut listener for Tab / Esc / Fullscreen
+  // Keyboard shortcut listener for Tab / Esc
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -70,35 +71,17 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         e.preventDefault();
         setIsSidebarOpen((prev) => !prev);
       } else if (e.key === "Escape") {
+        // Esc exits CSS-only fullscreen — no OS fullscreen to exit
         setIsFullscreen(false);
       }
     };
-
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
     window.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Pure CSS fullscreen: expands within the app window only, never calls requestFullscreen()
   const toggleFullscreen = () => {
-    const container = containerRef.current?.closest(".nl-graph-view-container") as HTMLElement;
-    if (!isFullscreen) {
-      if (container?.requestFullscreen) {
-        container.requestFullscreen().catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
-    }
+    setIsFullscreen((prev) => !prev);
   };
 
   const loadGraph = async () => {
@@ -543,9 +526,9 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               <button
                 className={`nl-canvas-icon-btn ${isFullscreen ? "active" : ""}`}
                 onClick={toggleFullscreen}
-                title="全屏模式 Esc"
+                title={isFullscreen ? "退出全屏 Esc" : "全屏 Esc"}
               >
-                <IconMaximize size={13} />
+                {isFullscreen ? <IconCompress size={13} /> : <IconMaximize size={13} />}
               </button>
               <div className="nl-canvas-v-sep" />
               <button
