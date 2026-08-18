@@ -127,20 +127,15 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// ── v1.5.1: Serve production dashboard build via sirv ─────────────
-// Eliminates the separate Vite dev server process for self-hosters.
-// Falls back gracefully with a clear message if the build hasn't run yet.
+// ── Serve production dashboard build via express.static ─────────────
 const dashboardDist = path.resolve(__dirname, "../../dashboard/dist");
 if (fs.existsSync(dashboardDist)) {
-  // Lazy-require sirv so the backend still starts even if sirv isn't installed
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const sirv = require("sirv");
-    app.use("/", sirv(dashboardDist, { single: true, dev: false }));
-    logger.success(`[ArcRift] Dashboard served from production build: \x1b[1;96mhttp://localhost:${PORT}\x1b[0m`);
-  } catch {
-    logger.warn("[ArcRift] sirv not installed — run: cd backend && npm install sirv");
-  }
+  app.use(express.static(dashboardDist));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(dashboardDist, "index.html"));
+  });
+  logger.success(`[ArcRift] Dashboard served from production build: \x1b[1;96mhttp://localhost:${PORT}\x1b[0m`);
 } else {
   logger.warn(
     `[ArcRift] No dashboard build found at ${dashboardDist}. ` +
