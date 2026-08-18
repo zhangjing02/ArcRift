@@ -324,7 +324,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     return () => {
       simulation.stop();
     };
-  }, [filteredData]);
+  }, [filteredData, viewDimension]);
 
   // 2. LIGHTWEIGHT SELECTION HIGHLIGHT (Zero physics restart!)
   useEffect(() => {
@@ -557,10 +557,13 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
             </div>
           )}
 
-          {/* 2D SVG vs 3D Canvas Switcher */}
-          {viewDimension === "2D" ? (
-            <svg ref={svgRef} className="nl-graph-d3-canvas"></svg>
-          ) : (
+          {/* 2D SVG vs 3D Canvas Switcher (Always preserve 2D SVG so D3 state is retained) */}
+          <svg
+            ref={svgRef}
+            className="nl-graph-d3-canvas"
+            style={{ display: viewDimension === "2D" ? "block" : "none" }}
+          ></svg>
+          {viewDimension === "3D" && (
             <KnowledgeGraph3DCanvas
               data={filteredData}
               selectedNode={selectedNode}
