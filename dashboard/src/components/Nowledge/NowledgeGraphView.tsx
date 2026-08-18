@@ -62,7 +62,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
     loadGraph();
   }, [sessionId]);
 
-  // Keyboard shortcut listener for Tab / Esc
+  // Keyboard shortcut listener for Tab / Esc / Fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -73,9 +73,33 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
         setIsFullscreen(false);
       }
     };
+
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
   }, []);
+
+  const toggleFullscreen = () => {
+    const container = containerRef.current?.closest(".nl-graph-view-container") as HTMLElement;
+    if (!isFullscreen) {
+      if (container?.requestFullscreen) {
+        container.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  };
 
   const loadGraph = async () => {
     try {
@@ -444,20 +468,20 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
             {/* Left Tools: Overview/Explore + 2D/3D + Lasso Pill */}
             <div className="nl-canvas-capsule-left">
               <button
-                className={`nl-canvas-icon-btn ${canvasMode === "overview" ? "active" : ""}`}
+                className={`nl-canvas-pill-btn ${canvasMode === "overview" ? "active" : ""}`}
                 onClick={() => setCanvasMode("overview")}
                 title="总览"
               >
                 <IconNetwork size={13} />
-                <span className="nl-capsule-label">总览</span>
+                <span>总览</span>
               </button>
               <button
-                className={`nl-canvas-icon-btn ${canvasMode === "explore" ? "active" : ""}`}
+                className={`nl-canvas-pill-btn ${canvasMode === "explore" ? "active" : ""}`}
                 onClick={() => setCanvasMode("explore")}
                 title="探索"
               >
                 <IconGlobe size={13} />
-                <span className="nl-capsule-label">探索</span>
+                <span>探索</span>
               </button>
               <div className="nl-canvas-dim-pills">
                 <button
@@ -518,7 +542,7 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
               </button>
               <button
                 className={`nl-canvas-icon-btn ${isFullscreen ? "active" : ""}`}
-                onClick={() => setIsFullscreen(!isFullscreen)}
+                onClick={toggleFullscreen}
                 title="全屏模式 Esc"
               >
                 <IconMaximize size={13} />
