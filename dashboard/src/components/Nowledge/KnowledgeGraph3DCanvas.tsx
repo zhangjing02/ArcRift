@@ -441,7 +441,7 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
             ty = 110 + (Math.random() - 0.5) * 3; // 记忆单元
           }
         } else if (metric === "growth") {
-          // Real calendar timestamp age + micro-time rank stratification (1:1 with Nowledge Mem Screenshot)
+          // Real calendar timestamp age (Ceiling is strictly at 现在 = 265px, older memories descend downwards)
           const now = Date.now();
           const created = (n as any).firstSeen
             ? new Date((n as any).firstSeen).getTime()
@@ -451,24 +451,24 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           const ageHours = Math.max(0, (now - created) / (1000 * 3600));
           const ageDays = ageHours / 24;
 
-          if (ageDays <= 1.5) {
-            // "现在" Stratum Band: Spans a generous 32px height band (Y = 250 ~ 282)
-            // Even a 10-minute or 1-hour difference produces a distinct, visible step in elevation!
-            const timeRankRatio = totalNodes > 1 ? (i % 12) / 12 : 0.5;
-            const hourProgress = Math.min(1, ageHours / 24);
-            const microDelta = hourProgress * 18 + timeRankRatio * 12;
-            ty = 282 - microDelta;
+          if (ageDays <= 1) {
+            // "现在" Stratum: 265px is the ABSOLUTE CEILING (1:1 with Nowledge Mem Screenshots 2, 3, 4)
+            // The newest memory touches Y=265, and earlier memories of today descend downwards to Y=237
+            const hourRatio = Math.min(1, ageHours / 24);
+            const rankDelta = totalNodes > 1 ? (i % 10) / 10 : 0.5;
+            const deltaY = hourRatio * 16 + rankDelta * 10;
+            ty = 265 - deltaY; // Strictly <= 265px!
           } else if (ageDays <= 7) {
-            // "7 天" Stratum Band (Y = 175 ~ 195)
-            const progress = (ageDays - 1.5) / 5.5;
-            ty = 195 - progress * 18;
+            // "7 天" Stratum Band (Y = 185 down to 160)
+            const progress = (ageDays - 1) / 6;
+            ty = 185 - progress * 20;
           } else if (ageDays <= 30) {
-            // "30 天" Stratum Band (Y = 100 ~ 120)
+            // "30 天" Stratum Band (Y = 110 down to 85)
             const progress = (ageDays - 7) / 23;
-            ty = 120 - progress * 18;
+            ty = 110 - progress * 20;
           } else {
-            // "1 年以上" Stratum Band (Y = 22 ~ 32)
-            ty = 28 + (Math.random() - 0.5) * 5;
+            // "1 年以上" Stratum Band (Y = 25)
+            ty = 25 - Math.min(8, ((ageDays - 30) / 365) * 6);
           }
         }
 
