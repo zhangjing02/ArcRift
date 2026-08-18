@@ -158,91 +158,92 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation (Monochrome icons) */}
-      <div className="nl-nav-section">
-        <button
-          className={`nl-nav-item ${currentTab === "timeline" ? "active" : ""}`}
-          onClick={() => onTabChange("timeline")}
-        >
-          <span className="nl-nav-icon"><IconHome /></span>
-          <span className="nl-nav-text">时间线</span>
-        </button>
+      {/* Scrollable Middle Container (Nav + Pinned Section) */}
+      <div className="nl-sidebar-scroll-body">
+        {/* Main Navigation (Monochrome icons) */}
+        <div className="nl-nav-section">
+          <button
+            className={`nl-nav-item ${currentTab === "timeline" ? "active" : ""}`}
+            onClick={() => onTabChange("timeline")}
+          >
+            <span className="nl-nav-icon"><IconHome /></span>
+            <span className="nl-nav-text">时间线</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "memories" ? "active" : ""}`}
-          onClick={() => onTabChange("memories")}
-        >
-          <span className="nl-nav-icon"><IconBulb /></span>
-          <span className="nl-nav-text">记忆</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "memories" ? "active" : ""}`}
+            onClick={() => onTabChange("memories")}
+          >
+            <span className="nl-nav-icon"><IconBulb /></span>
+            <span className="nl-nav-text">记忆</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "threads" ? "active" : ""}`}
-          onClick={() => onTabChange("threads")}
-        >
-          <span className="nl-nav-icon"><IconChat /></span>
-          <span className="nl-nav-text">会话记录</span>
-          {threadsCount > 0 && (
-            <span className="nl-nav-badge">{threadsCount}</span>
-          )}
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "threads" ? "active" : ""}`}
+            onClick={() => onTabChange("threads")}
+          >
+            <span className="nl-nav-icon"><IconChat /></span>
+            <span className="nl-nav-text">会话记录</span>
+            {threadsCount > 0 && (
+              <span className="nl-nav-badge">{threadsCount}</span>
+            )}
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "ai-now" ? "active" : ""}`}
-          onClick={() => onTabChange("ai-now")}
-        >
-          <span className="nl-nav-icon"><IconAiNow /></span>
-          <span className="nl-nav-text">AI Now</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "ai-now" ? "active" : ""}`}
+            onClick={() => onTabChange("ai-now")}
+          >
+            <span className="nl-nav-icon"><IconAiNow /></span>
+            <span className="nl-nav-text">AI Now</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "graph" ? "active" : ""}`}
-          onClick={() => onTabChange("graph")}
-        >
-          <span className="nl-nav-icon"><IconGraph /></span>
-          <span className="nl-nav-text">知识图谱</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "graph" ? "active" : ""}`}
+            onClick={() => onTabChange("graph")}
+          >
+            <span className="nl-nav-icon"><IconGraph /></span>
+            <span className="nl-nav-text">知识图谱</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "library" ? "active" : ""}`}
-          onClick={() => onTabChange("library")}
-        >
-          <span className="nl-nav-icon"><IconBook /></span>
-          <span className="nl-nav-text">资料库</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "library" ? "active" : ""}`}
+            onClick={() => onTabChange("library")}
+          >
+            <span className="nl-nav-icon"><IconBook /></span>
+            <span className="nl-nav-text">资料库</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "tree" ? "active" : ""}`}
-          onClick={() => onTabChange("tree")}
-        >
-          <span className="nl-nav-icon"><IconTree /></span>
-          <span className="nl-nav-text">知识树</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "tree" ? "active" : ""}`}
+            onClick={() => onTabChange("tree")}
+          >
+            <span className="nl-nav-icon"><IconTree /></span>
+            <span className="nl-nav-text">知识树</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "skills" ? "active" : ""}`}
-          onClick={() => onTabChange("skills")}
-        >
-          <span className="nl-nav-icon"><IconSkills /></span>
-          <span className="nl-nav-text">技能</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "skills" ? "active" : ""}`}
+            onClick={() => onTabChange("skills")}
+          >
+            <span className="nl-nav-icon"><IconSkills /></span>
+            <span className="nl-nav-text">技能</span>
+          </button>
 
-        <button
-          className={`nl-nav-item ${currentTab === "context" ? "active" : ""}`}
-          onClick={() => onTabChange("context")}
-        >
-          <span className="nl-nav-icon"><IconClock /></span>
-          <span className="nl-nav-text">上下文</span>
-        </button>
+          <button
+            className={`nl-nav-item ${currentTab === "context" ? "active" : ""}`}
+            onClick={() => onTabChange("context")}
+          >
+            <span className="nl-nav-icon"><IconClock /></span>
+            <span className="nl-nav-text">上下文</span>
+          </button>
+        </div>
+
+        {/* Pinned Section (Immediately follows Navigation) */}
+        <div className="nl-pinned-section">
+          <div className="nl-section-header">收藏</div>
+          <div className="nl-pinned-empty">还没有收藏</div>
+        </div>
       </div>
-
-      {/* Pinned Section */}
-      <div className="nl-pinned-section">
-        <div className="nl-section-header">收藏</div>
-        <div className="nl-pinned-empty">还没有收藏</div>
-      </div>
-
-
 
       {/* Sidebar Footer (Monochrome) */}
       <div className="nl-sidebar-footer">

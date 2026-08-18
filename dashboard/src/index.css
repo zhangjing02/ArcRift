@@ -140,12 +140,18 @@ body {
   outline: none;
 }
 
+.nl-sidebar-scroll-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .nl-nav-section {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
-  overflow-y: auto;
 }
 
 .nl-nav-item {
@@ -196,8 +202,7 @@ body {
   border-radius: 10px;
 }
 
-.nl-pinned-section,
-.nl-project-section {
+.nl-pinned-section {
   margin-top: 14px;
   padding-top: 10px;
   border-top: 1px solid var(--nl-border-subtle);
