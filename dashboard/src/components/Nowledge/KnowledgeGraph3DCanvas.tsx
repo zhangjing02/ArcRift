@@ -770,10 +770,12 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
 
   return (
     <div
+      className="nl-graph-3d-canvas"
       style={{
         width: "100%",
         height: "100%",
-        position: "relative",
+        position: "absolute",
+        inset: 0,
         overflow: "hidden",
         background: "#080b12",
       }}
@@ -781,34 +783,39 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
       {/* 3D WebGL Canvas Container */}
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
-      {/* ── TOP-LEFT: Height Dimension Selector Pills ── */}
+      {/* ── 3D Mode Height Selector Panel (Bottom-Right, 1:1 Nowledge Mem Style) ── */}
       <div
         style={{
           position: "absolute",
-          top: 14,
-          left: 16,
+          bottom: 52,
+          right: 14,
           zIndex: 20,
           display: "flex",
           flexDirection: "column",
+          alignItems: "flex-end",
           gap: 6,
-          background: "rgba(11, 15, 25, 0.85)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: 10,
-          padding: "8px 12px",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+          pointerEvents: "auto",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8", letterSpacing: "0.04em" }}>
-            3D 空间高度维度
-          </span>
-        </div>
+        <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 500 }}>高度代表什么？</div>
 
-        <div style={{ display: "flex", gap: 6 }}>
+        {/* Height Metric Capsule Buttons */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            background: "rgba(18, 22, 32, 0.88)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: 20,
+            padding: "3px 6px",
+            boxShadow: "0 6px 24px rgba(0, 0, 0, 0.4)",
+          }}
+        >
           {(["influence", "structure", "morphology", "growth"] as HeightMetric[]).map((m) => {
             const icons: Record<HeightMetric, string> = {
-              influence: "⛰ 影响力",
+              influence: "▲ 影响力",
               structure: "🝯 结构",
               morphology: "◈ 形态",
               growth: "⬆ 增长",
@@ -819,19 +826,16 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
                 key={m}
                 onClick={() => setHeightMetric(m)}
                 style={{
-                  fontSize: 11.5,
+                  fontSize: 11,
                   fontWeight: active ? 600 : 400,
-                  padding: "5px 12px",
-                  borderRadius: 6,
-                  border: `1px solid ${active ? "rgba(96, 165, 250, 0.6)" : "rgba(255, 255, 255, 0.06)"}`,
+                  padding: "3px 9px",
+                  borderRadius: 14,
+                  border: "none",
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  background: active
-                    ? "linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(147, 51, 234, 0.25))"
-                    : "rgba(255, 255, 255, 0.02)",
-                  color: active ? "#ffffff" : "#94a3b8",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow: active ? "0 0 12px rgba(59, 130, 246, 0.25)" : "none",
+                  background: active ? "rgba(96, 165, 250, 0.22)" : "transparent",
+                  color: active ? "#60a5fa" : "#64748b",
+                  transition: "all 0.15s ease",
                 }}
               >
                 {icons[m]}
@@ -839,83 +843,19 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
             );
           })}
         </div>
-      </div>
 
-      {/* ── RIGHT HUD: Elevation Strata Ruler & Descriptions ── */}
-      <div
-        style={{
-          position: "absolute",
-          top: 14,
-          right: 16,
-          zIndex: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          background: "rgba(11, 15, 25, 0.85)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: 10,
-          padding: "10px 14px",
-          maxWidth: 260,
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-          pointerEvents: "none",
-        }}
-      >
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#cbd5e1" }}>{activeStrata.title}</div>
-        <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.4, marginBottom: 4 }}>
+        {/* Compact active metric description */}
+        <div
+          style={{
+            fontSize: 10,
+            color: "#64748b",
+            maxWidth: 240,
+            textAlign: "right",
+            lineHeight: 1.3,
+          }}
+        >
           {activeStrata.description}
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {activeStrata.levels.map((lvl) => (
-            <div key={lvl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    backgroundColor: lvl.color,
-                    boxShadow: `0 0 6px ${lvl.color}`,
-                  }}
-                />
-                <span style={{ fontSize: 10.5, color: "#94a3b8" }}>{lvl.label}</span>
-              </div>
-              <span style={{ fontSize: 9.5, color: "#475569", fontFamily: "monospace" }}>
-                Y={lvl.height}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── BOTTOM HUD: Navigation & Interaction Guide ── */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 14,
-          left: 16,
-          zIndex: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          fontSize: 10,
-          color: "#64748b",
-          background: "rgba(11, 15, 25, 0.75)",
-          backdropFilter: "blur(8px)",
-          padding: "4px 10px",
-          borderRadius: 6,
-          border: "1px solid rgba(255, 255, 255, 0.05)",
-          pointerEvents: "none",
-        }}
-      >
-        <span>🖱 左键拖拽: 360° 旋转</span>
-        <span>•</span>
-        <span>右键拖拽: 平移视口</span>
-        <span>•</span>
-        <span>滚轮: 缩放</span>
-        <span>•</span>
-        <span>点击节点: 查看详情</span>
       </div>
 
       {/* ── Hover Tooltip ── */}
@@ -923,27 +863,27 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
         <div
           style={{
             position: "absolute",
-            bottom: 45,
+            bottom: 54,
             left: "50%",
             transform: "translateX(-50%)",
             background: "rgba(13, 18, 30, 0.94)",
             border: `1px solid ${hoveredNode.color}55`,
             borderRadius: 8,
-            padding: "8px 16px",
-            fontSize: 12,
+            padding: "6px 14px",
+            fontSize: 11.5,
             color: "#f1f5f9",
             fontFamily: "inherit",
             pointerEvents: "none",
             backdropFilter: "blur(12px)",
             boxShadow: `0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px ${hoveredNode.color}33`,
             textAlign: "center",
-            zIndex: 30,
+            zIndex: 25,
           }}
         >
-          <div style={{ fontWeight: 600, color: hoveredNode.color, marginBottom: 2 }}>
+          <div style={{ fontWeight: 600, color: hoveredNode.color, marginBottom: 1 }}>
             {hoveredNode.label}
           </div>
-          <div style={{ fontSize: 10.5, color: "#94a3b8" }}>
+          <div style={{ fontSize: 10, color: "#94a3b8" }}>
             类型: {hoveredNode.type || "未知"} | 连接数: {hoveredNode.degree}
           </div>
         </div>
