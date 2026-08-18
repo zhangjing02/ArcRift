@@ -858,19 +858,46 @@ body {
   width: 100vw !important;
   height: 100vh !important;
   z-index: 99999 !important;
-  padding: 8px 10px !important;
-  background-color: #0b0d13 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background-color: #080b12 !important;
   box-sizing: border-box !important;
 }
 
-/* Hide search bar in fullscreen — toolbar stays visible */
+/* Hide top search bar in fullscreen */
 .nl-graph-view-container.fullscreen-mode .nl-graph-top-bar {
   display: none !important;
 }
 
 .nl-graph-view-container.fullscreen-mode .nl-graph-split-body {
-  height: calc(100vh - 52px) !important;
-  max-height: calc(100vh - 52px) !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+}
+
+.nl-graph-view-container.fullscreen-mode .nl-graph-canvas-box {
+  width: 100vw !important;
+  height: 100vh !important;
+  border: none !important;
+  border-radius: 0 !important;
+  flex: 1 !important;
+}
+
+/* If user explicitly toggles inspector in fullscreen (via Tab / 探查 E), float it over as a floating drawer */
+.nl-graph-view-container.fullscreen-mode .nl-graph-inspector-panel {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  width: 360px !important;
+  max-height: calc(100vh - 24px) !important;
+  z-index: 60 !important;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6) !important;
+  background: rgba(18, 22, 32, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
 }
 
 .nl-graph-top-bar {

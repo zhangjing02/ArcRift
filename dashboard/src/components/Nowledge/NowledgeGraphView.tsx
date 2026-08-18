@@ -81,7 +81,16 @@ export const NowledgeGraphView: React.FC<NowledgeGraphViewProps> = ({
 
   // Pure CSS fullscreen: expands within the app window only, never calls requestFullscreen()
   const toggleFullscreen = () => {
-    setIsFullscreen((prev) => !prev);
+    setIsFullscreen((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsSidebarOpen(false); // Hide sidebar drawer on entering fullscreen
+      }
+      setTimeout(() => {
+        handleFitCanvas();
+      }, 50);
+      return next;
+    });
   };
 
   const loadGraph = async () => {
