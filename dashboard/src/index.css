@@ -1440,6 +1440,288 @@ body {
   color: #0b0d13;
 }
 
+/* ── Top Canvas Header Helpers ── */
+.nl-capsule-label {
+  font-size: 11px;
+  color: inherit;
+  margin-left: 3px;
+}
+
+.nl-canvas-lasso-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(192, 132, 252, 0.15);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  color: #d8b4fe;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+/* ── Canvas Bottom Bar Stat Pill & Close ── */
+.nl-canvas-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+
+.nl-stat-dot {
+  color: #f97316;
+  font-weight: bold;
+}
+
+.nl-floating-close-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.nl-floating-close-btn:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ── VIEW TAB STYLES ── */
+.nl-inspector-view-tab,
+.nl-inspector-ontology-tab,
+.nl-inspector-maintain-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nl-view-section-header {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nl-view-property-table {
+  background-color: #12151c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.nl-view-prop-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nl-view-prop-row:last-child {
+  border-bottom: none;
+}
+
+.nl-prop-label {
+  color: #64748b;
+}
+
+.nl-prop-val {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.nl-connected-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nl-link-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  background-color: #12151c;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.nl-link-node {
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.nl-link-rel {
+  color: #64748b;
+  font-size: 10.5px;
+}
+
+/* ── ONTOLOGY TAB STYLES ── */
+.nl-ontology-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-onto-card {
+  background-color: #12151c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.nl-onto-badge {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.nl-onto-desc {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ── MAINTAIN TAB STYLES (Screenshot 1 & 3) ── */
+.nl-maintain-hero-header {
+  padding-bottom: 4px;
+}
+
+.nl-maintain-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 6px 0;
+}
+
+.nl-maintain-desc {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.nl-maintain-status-banner {
+  background-color: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+  font-size: 11.5px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.nl-maintain-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nl-maintain-card {
+  background-color: #12151c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.15s;
+}
+
+.nl-maintain-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nl-maintain-card-header:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.nl-maintain-card-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.nl-maintain-card-icon {
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.nl-maintain-card-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nl-maintain-card-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.nl-maintain-card-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.nl-maintain-arrow {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.nl-maintain-card-body {
+  padding: 0 14px 14px 38px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  padding-top: 10px;
+}
+
+.nl-maintain-card-body p {
+  margin: 0 0 10px 0;
+}
+
+.nl-maintain-action-btn {
+  background-color: #222836;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nl-maintain-action-btn:hover {
+  background-color: #2b3548;
+  color: #ffffff;
+}
+
+.nl-maintain-action-btn.danger {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.nl-maintain-action-btn.danger:hover {
+  background-color: #3b181d;
+  color: #ffffff;
+}
+
 /* ─────────────────────────────────────────────────────────────
    5. THREADS & THREAD DETAIL (Screenshot 2)
 ───────────────────────────────────────────────────────────── */
