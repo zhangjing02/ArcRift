@@ -740,3 +740,42 @@ For more information and help, consult
 https://electronjs.org/docs/tutorial/security.
 This warning will not show up
 once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:33:49.400Z] [Renderer Console] [3] Uncaught ReferenceError: AFRAME is not defined (http://127.0.0.1:3001/assets/index-4EtzYDTa.js:92)
+[2026-08-18T06:33:49.402Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:33:49.404Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:33:57.408Z] [Renderer Console] [3] Uncaught ReferenceError: AFRAME is not defined (http://127.0.0.1:3001/assets/index-4EtzYDTa.js:92)
+[2026-08-18T06:33:57.409Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:33:57.424Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)
+[2026-08-18T06:34:26.030Z] Starting ChronosMind Electron main.js...
+[2026-08-18T06:34:26.037Z] Registering app lifecycle events...
+[2026-08-18T06:34:27.336Z] app.whenReady fired!
+[2026-08-18T06:34:27.554Z] Creating BrowserWindow...
+[2026-08-18T06:34:28.526Z] Backend already active on port 3001! Loading window.
+[2026-08-18T06:34:28.528Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T06:34:28.847Z] Backend ready on attempt 1. Loading frontend.
+[2026-08-18T06:34:28.849Z] Loading frontend in window: http://127.0.0.1:3001
+[2026-08-18T06:34:28.858Z] loadURL error: Error: ERR_ABORTED (-3) loading 'http://127.0.0.1:3001/'
+[2026-08-18T06:34:37.317Z] [Renderer Console] [3] Uncaught ReferenceError: AFRAME is not defined (http://127.0.0.1:3001/assets/index-4EtzYDTa.js:92)
+[2026-08-18T06:34:37.324Z] Renderer did-finish-load successfully! UI is live.
+[2026-08-18T06:34:37.325Z] [Renderer Console] [2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged. (node:electron/js2c/sandbox_bundle:2)

@@ -20,7 +20,6 @@
     "marked": "^18.0.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-force-graph": "^1.48.2",
     "three": "^0.185.1"
   },
   "devDependencies": {
