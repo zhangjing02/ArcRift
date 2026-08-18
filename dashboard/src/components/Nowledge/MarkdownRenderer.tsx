@@ -49,8 +49,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 }) => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
+  // 0. Unescape literal \n and \t if present in raw string
+  let processedRaw = (content || "")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "");
+
   // 1. Strip duplicate top H1 title from body content if it exists
-  let bodyContent = content.trim();
+  let bodyContent = processedRaw.trim();
   if (bodyContent.startsWith("# ")) {
     const firstNewline = bodyContent.indexOf("\n");
     if (firstNewline !== -1) {
@@ -62,7 +68,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   let summaryText = "";
   
   // Try extracting from explicit summary / description blocks
-  const lines = content.split("\n");
+  const lines = processedRaw.split("\n");
   const candidates: string[] = [];
 
   for (const line of lines) {

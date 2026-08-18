@@ -109,13 +109,14 @@ export const NowledgeTopHeader: React.FC<NowledgeTopHeaderProps> = ({
   return (
     <header className="nl-top-header">
       <div className="nl-top-header-left">
-        <span className="nl-top-header-icon">{details.icon}</span>
-        <div className="nl-top-header-text">
+        <div className="nl-top-header-badge">
+          <span className="nl-top-header-icon">{details.icon}</span>
           <span className="nl-top-header-title">{details.title}</span>
-          <span className="nl-top-header-subtitle" title={details.subtitle}>
-            {details.subtitle}
-          </span>
         </div>
+        <span className="nl-top-header-sep">/</span>
+        <span className="nl-top-header-subtitle" title={details.subtitle}>
+          {details.subtitle}
+        </span>
       </div>
 
       <div className="nl-top-header-right">
