@@ -429,15 +429,16 @@ export const KnowledgeGraph3DCanvas: React.FC<KnowledgeGraph3DCanvasProps> = ({
           }
         } else if (metric === "morphology") {
           const t = (n.type || "").toLowerCase();
-          if (t === "skill" || t === "rule") {
+          const unitType = ((n as any).unit_type || (n as any).unitType || "").toLowerCase();
+          if (t === "skill" || unitType === "skill") {
             ty = 265 + (Math.random() - 0.5) * 4; // 技能
-          } else if (t === "project" || t === "entity" || t === "concept") {
+          } else if (unitType === "entity" || unitType === "ontology_entity") {
             ty = 185 + (Math.random() - 0.5) * 4; // 实体
-          } else if (t === "trace" || t === "thread" || t === "source") {
+          } else if (t === "trace" || t === "thread" || unitType === "trace" || unitType === "thread") {
             ty = 25 + (Math.random() - 0.5) * 4; // 轨迹
           } else {
-            // Default: All memories/facts/decisions strictly at 记忆单元
-            ty = 110 + (Math.random() - 0.5) * 3; // 记忆单元 (1:1 with Screenshot 3)
+            // All current memories, tags, and facts strictly reside at 记忆单元 (1:1 with Screenshot 3)
+            ty = 110 + (Math.random() - 0.5) * 3; // 记忆单元
           }
         } else if (metric === "growth") {
           // Real calendar timestamp age + micro-time rank stratification (1:1 with Nowledge Mem Screenshot)
