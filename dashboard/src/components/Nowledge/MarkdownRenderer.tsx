@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { marked } from "marked";
 import { IconMemories } from "./Icons";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 interface MarkdownRendererProps {
   content: string;
@@ -134,7 +135,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   // 3. Parse code blocks vs markdown sections
   const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
-  const parts: { type: "markdown" | "code"; lang?: string; code?: string; html?: string }[] = [];
+  const parts: { type: "markdown" | "code" | "mermaid"; lang?: string; code?: string; html?: string }[] = [];
 
   let lastIndex = 0;
   let match;
@@ -148,11 +149,20 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       });
     }
 
-    parts.push({
-      type: "code",
-      lang: match[1] || "text",
-      code: match[2],
-    });
+    const rawLang = (match[1] || "text").trim().toLowerCase();
+    if (rawLang === "mermaid" || rawLang === "mmd") {
+      parts.push({
+        type: "mermaid",
+        lang: rawLang,
+        code: match[2],
+      });
+    } else {
+      parts.push({
+        type: "code",
+        lang: match[1] || "text",
+        code: match[2],
+      });
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -198,6 +208,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                 dangerouslySetInnerHTML={{ __html: part.html || "" }}
               />
             );
+          }
+
+          if (part.type === "mermaid") {
+            return <MermaidDiagram key={idx} code={part.code || ""} />;
           }
 
           const lang = part.lang?.toUpperCase() || "CODE";
