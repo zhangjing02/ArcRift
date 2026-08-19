@@ -10,6 +10,7 @@ import fs from "fs";
 import { startWorker, clearAllJobs } from "./services/jobs";
 import { initStorage } from "./services/storage";
 import { startAutoBackup } from "./services/backup";
+import { startMemoryAutoEvaluator } from "./services/memoryAutoEvaluator";
 import { logger } from "./utils/logger";
 import contextRoutes from "./routes/context";
 import graphRoutes from "./routes/graph";
@@ -27,6 +28,7 @@ import sourcesRoutes from "./routes/sources";
 import communitiesRoutes from "./routes/communities";
 import intelligenceRoutes from "./routes/intelligence";
 import migrationRoutes from "./routes/migration";
+import skillsRoutes from "./routes/skills";
 
 
 // ── Pure SQLite Environment Initialization ──────────
@@ -114,6 +116,7 @@ app.use("/api/sources", sourcesRoutes);
 app.use("/api/communities", communitiesRoutes);
 app.use("/api/intelligence", intelligenceRoutes);
 app.use("/api/migration", migrationRoutes);
+app.use("/api/skills", skillsRoutes);
 
 // Health check — includes service status
 app.get("/health", (_req, res) => {
@@ -150,6 +153,9 @@ async function start() {
     
     // Initialize auto-backup service
     startAutoBackup();
+
+    // Start autonomous periodic memory self-evaluation & calibration
+    startMemoryAutoEvaluator();
 
     // Start background job worker for extraction tasks
     await startWorker();

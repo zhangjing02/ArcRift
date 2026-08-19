@@ -133,6 +133,7 @@ export interface Memory {
   source?: string;
   sourceApp?: string;
   temporalContext?: string;
+  isPinned?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -16,9 +16,9 @@ import {
   StatsView,
 } from "./components/Nowledge/OtherViews";
 
-import type { Session } from "./types";
+import type { Session, Memory } from "./types";
 import { useSessions } from "./hooks/useSessions";
-import { apiClient, extractErrorMessage } from "./api/ArcRift";
+import { apiClient, extractErrorMessage, getMemories } from "./api/ArcRift";
 import { LocaleProvider } from "./context/LocaleContext";
 import { NowledgeTopHeader } from "./components/Nowledge/NowledgeTopHeader";
 
@@ -26,8 +26,24 @@ const AppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>("timeline");
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [selectedMemoryTitle, setSelectedMemoryTitle] = useState<string | null>(null);
+  const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null);
+  const [pinnedMemories, setPinnedMemories] = useState<Memory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const loadPinnedMemories = async () => {
+    try {
+      const res = await getMemories();
+      const list = Array.isArray(res) ? res : (res?.memories || []);
+      setPinnedMemories(list.filter((m: Memory) => !!m.isPinned));
+    } catch (e) {
+      console.error("Failed to load pinned memories", e);
+    }
+  };
+
+  React.useEffect(() => {
+    loadPinnedMemories();
+  }, []);
 
   const {
     sessions,
@@ -68,6 +84,11 @@ const AppContent: React.FC = () => {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         threadsCount={sessions.length}
+        pinnedMemories={pinnedMemories}
+        onSelectPinnedMemory={(m) => {
+          setCurrentTab("memories");
+          setSelectedMemoryId(m.id);
+        }}
       />
 
       {/* 2. Main Workspace */}
@@ -100,6 +121,8 @@ const AppContent: React.FC = () => {
                 setSelectedMemoryTitle(null);
               }}
               onSelectedMemoryChange={(mem) => setSelectedMemoryTitle(mem ? mem.title : null)}
+              onPinnedChange={loadPinnedMemories}
+              initialSelectedMemoryId={selectedMemoryId}
             />
           )}
 

@@ -3,13 +3,13 @@
   "apiBaseUrl": "https://api.deepseek.com/v1",
   "apiKey": "sk-test-deepseek",
   "chatModel": "deepseek-chat",
-  "llmMode": "cloud",
-  "embeddingProvider": "openai-compatible",
+  "llmMode": "local",
+  "embeddingProvider": "local",
   "embeddingBaseUrl": "https://api.siliconflow.cn/v1",
   "embeddingApiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
   "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
-  "embeddingMode": "cloud",
+  "embeddingMode": "local",
   "providerConfigs": {
     "openai": {
       "apiKey": "sk-test-openai",

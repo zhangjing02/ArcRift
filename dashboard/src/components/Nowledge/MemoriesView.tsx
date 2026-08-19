@@ -11,7 +11,6 @@ import {
   IconTrash,
   IconTag,
   IconSearch,
-  IconMemories,
   IconTerminal,
   IconCategory,
   IconFolder,
@@ -19,17 +18,22 @@ import {
   IconStar,
   IconCheck,
 } from "./Icons";
+import { SessionImporterModal } from "./SessionImporterModal";
 
 interface MemoriesViewProps {
   activeSession?: Session;
   onNavigateTab: (tab: string) => void;
   onSelectedMemoryChange?: (memory: Memory | null) => void;
+  onPinnedChange?: () => void;
+  initialSelectedMemoryId?: string | null;
 }
 
 export const MemoriesView: React.FC<MemoriesViewProps> = ({
   activeSession,
   onNavigateTab,
   onSelectedMemoryChange,
+  onPinnedChange,
+  initialSelectedMemoryId,
 }) => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +53,13 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     onSelectedMemoryChange?.(selectedMemory);
   }, [selectedMemory]);
 
+  useEffect(() => {
+    if (initialSelectedMemoryId && memories.length > 0) {
+      const found = memories.find((m) => m.id === initialSelectedMemoryId);
+      if (found) setSelectedMemory(found);
+    }
+  }, [initialSelectedMemoryId, memories]);
+
   // New Memory Form
   const [formTitle, setFormTitle] = useState("");
   const [formContent, setFormContent] = useState("");
@@ -59,6 +70,16 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
   const [isAddingTag, setIsAddingTag] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchOperating, setIsBatchOperating] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" | "info" = "success") => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   useEffect(() => {
     loadData();
@@ -134,6 +155,99 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       await loadData();
     } catch (err) {
       console.error("Failed to delete memory", err);
+    }
+  };
+
+  const handleToggleArchive = async (e: React.MouseEvent, memory: Memory) => {
+    e.stopPropagation();
+    const isCurrentlyArchived = memory.claimStatus === "archived" || memory.claimStatus === "superseded";
+    const nextStatus = isCurrentlyArchived ? "asserted" : "archived";
+    try {
+      await updateMemory(memory.id, { claimStatus: nextStatus as any });
+      showToast(isCurrentlyArchived ? "已恢复至活跃记忆" : "已将该记忆归档", "success");
+      await loadData();
+    } catch (err) {
+      showToast("归档状态更新失败", "error");
+    }
+  };
+
+  const handleTogglePin = async (e: React.MouseEvent, memory: Memory) => {
+    e.stopPropagation();
+    const nextPinned = !memory.isPinned;
+    try {
+      await updateMemory(memory.id, { isPinned: nextPinned } as any);
+      showToast(nextPinned ? "已添加到左侧收藏" : "已从收藏中移除", "success");
+      await loadData();
+      onPinnedChange?.();
+    } catch (err) {
+      showToast("更新收藏状态失败", "error");
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(filteredMemories.map((m) => m.id)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchReindex = async () => {
+    if (selectedIds.size === 0 || isBatchOperating) return;
+    setIsBatchOperating(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/memories/reindex", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`已成功重建 ${data.count} 条记忆全文与向量索引！`, "success");
+        setIsSelectMode(false);
+        setSelectedIds(new Set());
+        await loadData();
+      } else {
+        showToast("重建索引失败：" + (data.error || "未知错误"), "error");
+      }
+    } catch (err: any) {
+      showToast("重建索引发生异常", "error");
+    } finally {
+      setIsBatchOperating(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0 || isBatchOperating) return;
+    if (!window.confirm(`确定要永久删除选中的 ${selectedIds.size} 条记忆吗？`)) return;
+    setIsBatchOperating(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/memories/batch-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`已成功删除 ${data.deletedCount} 条记忆！`, "success");
+        setIsSelectMode(false);
+        setSelectedIds(new Set());
+        await loadData();
+        onPinnedChange?.();
+      } else {
+        showToast("批量删除失败", "error");
+      }
+    } catch (err: any) {
+      showToast("批量删除发生异常", "error");
+    } finally {
+      setIsBatchOperating(false);
     }
   };
 
@@ -216,10 +330,10 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
   const getStarCount = (importance?: string | number): number => {
     if (typeof importance === "number") {
-      if (importance >= 0.9) return 5;
-      if (importance >= 0.75) return 4;
-      if (importance >= 0.5) return 3;
-      if (importance >= 0.3) return 2;
+      if (importance >= 0.90) return 5;
+      if (importance >= 0.72) return 4;
+      if (importance >= 0.45) return 3;
+      if (importance >= 0.25) return 2;
       return 1;
     }
     if (importance === "critical") return 5;
@@ -531,8 +645,51 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 <span>知识图谱</span>
               </button>
 
-              {/* Export & Delete Actions */}
+              {/* Export, Archive, Favorite & Delete Actions */}
               <div className="nl-sidebar-actions-row">
+                <button
+                  className={`nl-sidebar-action-btn ${selectedMemory.isPinned ? "active" : ""}`}
+                  onClick={(e) => handleTogglePin(e, selectedMemory)}
+                  style={{ color: selectedMemory.isPinned ? "#818cf8" : undefined }}
+                  title={selectedMemory.isPinned ? "取消收藏" : "收藏记忆"}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill={selectedMemory.isPinned ? "currentColor" : "none"}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ marginRight: 4 }}
+                  >
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                  </svg>
+                  <span>{selectedMemory.isPinned ? "已收藏" : "收藏"}</span>
+                </button>
+                <button
+                  className="nl-sidebar-action-btn"
+                  onClick={(e) => handleToggleArchive(e, selectedMemory)}
+                  title={selectedMemory.claimStatus === "archived" || selectedMemory.claimStatus === "superseded" ? "恢复至活跃" : "归档记忆"}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ marginRight: 4 }}
+                  >
+                    <rect width="20" height="5" x="2" y="3" rx="1" />
+                    <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                    <path d="M10 12h4" />
+                  </svg>
+                  <span>{selectedMemory.claimStatus === "archived" || selectedMemory.claimStatus === "superseded" ? "恢复" : "归档"}</span>
+                </button>
                 <button
                   className="nl-sidebar-action-btn"
                   onClick={() => {
@@ -612,8 +769,53 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   // ----------------------------------------------------
   // VIEW 2: Memory List Mode (Matches Screenshot 2)
   // ----------------------------------------------------
+  // Filter memories according to status tab (active vs archived vs all)
+  const filteredMemories = memories.filter((m) => {
+    const isArchived = m.claimStatus === "archived" || m.claimStatus === "superseded" || (m as any).isArchived;
+    if (statusFilter === "active") return !isArchived;
+    if (statusFilter === "archived") return isArchived;
+    return true;
+  });
+
   return (
     <div className="nl-memories-view">
+      {/* Session Importer Modal */}
+      <SessionImporterModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportSuccess={() => {
+          setStatusFilter("active");
+          showToast("会话导入成功！已自动同步更新活跃记忆与会话中心。", "success");
+          loadData();
+        }}
+      />
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div
+          style={{
+            position: "fixed",
+            top: "24px",
+            right: "28px",
+            zIndex: 9999,
+            backgroundColor: toastMessage.type === "error" ? "#7f1d1d" : "#064e3b",
+            color: toastMessage.type === "error" ? "#fecaca" : "#a7f3d0",
+            border: `1px solid ${toastMessage.type === "error" ? "#ef4444" : "#10b981"}`,
+            padding: "10px 18px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 500,
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>{toastMessage.type === "error" ? "✕" : "✓"}</span>
+          <span>{toastMessage.text}</span>
+        </div>
+      )}
+
       {/* View Header */}
       <div className="nl-view-header">
         <div className="nl-view-title-group">
@@ -659,86 +861,253 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
 
       {/* Control / Filter Bar */}
       <div className="nl-mem-control-bar">
-        <div className="nl-mem-left-controls">
-          <span className="nl-result-count">
-            结果 <strong>{memories.length}</strong> 条
-          </span>
-          <div className="nl-status-pill-group">
-            <button
-              className={`nl-status-pill ${statusFilter === "active" ? "active" : ""}`}
-              onClick={() => setStatusFilter("active")}
-            >
-              活跃
-            </button>
-            <button
-              className={`nl-status-pill ${statusFilter === "archived" ? "active" : ""}`}
-              onClick={() => setStatusFilter("archived")}
-            >
-              已归档
-            </button>
-            <button
-              className={`nl-status-pill ${statusFilter === "all" ? "active" : ""}`}
-              onClick={() => setStatusFilter("all")}
-            >
-              全部
-            </button>
-          </div>
-        </div>
+        {!isSelectMode ? (
+          <>
+            <div className="nl-mem-left-controls">
+              <span className="nl-result-count">
+                结果 <strong>{filteredMemories.length}</strong> 条
+              </span>
+              <button className="nl-refresh-icon-btn" title="刷新" onClick={loadData}>
+                🔄
+              </button>
+            </div>
 
-        <div className="nl-mem-right-controls">
-          <button className="nl-btn-secondary">
-            筛选
-          </button>
-          <button
-            className="nl-btn-primary"
-            onClick={() => setIsModalOpen(true)}
-          >
-            + 创建记忆
-          </button>
-          <button className="nl-btn-secondary">
-            选择
-          </button>
-        </div>
+            <div className="nl-mem-right-controls">
+              <div className="nl-status-pill-group">
+                <button
+                  className={`nl-status-pill ${statusFilter === "active" ? "active" : ""}`}
+                  onClick={() => setStatusFilter("active")}
+                >
+                  活跃
+                </button>
+                <button
+                  className={`nl-status-pill ${statusFilter === "archived" ? "active" : ""}`}
+                  onClick={() => setStatusFilter("archived")}
+                >
+                  已归档
+                </button>
+                <button
+                  className={`nl-status-pill ${statusFilter === "all" ? "active" : ""}`}
+                  onClick={() => setStatusFilter("all")}
+                >
+                  全部
+                </button>
+              </div>
+              <button className="nl-btn-secondary" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>🔀</span> 筛选 •
+              </button>
+              <button
+                className="nl-btn-primary"
+                onClick={() => setIsModalOpen(true)}
+              >
+                + 创建记忆
+              </button>
+              <button
+                className="nl-btn-secondary"
+                onClick={() => {
+                  setIsSelectMode(true);
+                  setSelectedIds(new Set());
+                }}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2"/>
+                  <path d="m7 12 2 2 3-3"/>
+                  <path d="m13 12 2 2 3-3"/>
+                </svg>
+                <span>选择</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Selection Mode Control Bar (1:1 with Screenshot 2) */}
+            <div className="nl-mem-left-controls">
+              <span className="nl-result-count">
+                结果 <strong>{filteredMemories.length}</strong> 条
+              </span>
+              <button
+                className="nl-refresh-icon-btn"
+                title="刷新"
+                onClick={loadData}
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "13px" }}
+              >
+                🔄
+              </button>
+            </div>
+
+            <div className="nl-mem-right-controls" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button className="nl-btn-secondary" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                🔀 筛选 •
+              </button>
+              <button className="nl-btn-secondary" onClick={handleSelectAll}>
+                全部
+              </button>
+              <button className="nl-btn-secondary" onClick={handleDeselectAll}>
+                无
+              </button>
+              <button
+                className="nl-btn-secondary"
+                onClick={handleBatchReindex}
+                disabled={selectedIds.size === 0 || isBatchOperating}
+                style={{ opacity: selectedIds.size === 0 ? 0.5 : 1 }}
+                title="为选中的记忆重新计算并生成全文检索 (FTS5) 与向量嵌入 (Vector Embeddings) 索引"
+              >
+                {isBatchOperating ? "索引中..." : `重建索引 (${selectedIds.size})`}
+              </button>
+              <button
+                className="nl-btn-secondary"
+                disabled={selectedIds.size === 0}
+                style={{ opacity: selectedIds.size === 0 ? 0.5 : 1 }}
+              >
+                ▾ 移动
+              </button>
+              <button
+                className="nl-btn-primary"
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || isBatchOperating}
+                style={{
+                  backgroundColor: "#ef4444",
+                  borderColor: "#dc2626",
+                  color: "#ffffff",
+                  opacity: selectedIds.size === 0 ? 0.5 : 1,
+                }}
+              >
+                删除 ({selectedIds.size})
+              </button>
+              <button
+                className="nl-btn-secondary"
+                onClick={() => {
+                  setIsSelectMode(false);
+                  setSelectedIds(new Set());
+                }}
+              >
+                ↩ 取消
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Memory Horizontal List Stream (Matching Screenshot 2) */}
-      {memories.length === 0 ? (
-        <div className="nl-empty-state-card">
-          <div className="nl-empty-state-icon">
-            <IconMemories size={36} />
+      {/* Memory Horizontal List Stream (Matching Screenshot 1 & 2) */}
+      {filteredMemories.length === 0 ? (
+        <div
+          className="nl-empty-state-card"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "100px 20px",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              backgroundColor: "rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "26px",
+              marginBottom: "18px",
+              color: "#94a3b8",
+            }}
+          >
+            💡
           </div>
-          <h2 className="nl-empty-state-title">还没有记忆</h2>
-          <p className="nl-empty-state-sub">从导入会话或连接笔记开始。</p>
-          <div className="nl-empty-state-actions">
+          <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
+            还没有记忆
+          </h2>
+          <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
+            从导入会话或连接笔记开始。
+          </p>
+          <div style={{ display: "flex", gap: "10px" }}>
             <button
               className="nl-btn-primary"
-              onClick={() => onNavigateTab("threads")}
+              style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+              onClick={() => setIsImportModalOpen(true)}
             >
               导入会话
             </button>
             <button
               className="nl-btn-secondary"
-              onClick={() => setIsModalOpen(true)}
+              style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+              onClick={() => onNavigateTab?.("settings")}
             >
-              创建记忆
+              连接笔记
             </button>
           </div>
         </div>
       ) : (
         <div className="nl-memory-list-stream">
-          {memories.map((m) => {
+          {filteredMemories.map((m) => {
             const stars = getStarCount(m.importance);
             const unitLabel = getUnitTypeLabel(m.unitType, m.category);
             const timeAgo = getTimeAgo(m.createdAt);
+            const isArchived = m.claimStatus === "archived" || m.claimStatus === "superseded";
 
             return (
               <div
                 key={m.id}
                 className="nl-memory-row-card"
-                onClick={() => setSelectedMemory(m)}
+                onClick={() => {
+                  if (isSelectMode) {
+                    handleToggleSelect(m.id);
+                  } else {
+                    setSelectedMemory(m);
+                  }
+                }}
+                style={{
+                  backgroundColor: isSelectMode && selectedIds.has(m.id) ? "rgba(99, 102, 241, 0.08)" : undefined,
+                  borderColor: isSelectMode && selectedIds.has(m.id) ? "rgba(99, 102, 241, 0.4)" : undefined,
+                }}
               >
-                <div className="nl-memory-row-left-icon">
-                  <span className="nl-mem-type-bubble">💬</span>
+                <div
+                  className="nl-memory-row-left-icon"
+                  onClick={(e) => {
+                    if (isSelectMode) {
+                      e.stopPropagation();
+                      handleToggleSelect(m.id);
+                    }
+                  }}
+                  style={{ cursor: isSelectMode ? "pointer" : "default" }}
+                >
+                  {isSelectMode ? (
+                    selectedIds.has(m.id) ? (
+                      <div
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          borderRadius: "50%",
+                          backgroundColor: "#6366f1",
+                          border: "2px solid #6366f1",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#ffffff",
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        ✓
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          borderRadius: "50%",
+                          border: "2px solid rgba(255, 255, 255, 0.35)",
+                          backgroundColor: "transparent",
+                        }}
+                      />
+                    )
+                  ) : (
+                    <span className="nl-mem-type-bubble">💬</span>
+                  )}
                 </div>
 
                 <div className="nl-memory-row-content">
@@ -784,20 +1153,53 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                   <div className="nl-row-action-buttons">
                     <button
                       className="nl-row-icon-btn"
-                      title="删除"
-                      onClick={(e) => handleDelete(e, m.id)}
+                      title={isArchived ? "恢复至活跃" : "归档记忆"}
+                      onClick={(e) => handleToggleArchive(e, m)}
                     >
-                      🗑️
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {isArchived ? (
+                          <>
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          </>
+                        ) : (
+                          <>
+                            <rect width="20" height="5" x="2" y="3" rx="1" />
+                            <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                            <path d="M10 12h4" />
+                          </>
+                        )}
+                      </svg>
                     </button>
                     <button
                       className="nl-row-icon-btn"
-                      title="置顶/收藏"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSetImportance(e, m, stars === 5 ? 3 : 5);
-                      }}
+                      title="删除"
+                      onClick={(e) => handleDelete(e, m.id)}
                     >
-                      📌
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`nl-row-icon-btn ${m.isPinned ? "pinned" : ""}`}
+                      title={m.isPinned ? "取消收藏" : "收藏记忆"}
+                      onClick={(e) => handleTogglePin(e, m)}
+                      style={{ color: m.isPinned ? "#818cf8" : undefined }}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill={m.isPinned ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                      </svg>
                     </button>
                   </div>
                 </div>

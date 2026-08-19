@@ -69,6 +69,48 @@ export async function importSession(data: any) {
   return res.data;
 }
 
+export async function scanAgentSessions() {
+  const res = await apiClient.get("/api/session/scan-agents");
+  return res.data as {
+    success: boolean;
+    totalDiscovered: number;
+    totalProjects: number;
+    groups: Array<{
+      projectName: string;
+      platform: string;
+      totalMessages: number;
+      importedCount: number;
+      sessions: Array<{
+        id: string;
+        platform: string;
+        projectName: string;
+        title: string;
+        messageCount: number;
+        updatedAt: string;
+        rawText: string;
+        messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
+        imported?: boolean;
+      }>;
+    }>;
+    sessions: Array<{
+      id: string;
+      platform: string;
+      projectName: string;
+      title: string;
+      messageCount: number;
+      updatedAt: string;
+      rawText: string;
+      messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
+      imported?: boolean;
+    }>;
+  };
+}
+
+export async function importAgentSessions(sessions: any[]) {
+  const res = await apiClient.post("/api/session/import-agent-session", { sessions });
+  return res.data as { success: boolean; importedCount: number };
+}
+
 export async function searchGlobal(prompt: string) {
   const res = await apiClient.post(`/api/rag/global`, { prompt, topN: 10 });
   return res.data as {
@@ -166,6 +208,11 @@ export async function deleteMemory(id: string) {
   return res.data as { success: boolean };
 }
 
+export async function reEvaluateMemories() {
+  const res = await apiClient.post("/api/memories/re-evaluate");
+  return res.data as { success: boolean; totalEvaluated: number; results: any[] };
+}
+
 // ── Nowledge Mem API: Working Memory Briefing ─────────────────────────
 export async function fetchWorkingMemory(sessionId: string) {
   const res = await apiClient.get(`/api/working-memory/${sessionId}`);
@@ -194,7 +241,7 @@ export async function getGraphData(sessionId?: string): Promise<{ nodes: any[]; 
   try {
     if (sessionId) {
       const data = await fetchGraphBySession(sessionId);
-      if (data && data.nodes && data.nodes.length > 0) return data;
+      return data || { nodes: [], links: [] };
     }
     const res = await apiClient.get("/api/graph/all");
     return res.data || { nodes: [], links: [] };
@@ -236,6 +283,15 @@ export async function connectToolById(toolId: string): Promise<{ success: boolea
     return res.data;
   } catch (err: any) {
     return { success: false, message: err?.response?.data?.error || "连接失败" };
+  }
+}
+
+export async function disconnectToolById(toolId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.post("/api/tools/disconnect", { toolId });
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "断开失败" };
   }
 }
 
@@ -454,6 +510,70 @@ export async function importKnowledgeBackup(data: any, mode: "merge" | "skip" | 
 export async function createSpace(projectName: string, platform: string = "desktop"): Promise<any> {
   const res = await apiClient.post("/api/context/session", { projectName, platform });
   return res.data;
+}
+
+// ── Skills (技能管理与跨智能体同步) APIs ───────────────────────────
+export async function fetchSkills(params?: { search?: string; enabled?: boolean; category?: string }): Promise<{ success: boolean; count: number; skills: any[] }> {
+  try {
+    const res = await apiClient.get("/api/skills", { params });
+    return res.data;
+  } catch {
+    return { success: false, count: 0, skills: [] };
+  }
+}
+
+export async function scanAgentSkills(): Promise<{ success: boolean; totalCount: number; byTool: Record<string, number>; skills: any[] }> {
+  try {
+    const res = await apiClient.get("/api/skills/scan-agents");
+    return res.data;
+  } catch {
+    return { success: false, totalCount: 0, byTool: {}, skills: [] };
+  }
+}
+
+export async function importAgentSkills(skillIds?: string[]): Promise<{ success: boolean; importedCount: number; message: string }> {
+  try {
+    const res = await apiClient.post("/api/skills/import-from-agents", { skillIds });
+    return res.data;
+  } catch (err: any) {
+    return { success: false, importedCount: 0, message: err?.response?.data?.error || "导入失败" };
+  }
+}
+
+export async function createSkill(skillData: any): Promise<{ success: boolean; message: string; skillId?: string }> {
+  try {
+    const res = await apiClient.post("/api/skills", skillData);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "创建失败" };
+  }
+}
+
+export async function updateSkill(id: string, skillData: any): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.put(`/api/skills/${id}`, skillData);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "更新失败" };
+  }
+}
+
+export async function toggleSkill(id: string): Promise<{ success: boolean; enabled: boolean; message: string }> {
+  try {
+    const res = await apiClient.post(`/api/skills/toggle/${id}`);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, enabled: false, message: err?.response?.data?.error || "切换状态失败" };
+  }
+}
+
+export async function deleteSkill(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await apiClient.delete(`/api/skills/${id}`);
+    return res.data;
+  } catch (err: any) {
+    return { success: false, message: err?.response?.data?.error || "删除失败" };
+  }
 }
 
 export { extractErrorMessage, apiClient };

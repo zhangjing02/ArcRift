@@ -15,12 +15,16 @@ export type NavTab =
   | "feedback"
   | "settings";
 
+import type { Memory } from "../../types";
+
 interface SidebarProps {
   currentTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   threadsCount?: number;
+  pinnedMemories?: Memory[];
+  onSelectPinnedMemory?: (memory: Memory) => void;
 }
 
 /* Minimalist Monochrome SVG Icons (1:1 with Nowledge Mem Screenshot 1) */
@@ -135,7 +139,9 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
   onTabChange,
   searchQuery,
   onSearchChange,
-  threadsCount = 0,
+  threadsCount: _threadsCount = 0,
+  pinnedMemories = [],
+  onSelectPinnedMemory,
 }) => {
   return (
     <aside className="nl-sidebar">
@@ -184,9 +190,6 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
           >
             <span className="nl-nav-icon"><IconChat /></span>
             <span className="nl-nav-text">会话记录</span>
-            {threadsCount > 0 && (
-              <span className="nl-nav-badge">{threadsCount}</span>
-            )}
           </button>
 
           <button
@@ -241,7 +244,46 @@ export const NowledgeSidebar: React.FC<SidebarProps> = ({
         {/* Pinned Section (Immediately follows Navigation) */}
         <div className="nl-pinned-section">
           <div className="nl-section-header">收藏</div>
-          <div className="nl-pinned-empty">还没有收藏</div>
+          {pinnedMemories.length === 0 ? (
+            <div className="nl-pinned-empty">还没有收藏</div>
+          ) : (
+            <div className="nl-pinned-list" style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
+              {pinnedMemories.map((m) => (
+                <button
+                  key={m.id}
+                  className="nl-nav-item"
+                  style={{
+                    padding: "6px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "#cbd5e1",
+                    fontSize: "12px",
+                  }}
+                  onClick={() => onSelectPinnedMemory?.(m)}
+                  title={m.title}
+                >
+                  <span style={{ fontSize: "12px", flexShrink: 0, opacity: 0.85 }}>💡</span>
+                  <span
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      flex: 1,
+                    }}
+                  >
+                    {m.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

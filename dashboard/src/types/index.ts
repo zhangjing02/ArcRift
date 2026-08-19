@@ -75,6 +75,9 @@ export interface Memory {
   category: MemoryCategory;
   unitType?: UnitType;
   tags: string[];
+  claimStatus?: string;
+  isArchived?: boolean;
+  isPinned?: boolean;
   source?: string;
   createdAt: string;
   updatedAt: string;

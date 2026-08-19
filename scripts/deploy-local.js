@@ -23,16 +23,20 @@ fs.copyFileSync(path.join(rootDir, "backend", "package.json"), path.join(targetB
 // Copy node_modules
 if (fs.existsSync(path.join(rootDir, "backend", "node_modules"))) {
   console.log("Copying backend node_modules (this may take a few seconds)...");
-  fs.cpSync(path.join(rootDir, "backend", "node_modules"), path.join(targetBackend, "node_modules"), { recursive: true });
+  try {
+    fs.cpSync(path.join(rootDir, "backend", "node_modules"), path.join(targetBackend, "node_modules"), { recursive: true, force: true });
+  } catch (err) {
+    console.warn("Warning during copying backend node_modules:", err.message);
+  }
 }
-// Copy env and settings
-if (fs.existsSync(path.join(rootDir, "backend", ".env.example"))) {
+// Copy env and settings (only on first install if not existing, preserving user settings)
+if (fs.existsSync(path.join(rootDir, "backend", ".env.example")) && !fs.existsSync(path.join(targetBackend, ".env"))) {
   fs.copyFileSync(path.join(rootDir, "backend", ".env.example"), path.join(targetBackend, ".env.example"));
 }
-if (fs.existsSync(path.join(rootDir, "backend", "ArcRift-settings.json"))) {
+if (fs.existsSync(path.join(rootDir, "backend", "ArcRift-settings.json")) && !fs.existsSync(path.join(targetBackend, "ArcRift-settings.json"))) {
   fs.copyFileSync(path.join(rootDir, "backend", "ArcRift-settings.json"), path.join(targetBackend, "ArcRift-settings.json"));
 }
-if (fs.existsSync(path.join(rootDir, "backend", "ChronosMind-settings.json"))) {
+if (fs.existsSync(path.join(rootDir, "backend", "ChronosMind-settings.json")) && !fs.existsSync(path.join(targetBackend, "ChronosMind-settings.json"))) {
   fs.copyFileSync(path.join(rootDir, "backend", "ChronosMind-settings.json"), path.join(targetBackend, "ChronosMind-settings.json"));
 }
 
@@ -52,7 +56,21 @@ fs.cpSync(path.join(rootDir, "extension"), targetExtension, { recursive: true })
 console.log("[4/6] Copying desktop launcher...");
 const targetDesktop = path.join(targetDir, "desktop");
 fs.mkdirSync(targetDesktop, { recursive: true });
-fs.cpSync(path.join(rootDir, "desktop"), targetDesktop, { recursive: true });
+try {
+  // Copy main desktop files
+  const desktopFiles = fs.readdirSync(path.join(rootDir, "desktop"));
+  for (const file of desktopFiles) {
+    if (file === "node_modules") {
+      if (!fs.existsSync(path.join(targetDesktop, "node_modules"))) {
+        fs.cpSync(path.join(rootDir, "desktop", "node_modules"), path.join(targetDesktop, "node_modules"), { recursive: true });
+      }
+    } else {
+      fs.cpSync(path.join(rootDir, "desktop", file), path.join(targetDesktop, file), { recursive: true });
+    }
+  }
+} catch (err) {
+  console.warn("Warning during desktop copy:", err.message);
+}
 
 // 6. Ensure data directory
 const targetData = path.join(targetDir, "data");
@@ -64,6 +82,22 @@ if (!fs.existsSync(targetData)) {
 console.log("[5/6] Generating launch scripts and documentation...");
 fs.copyFileSync(path.join(rootDir, "README.md"), path.join(targetDir, "README.md"));
 fs.copyFileSync(path.join(rootDir, "LICENSE"), path.join(targetDir, "LICENSE"));
+if (fs.existsSync(path.join(rootDir, "ArcRift.vbs"))) {
+  fs.copyFileSync(path.join(rootDir, "ArcRift.vbs"), path.join(targetDir, "ArcRift.vbs"));
+}
+if (fs.existsSync(path.join(rootDir, "ArcRift-settings.json")) && !fs.existsSync(path.join(targetDir, "ArcRift-settings.json"))) {
+  fs.copyFileSync(path.join(rootDir, "ArcRift-settings.json"), path.join(targetDir, "ArcRift-settings.json"));
+}
+if (fs.existsSync(path.join(rootDir, "icon.ico"))) {
+  fs.copyFileSync(path.join(rootDir, "icon.ico"), path.join(targetDir, "icon.ico"));
+}
+if (fs.existsSync(path.join(rootDir, "backend", "bin"))) {
+  try {
+    fs.cpSync(path.join(rootDir, "backend", "bin"), path.join(targetBackend, "bin"), { recursive: true });
+  } catch (err) {
+    console.warn("Notice: llama-server binary in use, skipping binary overwrite.");
+  }
+}
 
 // Create custom Chinese one-click launcher
 const batContent = `@echo off

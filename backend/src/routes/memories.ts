@@ -3,6 +3,10 @@ import { memoryStore, graphStore, vectorStore, sessionStore } from "../services/
 import { extractTriples } from "../services/extractor";
 import { slidingWindowChunks } from "../services/chunker";
 import { logger } from "../utils/logger";
+import { analyzeMemoryDimensions } from "../services/memoryEvaluator";
+import { getSqlite } from "../services/sqlite";
+import { getAutoEvaluatorState, runMemorySelfEvaluation } from "../services/memoryAutoEvaluator";
+import { generateEmbeddings } from "../services/embeddings";
 
 const router = Router();
 
@@ -118,6 +122,8 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const mergedLabels = Array.isArray(labels) ? labels : (Array.isArray(tags) ? tags : []);
+    const evalRes = analyzeMemoryDimensions(title || "", content);
+    const effectiveImportance = req.body.importance !== undefined ? importance : evalRes.finalScore;
 
     // 1. Create/Upsert Memory Card in SQLite
     const memory = await memoryStore.createMemory({
@@ -125,7 +131,7 @@ router.post("/", async (req: Request, res: Response) => {
       sessionId: session._id,
       title: title || (content.slice(0, 40) + (content.length > 40 ? "..." : "")),
       content,
-      importance,
+      importance: effectiveImportance,
       category,
       unitType: (unit_type || unitType) as any,
       labels: mergedLabels,
@@ -313,6 +319,178 @@ router.post("/supersede", async (req: Request, res: Response) => {
   } catch (err: any) {
     logger.error("Failed to supersede memory:", err?.message);
     res.status(500).json({ error: "Failed to supersede memory" });
+  }
+});
+
+// POST /api/memories/re-evaluate (Re-score all memories with dynamic multi-dimensional evaluation)
+router.post("/re-evaluate", async (_req: Request, res: Response) => {
+  try {
+    const memories = await memoryStore.getMemories();
+    const results: any[] = [];
+    const db = getSqlite();
+    const updateStmt = db.prepare("UPDATE memories SET importance = ?, updatedAt = ? WHERE id = ?");
+
+    for (const m of memories) {
+      const evalRes = analyzeMemoryDimensions(m.title, m.content);
+      updateStmt.run(evalRes.finalScore, new Date().toISOString(), m.id);
+      results.push({
+        id: m.id,
+        title: m.title,
+        oldScore: m.importance,
+        newScore: evalRes.finalScore,
+        starRating: evalRes.starRating,
+        level: evalRes.level,
+        dimensions: {
+          importance: evalRes.importance,
+          knowledgeDensity: evalRes.knowledgeDensity,
+          actionability: evalRes.actionability,
+          impactScope: evalRes.impactScope,
+          timelessness: evalRes.timelessness,
+        },
+        reason: evalRes.reason,
+      });
+    }
+
+    res.json({
+      success: true,
+      totalEvaluated: results.length,
+      results,
+    });
+  } catch (err: any) {
+    logger.error("Failed to re-evaluate memories:", err?.message);
+    res.status(500).json({ error: "Failed to re-evaluate memories" });
+  }
+});
+
+// GET /api/memories/auto-evaluator/status
+router.get("/auto-evaluator/status", async (_req: Request, res: Response) => {
+  try {
+    const status = getAutoEvaluatorState();
+    res.json({ success: true, ...status });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to get auto-evaluator status" });
+  }
+});
+
+// POST /api/memories/auto-evaluator/trigger
+router.post("/auto-evaluator/trigger", async (_req: Request, res: Response) => {
+  try {
+    const result = await runMemorySelfEvaluation();
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to trigger auto-evaluation" });
+  }
+});
+
+// POST /api/memories/reindex (Rebuild FTS5 and Vector embeddings for selected or all memories)
+router.post("/reindex", async (req: Request, res: Response) => {
+  const { ids } = req.body;
+  try {
+    const db = getSqlite();
+    let targetMemories: any[] = [];
+    if (Array.isArray(ids) && ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      targetMemories = db.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`).all(...ids) as any[];
+    } else {
+      targetMemories = db.prepare("SELECT * FROM memories").all() as any[];
+    }
+
+    let reindexedCount = 0;
+    for (const mem of targetMemories) {
+      let labels: string[] = [];
+      try {
+        if (mem.labels) labels = JSON.parse(mem.labels);
+      } catch {}
+
+      // 1. Refresh FTS5 full-text index
+      try {
+        db.prepare("DELETE FROM fts_memories WHERE memory_id = ?").run(mem.id);
+        db.prepare("INSERT INTO fts_memories (memory_id, title, content, labels) VALUES (?, ?, ?, ?)").run(
+          mem.id,
+          mem.title || "",
+          mem.content || "",
+          labels.join(" ")
+        );
+      } catch (ftsErr) {
+        logger.warn(`[Reindex] FTS5 error for ${mem.id}:`, ftsErr);
+      }
+
+      // 2. Refresh Vector Embeddings index
+      try {
+        const textToEmbed = `${mem.title}\n${mem.content}`;
+        const [vec] = await generateEmbeddings([textToEmbed], "document");
+        if (vec && vec.length > 0) {
+          const chunkId = `mem_chunk_${mem.id}`;
+          await vectorStore.saveChunk(chunkId, mem.sessionId || "default", mem.content, vec, {
+            memoryId: mem.id,
+            title: mem.title,
+            category: mem.category,
+            unitType: mem.unit_type,
+          });
+        }
+      } catch (vecErr) {
+        logger.debug(`[Reindex] Vector embedding skipped for ${mem.id}:`, vecErr);
+      }
+
+      reindexedCount++;
+    }
+
+    logger.success(`[Reindex] Successfully re-indexed ${reindexedCount} memory item(s)`);
+    res.json({ success: true, count: reindexedCount, message: `成功重建 ${reindexedCount} 条记忆索引` });
+  } catch (err: any) {
+    logger.error("Failed to reindex memories:", err?.message);
+    res.status(500).json({ error: "Failed to reindex memories" });
+  }
+});
+
+// POST /api/memories/batch-delete
+router.post("/batch-delete", async (req: Request, res: Response) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids array is required" });
+    return;
+  }
+
+  try {
+    const db = getSqlite();
+    let deletedCount = 0;
+    for (const id of ids) {
+      db.prepare("DELETE FROM memories WHERE id = ?").run(id);
+      try {
+        db.prepare("DELETE FROM fts_memories WHERE memory_id = ?").run(id);
+        db.prepare("DELETE FROM memory_relations WHERE source_memory_id = ? OR target_memory_id = ?").run(id, id);
+      } catch {}
+      deletedCount++;
+    }
+
+    logger.success(`[Memories] Batch deleted ${deletedCount} memory item(s)`);
+    res.json({ success: true, deletedCount });
+  } catch (err: any) {
+    logger.error("Failed to batch delete memories:", err?.message);
+    res.status(500).json({ error: "Failed to batch delete memories" });
+  }
+});
+
+// POST /api/memories/batch-move
+router.post("/batch-move", async (req: Request, res: Response) => {
+  const { ids, spaceId } = req.body;
+  if (!Array.isArray(ids) || !spaceId) {
+    res.status(400).json({ error: "ids and spaceId are required" });
+    return;
+  }
+
+  try {
+    const db = getSqlite();
+    let movedCount = 0;
+    for (const id of ids) {
+      db.prepare("UPDATE memories SET sessionId = ?, updatedAt = ? WHERE id = ?").run(spaceId, new Date().toISOString(), id);
+      movedCount++;
+    }
+
+    res.json({ success: true, movedCount });
+  } catch (err: any) {
+    logger.error("Failed to batch move memories:", err?.message);
+    res.status(500).json({ error: "Failed to batch move memories" });
   }
 });
 

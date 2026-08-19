@@ -227,6 +227,7 @@ function createTables() {
       source TEXT DEFAULT 'manual',
       source_app TEXT,
       temporal_context TEXT DEFAULT 'timeless',
+      is_pinned INTEGER DEFAULT 0,
       createdAt TEXT,
       updatedAt TEXT,
       FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
@@ -247,6 +248,10 @@ function createTables() {
       db.exec("ALTER TABLE memories ADD COLUMN source_app TEXT");
       db.exec("ALTER TABLE memories ADD COLUMN temporal_context TEXT DEFAULT 'timeless'");
       logger.info("Database migration: Added Nowledge Mem columns to memories table");
+    }
+    if (!cols.includes("is_pinned")) {
+      db.exec("ALTER TABLE memories ADD COLUMN is_pinned INTEGER DEFAULT 0");
+      logger.info("Database migration: Added is_pinned column to memories table");
     }
   } catch (e) {
     logger.warn(`Memories migration warning: ${e instanceof Error ? e.message : String(e)}`);
@@ -357,8 +362,27 @@ function createTables() {
       FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_reviews_session ON timeline_reviews(sessionId)");
-  db.exec("CREATE INDEX IF NOT EXISTS idx_reviews_status ON timeline_reviews(status)");
+  // ChronosMind / Nowledge Mem: Skills (Agent Workflows & Best Practices)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      trigger TEXT,
+      steps TEXT,
+      sourceTool TEXT,
+      sourcePath TEXT,
+      enabled INTEGER DEFAULT 1,
+      tools TEXT,
+      category TEXT,
+      rawMarkdown TEXT,
+      createdAt TEXT,
+      updatedAt TEXT
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_skills_sourceTool ON skills(sourceTool)");
 
   logger.success("All SQLite tables initialized successfully");
 }

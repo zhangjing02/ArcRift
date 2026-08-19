@@ -83,6 +83,7 @@ export class SqliteMemoryStore implements IMemoryStore {
       source: row.source || "manual",
       sourceApp: row.source_app || undefined,
       temporalContext: row.temporal_context || "timeless",
+      isPinned: row.is_pinned === 1 || row.is_pinned === true,
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt),
     };
@@ -168,13 +169,15 @@ export class SqliteMemoryStore implements IMemoryStore {
       return (await this.getMemory(id))!;
     }
 
+    const isPinned = memory.isPinned ? 1 : 0;
+
     // Insert into memories table
     this.db.prepare(`
       INSERT INTO memories (
         id, sessionId, title, content, importance, category, unit_type,
         labels, tags, claim_status, evolves_from_id, evolves_relation,
-        is_latest, source, source_app, temporal_context, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        is_latest, source, source_app, temporal_context, is_pinned, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       sessionId,
@@ -192,6 +195,7 @@ export class SqliteMemoryStore implements IMemoryStore {
       source,
       sourceApp,
       temporalContext,
+      isPinned,
       now,
       now
     );
@@ -524,6 +528,7 @@ export class SqliteMemoryStore implements IMemoryStore {
     const source = update.source !== undefined ? update.source : existing.source;
     const sourceApp = update.sourceApp !== undefined ? update.sourceApp : existing.sourceApp;
     const temporalContext = update.temporalContext !== undefined ? update.temporalContext : existing.temporalContext;
+    const isPinned = update.isPinned !== undefined ? (update.isPinned ? 1 : 0) : (existing.isPinned ? 1 : 0);
 
     this.db.prepare(`
       UPDATE memories SET
@@ -541,6 +546,7 @@ export class SqliteMemoryStore implements IMemoryStore {
         source = ?,
         source_app = ?,
         temporal_context = ?,
+        is_pinned = ?,
         updatedAt = ?
       WHERE id = ?
     `).run(
@@ -558,6 +564,7 @@ export class SqliteMemoryStore implements IMemoryStore {
       source,
       sourceApp || null,
       temporalContext,
+      isPinned,
       now,
       id
     );
