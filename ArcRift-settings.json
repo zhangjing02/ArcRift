@@ -1,5 +1,5 @@
 {
-  "chatProvider": "deepseek",
+  "chatProvider": "siliconflow",
   "apiBaseUrl": "https://api.deepseek.com/v1",
   "apiKey": "sk-test-deepseek",
   "chatModel": "deepseek-chat",
@@ -9,7 +9,7 @@
   "embeddingApiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
   "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
-  "embeddingMode": "local",
+  "embeddingMode": "cloud",
   "providerConfigs": {
     "openai": {
       "apiKey": "sk-test-openai",
@@ -32,5 +32,8 @@
   },
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
-  "ollamaExtractionModel": "deepseek-chat"
+  "ollamaExtractionModel": "deepseek-chat",
+  "userProfile": {},
+  "remoteAccess": {},
+  "preferences": {}
 }

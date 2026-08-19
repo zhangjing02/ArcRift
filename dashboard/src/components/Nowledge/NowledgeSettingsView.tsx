@@ -327,8 +327,9 @@ export const NowledgeSettingsView: React.FC = () => {
 
   const loadSettings = async () => {
     try {
-      const data = await fetchAppSettings();
-      if (data) {
+      const res = await fetchAppSettings();
+      if (res) {
+        const data = res.settings ? { ...res.settings, ...res } : res;
         if (data.chatProvider) {
           setProvider(data.chatProvider);
           setSelectedProviderId(data.chatProvider);
@@ -793,15 +794,29 @@ export const NowledgeSettingsView: React.FC = () => {
   const handleSwitchEmbeddingMode = async (mode: "local" | "cloud") => {
     setEmbeddingMode(mode);
     try {
-      await saveAppSettings({ embeddingMode: mode });
-    } catch {}
+      await saveAppSettings({
+        embeddingMode: mode,
+        embeddingProvider: mode === "local" ? "local" : "openai-compatible",
+      });
+      setSaveToast(mode === "local" ? "✓ 已切换为本地索引模型模式" : "✓ 已切换为云端索引模型模式");
+      setTimeout(() => setSaveToast(null), 3000);
+    } catch (err: any) {
+      console.error("Failed to save embedding mode", err);
+    }
   };
 
   const handleSwitchLlmMode = async (mode: "local" | "cloud") => {
     setLlmMode(mode);
     try {
-      await saveAppSettings({ llmMode: mode });
-    } catch {}
+      await saveAppSettings({
+        llmMode: mode,
+        chatProvider: mode === "local" ? "local" : (provider || "siliconflow"),
+      });
+      setSaveToast(mode === "local" ? "✓ 已切换为本地 LLM 模型模式" : "✓ 已切换为云端 LLM 服务商模式");
+      setTimeout(() => setSaveToast(null), 3000);
+    } catch (err: any) {
+      console.error("Failed to save LLM mode", err);
+    }
   };
 
   // Find model items

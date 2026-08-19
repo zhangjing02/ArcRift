@@ -1,5 +1,5 @@
 {
-  "chatProvider": "deepseek",
+  "chatProvider": "siliconflow",
   "apiBaseUrl": "https://api.deepseek.com/v1",
   "apiKey": "sk-test-deepseek",
   "chatModel": "deepseek-chat",
@@ -33,14 +33,7 @@
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
   "ollamaExtractionModel": "deepseek-chat",
-  "preferences": {
-    "themeMode": "dark",
-    "uiLanguage": "auto",
-    "fontSizeScale": "normal",
-    "launchAtLogin": false,
-    "enableMultiSpaces": true,
-    "shortcutLauncher": true,
-    "shortcutSummary": true,
-    "shortcutHints": false
-  }
+  "userProfile": {},
+  "remoteAccess": {},
+  "preferences": {}
 }

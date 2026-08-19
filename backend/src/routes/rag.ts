@@ -5,7 +5,7 @@ import { vectorStore, graphStore, sessionStore, RetrievedChunk } from "../servic
 import { extractEntitiesFromQuery, summarizeContext } from "../services/extractor";
 import { logger } from "../utils/logger";
 import { wrapInContextBlock, sanitizeChunks } from "../middleware/sanitize";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 import { getSettings } from "../utils/settings";
 
 const router = Router();
@@ -20,7 +20,7 @@ router.post("/retrieve", async (req: Request, res: Response) => {
   }
 
   // v1.4.6: Use unified validator for Mongo/SQLite IDs
-  if (!isValidObjectId(sessionId)) {
+  if (!isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }

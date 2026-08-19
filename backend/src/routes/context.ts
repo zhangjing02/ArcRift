@@ -4,7 +4,7 @@ import { extractTriples, generateProjectSummary } from "../services/extractor";
 import { sessionStore, graphStore, vectorStore } from "../services/storage";
 import { isSessionProcessing, cancelSessionJobs } from "../services/jobs";
 import { logger } from "../utils/logger";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 
 const router = Router();
 
@@ -24,7 +24,7 @@ router.post("/ingest", async (req: Request, res: Response) => {
     return;
   }
 
-  if (!isValidObjectId(sessionId)) {
+  if (!isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }
@@ -86,7 +86,7 @@ router.post("/session", async (req: Request, res: Response) => {
     }
 
     // B. Fallback: Specific ArcRift Session ID (Only if we don't have a newer identity)
-    if (!targetSession && sessionId && isValidObjectId(sessionId)) {
+    if (!targetSession && sessionId && isValidSessionId(sessionId)) {
       targetSession = await sessionStore.getSession(sessionId);
     }
 
@@ -130,7 +130,7 @@ router.post("/session", async (req: Request, res: Response) => {
 router.get("/retrieve/:sessionId", async (req: Request, res: Response) => {
   const sessionId = req.params.sessionId as string;
 
-  if (!isValidObjectId(sessionId)) {
+  if (!isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }
@@ -184,7 +184,7 @@ router.post("/active", async (req: Request, res: Response) => {
     res.status(400).json({ error: "sessionId required (can be null)" });
     return;
   }
-  if (sessionId !== null && !isValidObjectId(sessionId)) {
+  if (sessionId !== null && !isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }
@@ -227,7 +227,7 @@ router.delete("/session/:sessionId", async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   const sid = sessionId as string;
 
-  if (!isValidObjectId(sid)) {
+  if (!isValidSessionId(sid)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }

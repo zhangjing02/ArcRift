@@ -220,7 +220,8 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
           },
         });
 
-        const headerLength = parseInt(response.headers["content-length"] || "0", 10);
+        const rawLen = response.headers["content-length"];
+        const headerLength = parseInt(typeof rawLen === "string" ? rawLen : typeof rawLen === "number" ? String(rawLen) : "0", 10);
         const totalBytes = headerLength > 0 ? headerLength : meta.approxBytes;
         let downloaded = 0;
 

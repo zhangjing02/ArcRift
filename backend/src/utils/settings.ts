@@ -10,6 +10,7 @@ export type ChatProvider =
   | "gemini"
   | "groq"
   | "ollama"
+  | "local"
   | "custom";
 
 export type EmbeddingProvider =
@@ -17,6 +18,7 @@ export type EmbeddingProvider =
   | "siliconflow"
   | "gemini"
   | "ollama"
+  | "local"
   | "custom";
 
 export interface ProviderPreset {
@@ -410,18 +412,22 @@ export function getSettings(): Settings {
     | "summarized";
 
   cachedSettings = {
+    ...fileSettings,
     chatProvider,
     apiBaseUrl,
     apiKey,
     chatModel,
-    llmMode: fileSettings.llmMode || "cloud",
+    llmMode: fileSettings.llmMode || (chatProvider === "local" ? "local" : "cloud"),
     embeddingProvider,
     embeddingBaseUrl,
     embeddingApiKey,
     embeddingModel,
     embeddingDimension: fileSettings.embeddingDimension || (embeddingModel.includes("bge-m3") ? 1024 : 768),
-    embeddingMode: fileSettings.embeddingMode || "cloud",
+    embeddingMode: fileSettings.embeddingMode || (embeddingProvider === "local" ? "local" : "cloud"),
     providerConfigs: fileSettings.providerConfigs || {},
+    userProfile: fileSettings.userProfile || {},
+    remoteAccess: fileSettings.remoteAccess || {},
+    preferences: fileSettings.preferences || {},
     contextMode,
     ollamaEmbeddingModel: fileSettings.ollamaEmbeddingModel || process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text",
     ollamaExtractionModel: fileSettings.ollamaExtractionModel || process.env.OLLAMA_MODEL || "qwen2.5:3b",
@@ -432,7 +438,26 @@ export function getSettings(): Settings {
 
 export function updateSettings(settings: Partial<Settings>): Settings {
   const current = getSettings();
-  const updated: Settings = { ...current, ...settings };
+  const updated: Settings = {
+    ...current,
+    ...settings,
+    providerConfigs: {
+      ...(current.providerConfigs || {}),
+      ...(settings.providerConfigs || {}),
+    },
+    userProfile: {
+      ...(current.userProfile || {}),
+      ...(settings.userProfile || {}),
+    },
+    remoteAccess: {
+      ...(current.remoteAccess || {}),
+      ...(settings.remoteAccess || {}),
+    },
+    preferences: {
+      ...(current.preferences || {}),
+      ...(settings.preferences || {}),
+    },
+  };
 
   // Synchronize legacy fields if updated
   if (settings.embeddingModel) {

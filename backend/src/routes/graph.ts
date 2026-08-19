@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { graphStore, vectorStore, sessionStore } from "../services/storage";
 import { logger } from "../utils/logger";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 import { prune } from "../mcp/tools/prune";
 
 const router = Router();
@@ -14,7 +14,7 @@ router.get("/all", async (req: Request, res: Response) => {
 
   try {
     const filters: any = { limit: cap };
-    if (sessionId && typeof sessionId === "string" && isValidObjectId(sessionId)) {
+    if (sessionId && typeof sessionId === "string" && isValidSessionId(sessionId)) {
       filters.sessionId = sessionId;
     }
 
@@ -35,7 +35,7 @@ router.get("/all", async (req: Request, res: Response) => {
 router.get("/session/:sessionId", async (req: Request, res: Response) => {
   const sessionId = req.params.sessionId as string;
 
-  if (!isValidObjectId(sessionId)) {
+  if (!isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }

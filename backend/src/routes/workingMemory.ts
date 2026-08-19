@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { memoryStore, sessionStore, graphStore } from "../services/storage";
 import { llm } from "../services/extractor";
 import { logger } from "../utils/logger";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 
 const router = Router();
 
@@ -10,7 +10,7 @@ const router = Router();
 router.get("/:sessionId", async (req: Request, res: Response) => {
   const { sessionId } = req.params;
 
-  if (!isValidObjectId(sessionId as string)) {
+  if (!isValidSessionId(sessionId as string)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }
@@ -44,7 +44,7 @@ router.put("/:sessionId", async (req: Request, res: Response) => {
   const { sessionId } = req.params;
   const { briefing, focusAreas, activeDecisions, blockers } = req.body;
 
-  if (!isValidObjectId(sessionId as string)) {
+  if (!isValidSessionId(sessionId as string)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }
@@ -71,7 +71,7 @@ router.put("/:sessionId", async (req: Request, res: Response) => {
 router.post("/generate", async (req: Request, res: Response) => {
   const { sessionId } = req.body;
 
-  if (!sessionId || !isValidObjectId(sessionId)) {
+  if (!sessionId || !isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Valid sessionId is required" });
     return;
   }

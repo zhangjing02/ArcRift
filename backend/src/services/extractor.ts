@@ -24,6 +24,7 @@ export interface ProjectSummary {
 const CHUNK_SIZE = 2000;
 
 export function chunkText(text: string): string[] {
+  if (!text || typeof text !== "string") return [];
   const chunks: string[] = [];
   const paragraphs = text.split(/\n\n+/);
   let current = "";
@@ -39,28 +40,35 @@ export function chunkText(text: string): string[] {
   return chunks;
 }
 
+import { isModelDownloaded, getModelFilePath } from "./modelManager";
+
 // ── Smart Backend Selection & Dispatch ─────────────────────────────
-let resolvedBackend: "ollama" | "groq" | "openai-compatible" | "gemini" | null = null;
+let resolvedBackend: "ollama" | "groq" | "openai-compatible" | "gemini" | "local" | null = null;
 
 export function _resetBackendForTest() {
   resolvedBackend = null;
   resetSettingsCache();
 }
 
-async function detectBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini"> {
+export const resetBackendCache = _resetBackendForTest;
+
+async function detectBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini" | "local"> {
   const envBackend = process.env.GRAPH_BACKEND?.toLowerCase();
   if (envBackend === "groq") return "groq";
   if (envBackend === "ollama") return "ollama";
   if (envBackend === "gemini") return "gemini";
+  if (envBackend === "local") return "local";
   if (envBackend === "openai-compatible" || envBackend === "siliconflow" || envBackend === "deepseek") {
     return "openai-compatible";
   }
 
   const settings = getSettings();
+  if (settings.llmMode === "local" || settings.chatProvider === "local") {
+    return "local";
+  }
   if (settings.chatProvider === "gemini") return "gemini";
   if (settings.chatProvider === "groq") return "groq";
   if (settings.chatProvider === "ollama") return "ollama";
-  if (settings.apiKey && settings.apiKey.trim().length > 0) return "openai-compatible";
 
   // Auto-detect: probe Ollama
   try {
@@ -71,6 +79,7 @@ async function detectBackend(): Promise<"ollama" | "groq" | "openai-compatible" 
     logger.success("[ArcRift] Ollama detected — graph extraction running locally");
     return "ollama";
   } catch {
+    if (settings.apiKey && settings.apiKey.trim().length > 0) return "openai-compatible";
     if (process.env.GROQ_API_KEY) {
       logger.warn("[ArcRift] Local Ollama not available — falling back to Groq API.");
       return "groq";
@@ -79,7 +88,7 @@ async function detectBackend(): Promise<"ollama" | "groq" | "openai-compatible" 
   }
 }
 
-async function getBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini"> {
+async function getBackend(): Promise<"ollama" | "groq" | "openai-compatible" | "gemini" | "local"> {
   if (!resolvedBackend) {
     resolvedBackend = await detectBackend();
   }
@@ -206,6 +215,125 @@ async function callGroq(prompt: string, maxTokens = 1000): Promise<string> {
   );
 }
 
+// ── Local LLM Call (Ollama / Local GGUF / Offline Fallback) ─────────
+function extractOfflineRuleBasedFacts(prompt: string): string {
+  // If JSON array is requested (triples or entities)
+  if (prompt.includes("JSON") || prompt.includes("triplet") || prompt.includes("Entities:") || prompt.includes("entities")) {
+    const lines = prompt.split("\n").filter(l => l.trim().length > 0);
+    const triples: any[] = [];
+    for (const line of lines) {
+      if (
+        !line.startsWith("Prompt") &&
+        !line.startsWith("RULE") &&
+        !line.startsWith("You are") &&
+        !line.startsWith('"""') &&
+        (line.includes(":") || line.includes("=") || line.includes("使用") || line.includes("uses") || line.includes("with") || line.includes("is"))
+      ) {
+        const parts = line.split(/[:=]|使用|uses|paired with|with|is/i);
+        if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
+          const subj = parts[0].trim().replace(/^[-*•\d.]+\s*/, "").slice(0, 40);
+          const obj = parts[1].trim().slice(0, 40);
+          if (subj && obj) {
+            triples.push({
+              subject: subj,
+              subjectType: "Technology",
+              relation: "USES",
+              object: obj,
+              objectType: "Technology",
+            });
+          }
+        }
+      }
+    }
+    if (triples.length > 0) return JSON.stringify(triples);
+    return "[]";
+  }
+
+  // Bullet point fact summarization
+  const lines = prompt
+    .split("\n")
+    .map(l => l.trim().replace(/^[-*•\d.]+\s*/, ""))
+    .filter(
+      l =>
+        l.length > 10 &&
+        !l.startsWith('"""') &&
+        !l.startsWith("Prompt") &&
+        !l.startsWith("RULE") &&
+        !l.startsWith("You are") &&
+        !l.startsWith("Conversation:") &&
+        !l.startsWith("Facts:")
+    );
+
+  if (lines.length > 0) {
+    return lines.slice(0, 8).map(l => `• ${l}`).join("\n");
+  }
+  return "• 记录了当前系统配置与知识变更。";
+}
+
+async function callLocalLLM(prompt: string, maxTokens = 1000): Promise<string> {
+  const settings = getSettings();
+  const ollamaUrl =
+    (settings.apiBaseUrl?.includes("11434") ? settings.apiBaseUrl : process.env.OLLAMA_URL) ??
+    "http://localhost:11434";
+
+  // 1. Try local Ollama instance if responding
+  try {
+    const cleanUrl = ollamaUrl.replace(/\/+$/, "");
+    const model = settings.chatModel || settings.ollamaExtractionModel || "qwen2.5:3b";
+    const response = await axios.post(
+      `${cleanUrl}/api/generate`,
+      {
+        model,
+        prompt,
+        stream: false,
+        options: { num_predict: maxTokens, temperature: 0.1 },
+      },
+      { timeout: 90000 }
+    );
+    const content = response.data?.response ?? response.data?.choices?.[0]?.message?.content;
+    if (content && content.trim()) {
+      logger.info(`[ArcRift] Executed local LLM inference via Ollama (${model})`);
+      return content;
+    }
+  } catch {
+    // Ollama not reachable
+  }
+
+  // 2. Check downloaded local GGUF models on disk
+  const gemmaDownloaded = isModelDownloaded("llm_gemma");
+  const qwenDownloaded = isModelDownloaded("llm_qwen");
+  const gemmaPath = getModelFilePath("llm_gemma");
+  const qwenPath = getModelFilePath("llm_qwen");
+
+  if (gemmaDownloaded || qwenDownloaded) {
+    const modelPath = gemmaDownloaded ? gemmaPath : qwenPath;
+    logger.info(`[ArcRift] Local GGUF model ready on disk: ${modelPath}`);
+  } else {
+    logger.warn(`[ArcRift] Local LLM model not downloaded yet. Please download in 'Settings -> Models', or start Ollama.`);
+  }
+
+  // 3. Fallback to configured cloud API if available
+  const cloudApiKey = settings.apiKey || process.env.SILICONFLOW_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY;
+  if (cloudApiKey && !cloudApiKey.startsWith("sk-test")) {
+    try {
+      logger.info("[ArcRift] Local LLM offline, falling back to configured cloud API for extraction.");
+      return await callOpenAICompatible(
+        prompt,
+        settings.apiBaseUrl || "https://api.siliconflow.cn/v1",
+        cloudApiKey,
+        settings.chatModel || "deepseek-ai/DeepSeek-V3",
+        maxTokens
+      );
+    } catch (cloudErr: any) {
+      logger.warn(`[ArcRift] Cloud fallback failed (${cloudErr.message}), using offline rule extractor.`);
+    }
+  }
+
+  // 4. Offline heuristic rule-based fact & entity extraction
+  logger.info("[ArcRift] Executing offline rule-based knowledge extractor.");
+  return extractOfflineRuleBasedFacts(prompt);
+}
+
 // ── Unified LLM call with Retry & Fallback ───────────────────────────
 async function _llm(prompt: string, maxTokens = 1000): Promise<string> {
   const settings = getSettings();
@@ -223,7 +351,9 @@ async function _llm(prompt: string, maxTokens = 1000): Promise<string> {
 
       let res: string;
 
-      if (backend === "ollama") {
+      if (backend === "local") {
+        res = await callLocalLLM(prompt, maxTokens);
+      } else if (backend === "ollama") {
         try {
           res = await callOllama(prompt, maxTokens);
         } catch (err: any) {

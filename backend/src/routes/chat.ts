@@ -16,7 +16,7 @@ import { slidingWindowChunks } from "../services/chunker";
 import { sessionStore, vectorStore } from "../services/storage";
 import { enqueueJob } from "../services/jobs";
 import { logger } from "../utils/logger";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 
 const router = Router();
 
@@ -28,7 +28,7 @@ router.post("/save", async (req: Request, res: Response) => {
     res.status(400).json({ error: "rawText and sessionId are required" });
     return;
   }
-  if (!isValidObjectId(sessionId)) {
+  if (!isValidSessionId(sessionId)) {
     res.status(400).json({ error: "Invalid sessionId format" });
     return;
   }

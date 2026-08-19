@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { sessionStore, vectorStore, graphStore } from "../services/storage";
 import { logger } from "../utils/logger";
-import { isValidObjectId } from "../utils/validators";
+import { isValidSessionId } from "../utils/validators";
 
 const router = Router();
 
@@ -9,7 +9,7 @@ const router = Router();
 router.get("/export/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (!id || !isValidObjectId(id as string)) {
+  if (!id || !isValidSessionId(id as string)) {
     res.status(400).json({ error: "Invalid sessionId" });
     return;
   }

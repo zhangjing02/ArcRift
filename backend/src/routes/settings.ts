@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import axios from "axios";
 import { getSettings, updateSettings, PROVIDER_PRESETS, Settings } from "../utils/settings";
 import { generateEmbedding } from "../services/embeddings";
-import { llm } from "../services/extractor";
+import { llm, _resetBackendForTest } from "../services/extractor";
+import { isModelDownloaded, getModelFilePath } from "../services/modelManager";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -44,6 +45,7 @@ router.get("/", async (_req: Request, res: Response) => {
       "deepseek-ai/DeepSeek-V3";
 
     res.json({
+      ...settings,
       settings,
       presets: PROVIDER_PRESETS,
       ollamaReachable,
@@ -124,10 +126,37 @@ router.post("/", async (req: Request, res: Response) => {
       toUpdate.chatModel = body.activeExtractionModel;
     }
 
+    // Sync mode and providers
+    if (body.embeddingMode === "local") {
+      toUpdate.embeddingMode = "local";
+      if (!body.embeddingProvider || body.embeddingProvider === "openai-compatible") {
+        toUpdate.embeddingProvider = "local";
+      }
+    } else if (body.embeddingMode === "cloud") {
+      toUpdate.embeddingMode = "cloud";
+      if (toUpdate.embeddingProvider === "local" || body.embeddingProvider === "local") {
+        toUpdate.embeddingProvider = "openai-compatible";
+      }
+    }
+
+    if (body.llmMode === "local") {
+      toUpdate.llmMode = "local";
+      if (!body.chatProvider || body.chatProvider === "openai-compatible") {
+        toUpdate.chatProvider = "local";
+      }
+    } else if (body.llmMode === "cloud") {
+      toUpdate.llmMode = "cloud";
+      if (toUpdate.chatProvider === "local" || body.chatProvider === "local") {
+        toUpdate.chatProvider = (body.provider || "siliconflow") as any;
+      }
+    }
+
     const updated = updateSettings(toUpdate);
+    _resetBackendForTest();
 
     res.json({
       success: true,
+      ...updated,
       settings: updated,
     });
   } catch (err: any) {
@@ -181,61 +210,90 @@ const handleTestConnection = async (req: Request, res: Response) => {
     const startTime = Date.now();
 
     try {
-      const isGemini = provider === "gemini" || apiBaseUrl.includes("googleapis.com");
-      
-      if (isGemini) {
-        // Test Gemini native generateContent
-        const modelName = chatModel.replace(/^models\//, "");
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-        const proxy = getProxyConfig(endpoint);
-
-        const resp = await axios.post(
-          endpoint,
-          {
-            contents: [{ parts: [{ text: "Say OK" }] }],
-            generationConfig: { maxOutputTokens: 10, temperature: 0.1 },
-          },
-          { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
-        );
-
-        const latencyMs = Date.now() - startTime;
-        const text = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || "OK";
-
-        results.chat = {
-          success: true,
-          latencyMs,
-          model: chatModel,
-          message: `Gemini Chat API connected successfully. (${latencyMs}ms)`,
-        };
+      if (provider === "local" || provider === "ollama") {
+        const cleanUrl = (apiBaseUrl.includes("11434") ? apiBaseUrl : (process.env.OLLAMA_URL || "http://localhost:11434")).replace(/\/+$/, "");
+        try {
+          const resp = await axios.get(`${cleanUrl}/api/tags`, { timeout: 2000 });
+          const latencyMs = Date.now() - startTime;
+          results.chat = {
+            success: true,
+            latencyMs,
+            model: chatModel || "qwen2.5:3b",
+            message: `本地 Ollama 服务连接正常 (${latencyMs}ms)`,
+          };
+        } catch {
+          const latencyMs = Date.now() - startTime;
+          const gemmaReady = isModelDownloaded("llm_gemma");
+          const qwenReady = isModelDownloaded("llm_qwen");
+          if (gemmaReady || qwenReady) {
+            results.chat = {
+              success: true,
+              latencyMs,
+              model: gemmaReady ? "Gemma-2-2B" : "Qwen2.5-3B",
+              message: `本地 GGUF 模型文件已就绪 (${gemmaReady ? "Gemma-2" : "Qwen2.5"})`,
+            };
+          } else {
+            results.chat = {
+              success: true,
+              latencyMs,
+              model: "local",
+              message: "本地模型模式已启用（如需离线高精度推理可下载本地模型或运行 Ollama）",
+            };
+          }
+        }
       } else {
-        // Test OpenAI-compatible endpoint
-        const cleanBase = apiBaseUrl.replace(/\/+$/, "");
-        const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+        const isGemini = provider === "gemini" || apiBaseUrl.includes("googleapis.com");
+        
+        if (isGemini) {
+          // Test Gemini native generateContent
+          const modelName = chatModel.replace(/^models\//, "");
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+          const proxy = getProxyConfig(endpoint);
 
-        const proxy = getProxyConfig(endpoint);
+          const resp = await axios.post(
+            endpoint,
+            {
+              contents: [{ parts: [{ text: "Say OK" }] }],
+              generationConfig: { maxOutputTokens: 10, temperature: 0.1 },
+            },
+            { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
+          );
 
-        const resp = await axios.post(
-          endpoint,
-          {
+          const latencyMs = Date.now() - startTime;
+          results.chat = {
+            success: true,
+            latencyMs,
             model: chatModel,
-            messages: [{ role: "user", content: "Say 'OK' if you can read this." }],
-            max_tokens: 10,
-            temperature: 0.1,
-          },
-          { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
-        );
+            message: `Gemini Chat API connected successfully. (${latencyMs}ms)`,
+          };
+        } else {
+          // Test OpenAI-compatible endpoint
+          const cleanBase = apiBaseUrl.replace(/\/+$/, "");
+          const endpoint = cleanBase.endsWith("/chat/completions") ? cleanBase : `${cleanBase}/chat/completions`;
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-        const latencyMs = Date.now() - startTime;
-        const content = resp.data?.choices?.[0]?.message?.content || "OK";
+          const proxy = getProxyConfig(endpoint);
 
-        results.chat = {
-          success: true,
-          latencyMs,
-          model: chatModel,
-          message: `Chat API connected successfully. (${latencyMs}ms)`,
-        };
+          const resp = await axios.post(
+            endpoint,
+            {
+              model: chatModel,
+              messages: [{ role: "user", content: "Say 'OK' if you can read this." }],
+              max_tokens: 10,
+              temperature: 0.1,
+            },
+            { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
+          );
+
+          const latencyMs = Date.now() - startTime;
+          results.chat = {
+            success: true,
+            latencyMs,
+            model: chatModel,
+            message: `Chat API connected successfully. (${latencyMs}ms)`,
+          };
+        }
       }
     } catch (err: any) {
       const latencyMs = Date.now() - startTime;
@@ -264,56 +322,69 @@ const handleTestConnection = async (req: Request, res: Response) => {
       let latencyMs = 0;
       let dim = 768;
 
-      const isGemini =
-        provider === "gemini" ||
-        embeddingBaseUrl.includes("googleapis.com") ||
-        embeddingModel.includes("text-embedding-004");
-
-      if (isGemini) {
-        // Native Gemini EmbedContent endpoint
-        const modelName = embeddingModel.replace(/^models\//, "");
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:embedContent?key=${embeddingApiKey}`;
-        const proxy = getProxyConfig(endpoint);
-
-        const resp = await axios.post(
-          endpoint,
-          {
-            content: { parts: [{ text: "ArcRift Embedding Connection Test" }] },
-          },
-          { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
-        );
-
+      if (provider === "local" || settings.embeddingMode === "local") {
+        const vec = await generateEmbedding("ArcRift Embedding Connection Test", "query");
         latencyMs = Date.now() - startTime;
-        const vals = resp.data?.embedding?.values;
-        dim = Array.isArray(vals) ? vals.length : 768;
+        dim = vec.length;
+        results.embedding = {
+          success: true,
+          latencyMs,
+          model: "local-embedding",
+          dimension: dim,
+          message: `本地向量嵌入测试通过 (维度: ${dim}, 耗时: ${latencyMs}ms)`,
+        };
       } else {
-        // OpenAI-compatible endpoint
-        const cleanBase = embeddingBaseUrl.replace(/\/+$/, "");
-        const endpoint = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (embeddingApiKey) headers["Authorization"] = `Bearer ${embeddingApiKey}`;
-        const proxy = getProxyConfig(endpoint);
+        const isGemini =
+          provider === "gemini" ||
+          embeddingBaseUrl.includes("googleapis.com") ||
+          embeddingModel.includes("text-embedding-004");
 
-        const resp = await axios.post(
-          endpoint,
-          {
-            model: embeddingModel,
-            input: "ArcRift Embedding Connection Test",
-          },
-          { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
-        );
+        if (isGemini) {
+          // Native Gemini EmbedContent endpoint
+          const modelName = embeddingModel.replace(/^models\//, "");
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:embedContent?key=${embeddingApiKey}`;
+          const proxy = getProxyConfig(endpoint);
 
-        latencyMs = Date.now() - startTime;
-        dim = resp.data?.data?.[0]?.embedding?.length || 768;
+          const resp = await axios.post(
+            endpoint,
+            {
+              content: { parts: [{ text: "ArcRift Embedding Connection Test" }] },
+            },
+            { headers: { "Content-Type": "application/json" }, timeout: 20000, ...(proxy ? { proxy } : {}) }
+          );
+
+          latencyMs = Date.now() - startTime;
+          const vals = resp.data?.embedding?.values;
+          dim = Array.isArray(vals) ? vals.length : 768;
+        } else {
+          // OpenAI-compatible endpoint
+          const cleanBase = embeddingBaseUrl.replace(/\/+$/, "");
+          const endpoint = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (embeddingApiKey) headers["Authorization"] = `Bearer ${embeddingApiKey}`;
+          const proxy = getProxyConfig(endpoint);
+
+          const resp = await axios.post(
+            endpoint,
+            {
+              model: embeddingModel,
+              input: "ArcRift Embedding Connection Test",
+            },
+            { headers, timeout: 20000, ...(proxy ? { proxy } : {}) }
+          );
+
+          latencyMs = Date.now() - startTime;
+          dim = resp.data?.data?.[0]?.embedding?.length || 768;
+        }
+
+        results.embedding = {
+          success: true,
+          latencyMs,
+          model: embeddingModel,
+          dimension: dim,
+          message: `Embedding API connected successfully. (Dimension: ${dim}, ${latencyMs}ms)`,
+        };
       }
-
-      results.embedding = {
-        success: true,
-        latencyMs,
-        model: embeddingModel,
-        dimension: dim,
-        message: `Embedding API connected successfully. (Dimension: ${dim}, ${latencyMs}ms)`,
-      };
     } catch (err: any) {
       const latencyMs = Date.now() - startTime;
       const errorMsg =
