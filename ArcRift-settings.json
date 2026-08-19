@@ -9,7 +9,7 @@
   "embeddingApiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
   "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
-  "embeddingMode": "cloud",
+  "embeddingMode": "local",
   "providerConfigs": {
     "openai": {
       "apiKey": "sk-test-openai",
@@ -32,15 +32,5 @@
   },
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
-  "ollamaExtractionModel": "deepseek-chat",
-  "preferences": {
-    "themeMode": "dark",
-    "uiLanguage": "auto",
-    "fontSizeScale": "normal",
-    "launchAtLogin": false,
-    "enableMultiSpaces": true,
-    "shortcutLauncher": true,
-    "shortcutSummary": true,
-    "shortcutHints": false
-  }
+  "ollamaExtractionModel": "deepseek-chat"
 }

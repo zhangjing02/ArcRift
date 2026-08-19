@@ -5179,7 +5179,7 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   padding: 8px 14px;
-  background: #131823;
+  background: #111622;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -5228,8 +5228,10 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
+.nl-mermaid-mode-group,
 .nl-mermaid-zoom-group {
   display: flex;
   align-items: center;
@@ -5252,8 +5254,10 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   line-height: 1;
+  user-select: none;
 }
 
+.nl-mermaid-mode-group .nl-mermaid-tool-btn,
 .nl-mermaid-zoom-group .nl-mermaid-tool-btn {
   border: none;
   border-radius: 0;
@@ -5261,8 +5265,15 @@ body {
   padding: 4px 8px;
 }
 
+.nl-mermaid-mode-group .nl-mermaid-tool-btn:not(:last-child),
 .nl-mermaid-zoom-group .nl-mermaid-tool-btn:not(:last-child) {
   border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nl-mermaid-mode-group .nl-mermaid-tool-btn.active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  font-weight: 600;
 }
 
 .nl-mermaid-zoom-label {
@@ -5301,36 +5312,115 @@ body {
 /* Body & Viewport */
 .nl-mermaid-body {
   position: relative;
-  background: #090d14;
-  min-height: 120px;
+  background: #080c14;
+  min-height: 160px;
 }
 
 .nl-mermaid-viewport {
-  padding: 24px 16px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  position: relative;
+  padding: 28px 20px;
+  overflow: auto;
+  min-height: 200px;
+  max-height: 700px;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 160px;
-  background: 
-    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.04) 0%, transparent 70%),
-    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-  background-size: 100% 100%, 20px 20px, 20px 20px;
+  cursor: grab;
+  user-select: none;
+  background-color: #090d16;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 80%),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 24px 24px, 24px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) rgba(0, 0, 0, 0.2);
+}
+
+.nl-mermaid-viewport::-webkit-scrollbar,
+.nl-mermaid-modal-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.nl-mermaid-viewport::-webkit-scrollbar-track,
+.nl-mermaid-modal-viewport::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.nl-mermaid-viewport::-webkit-scrollbar-thumb,
+.nl-mermaid-modal-viewport::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+.nl-mermaid-viewport::-webkit-scrollbar-thumb:hover,
+.nl-mermaid-modal-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+.nl-mermaid-viewport.is-dragging,
+.nl-mermaid-modal-viewport.is-dragging {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
 }
 
 .nl-mermaid-svg-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  max-width: 100%;
+  width: max-content;
+  min-width: 100%;
+  margin: auto;
+  transition: transform 0.12s ease-out;
 }
 
-.nl-mermaid-svg-wrapper svg {
-  max-width: 100%;
-  height: auto;
-  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.3));
+/* 100% Actual Size Mode (Natural wide canvas) */
+.nl-mermaid-card.mode-actual .nl-mermaid-svg-wrapper svg {
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: fit-content;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.35));
+}
+
+/* Fit-to-Width Mode */
+.nl-mermaid-card.mode-fit .nl-mermaid-svg-wrapper {
+  width: 100%;
+}
+
+.nl-mermaid-card.mode-fit .nl-mermaid-svg-wrapper svg {
+  max-width: 100% !important;
+  width: 100% !important;
+  height: auto !important;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.35));
+}
+
+/* Enhanced text clarity for Mermaid SVG */
+.nl-mermaid-svg-wrapper svg text {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.nl-mermaid-svg-wrapper svg .actor {
+  font-weight: 600 !important;
+}
+
+/* Canvas Drag Tip */
+.nl-mermaid-canvas-hint {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  opacity: 0.85;
+  user-select: none;
 }
 
 /* Loading State */
@@ -5425,7 +5515,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(5, 7, 12, 0.85);
+  background: rgba(5, 7, 12, 0.88);
   backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
@@ -5440,23 +5530,23 @@ body {
 }
 
 .nl-mermaid-modal-content {
-  width: 95vw;
-  height: 90vh;
-  background: #0d111a;
+  width: 96vw;
+  height: 92vh;
+  background: #0c1018;
   border: 1px solid rgba(99, 102, 241, 0.3);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 30px rgba(99, 102, 241, 0.15);
 }
 
 .nl-mermaid-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
-  background: #131824;
+  padding: 10px 18px;
+  background: #111624;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -5473,6 +5563,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .nl-mermaid-close-btn {
@@ -5492,20 +5583,26 @@ body {
 .nl-mermaid-modal-viewport {
   flex: 1;
   overflow: auto;
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  background: 
-    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
+  cursor: grab;
+  user-select: none;
+  padding: 40px;
+  background-color: #070a10;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.06) 0%, transparent 75%),
     linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 100% 100%, 24px 24px, 24px 24px;
+  background-size: 100% 100%, 28px 28px, 28px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) rgba(0, 0, 0, 0.2);
 }
 
 .nl-mermaid-svg-wrapper.modal-mode svg {
-  max-width: none;
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+  filter: drop-shadow(0 8px 28px rgba(0, 0, 0, 0.5));
 }
 
 .nl-mem-detail-sidebar {
