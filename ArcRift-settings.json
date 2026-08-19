@@ -1,15 +1,15 @@
 {
-  "chatProvider": "siliconflow",
+  "chatProvider": "deepseek",
   "apiBaseUrl": "https://api.deepseek.com/v1",
   "apiKey": "sk-test-deepseek",
   "chatModel": "deepseek-chat",
-  "llmMode": "cloud",
+  "llmMode": "local",
   "embeddingProvider": "openai-compatible",
   "embeddingBaseUrl": "https://api.siliconflow.cn/v1",
   "embeddingApiKey": "AIzaSyCCl_7OeR3JxMtTS9M_BIl8jj0TUrEk6GM",
   "embeddingModel": "BAAI/bge-large-zh-v1.5",
   "embeddingDimension": 768,
-  "embeddingMode": "cloud",
+  "embeddingMode": "local",
   "providerConfigs": {
     "openai": {
       "apiKey": "sk-test-openai",
@@ -32,8 +32,5 @@
   },
   "contextMode": "raw",
   "ollamaEmbeddingModel": "BAAI/bge-large-zh-v1.5",
-  "ollamaExtractionModel": "deepseek-chat",
-  "userProfile": {},
-  "remoteAccess": {},
-  "preferences": {}
+  "ollamaExtractionModel": "deepseek-chat"
 }
