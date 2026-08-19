@@ -973,6 +973,8 @@ export const NowledgeSettingsView: React.FC = () => {
                       </>
                     ) : qwenModel.isDownloading ? (
                       <span className="nl-status-blue">● 下载中 {qwenModel.progress}%</span>
+                    ) : qwenModel.error ? (
+                      <span className="nl-status-red" style={{ color: "#ef4444" }}>● 下载失败</span>
                     ) : (
                       <span className="nl-status-gray">● 未安装</span>
                     )}
@@ -989,6 +991,13 @@ export const NowledgeSettingsView: React.FC = () => {
                     <span className="nl-val">{qwenModel.sizeText}</span>
                   </div>
                 </div>
+
+                {/* Error message banner */}
+                {qwenModel.error && !qwenModel.isDownloading && !qwenModel.isDownloaded && (
+                  <div style={{ marginTop: 8, padding: "6px 10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 6, fontSize: 11, color: "#f87171" }}>
+                    ⚠️ {qwenModel.error}
+                  </div>
+                )}
 
                 {/* Progress bar if downloading */}
                 {qwenModel.isDownloading && (
@@ -1025,7 +1034,7 @@ export const NowledgeSettingsView: React.FC = () => {
                       onClick={() => handleDownload("embedding_qwen")}
                       disabled={qwenModel.isDownloading}
                     >
-                      {qwenModel.isDownloading ? `⏬ 下载中 (${qwenModel.progress}%)` : `⬇ 下载 (${qwenModel.sizeText})`}
+                      {qwenModel.isDownloading ? `⏬ 下载中 (${qwenModel.progress}%)` : qwenModel.error ? `🔄 重试下载 (${qwenModel.sizeText})` : `⬇ 下载 (${qwenModel.sizeText})`}
                     </button>
                   )}
                 </div>
@@ -1046,6 +1055,8 @@ export const NowledgeSettingsView: React.FC = () => {
                       </>
                     ) : gemmaModel.isDownloading ? (
                       <span className="nl-status-blue">● 下载中 {gemmaModel.progress}%</span>
+                    ) : gemmaModel.error ? (
+                      <span className="nl-status-red" style={{ color: "#ef4444" }}>● 下载失败</span>
                     ) : (
                       <span className="nl-status-gray">● 未安装</span>
                     )}
@@ -1062,6 +1073,13 @@ export const NowledgeSettingsView: React.FC = () => {
                     <span className="nl-val">{gemmaModel.sizeText}</span>
                   </div>
                 </div>
+
+                {/* Error message banner */}
+                {gemmaModel.error && !gemmaModel.isDownloading && !gemmaModel.isDownloaded && (
+                  <div style={{ marginTop: 8, padding: "6px 10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 6, fontSize: 11, color: "#f87171" }}>
+                    ⚠️ {gemmaModel.error}
+                  </div>
+                )}
 
                 {/* Progress bar if downloading */}
                 {gemmaModel.isDownloading && (
@@ -1098,7 +1116,7 @@ export const NowledgeSettingsView: React.FC = () => {
                       onClick={() => handleDownload("llm_gemma")}
                       disabled={gemmaModel.isDownloading}
                     >
-                      {gemmaModel.isDownloading ? `⏬ 下载中 (${gemmaModel.progress}%)` : `⬇ 下载 (${gemmaModel.sizeText})`}
+                      {gemmaModel.isDownloading ? `⏬ 下载中 (${gemmaModel.progress}%)` : gemmaModel.error ? `🔄 重试下载 (${gemmaModel.sizeText})` : `⬇ 下载 (${gemmaModel.sizeText})`}
                     </button>
                   )}
                 </div>

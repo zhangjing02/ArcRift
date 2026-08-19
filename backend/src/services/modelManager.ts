@@ -34,7 +34,9 @@ const DEFINED_MODELS: Record<string, Omit<ModelMeta, "isDownloaded" | "isDownloa
     filename: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
     downloadUrls: [
       "https://modelscope.cn/models/qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/master/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "https://modelscope.cn/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/master/qwen2.5-0.5b-instruct-q4_k_m.gguf",
       "https://hf-mirror.com/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
     ],
   },
   llm_gemma: {
@@ -43,11 +45,28 @@ const DEFINED_MODELS: Record<string, Omit<ModelMeta, "isDownloaded" | "isDownloa
     type: "llm",
     category: "在设备上驱动搜索、实体提取与记忆提炼",
     sizeText: "3.9 GB",
-    approxBytes: 1.6 * 1024 * 1024 * 1024,
+    approxBytes: 1.7 * 1024 * 1024 * 1024,
     filename: "gemma-2-2b-it-q4_k_m.gguf",
     downloadUrls: [
+      "https://modelscope.cn/models/bartowski/gemma-2-2b-it-GGUF/resolve/master/gemma-2-2b-it-Q4_K_M.gguf",
+      "https://modelscope.cn/models/QuantFactory/gemma-2-2b-it-GGUF/resolve/master/gemma-2-2b-it.Q4_K_M.gguf",
       "https://hf-mirror.com/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
-      "https://modelscope.cn/models/LLM-Research/gemma-2-2b-it-GGUF/resolve/master/gemma-2-2b-it-Q4_K_M.gguf",
+      "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
+    ],
+  },
+  llm_qwen: {
+    id: "llm_qwen",
+    name: "Qwen2.5-3B-Instruct Q4_K_M",
+    type: "llm",
+    category: "本地端侧轻量高精度 LLM",
+    sizeText: "2.1 GB",
+    approxBytes: 2.1 * 1024 * 1024 * 1024,
+    filename: "qwen2.5-3b-instruct-q4_k_m.gguf",
+    downloadUrls: [
+      "https://modelscope.cn/models/qwen/Qwen2.5-3B-Instruct-GGUF/resolve/master/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "https://modelscope.cn/models/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/master/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "https://hf-mirror.com/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
     ],
   },
 };
@@ -56,6 +75,7 @@ const DEFINED_MODELS: Record<string, Omit<ModelMeta, "isDownloaded" | "isDownloa
 const activeDownloads = new Map<
   string,
   {
+    isDownloading: boolean;
     progress: number;
     speed: string;
     downloadedBytes: number;
@@ -66,13 +86,28 @@ const activeDownloads = new Map<
 >();
 
 function ensureDir(dir: string) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (err: any) {
+    logger.error(`[ModelManager] Failed to ensure directory ${dir}: ${err.message}`);
   }
 }
 
+// Ensure base directories on module load
+ensureDir(MODELS_BASE_DIR);
+ensureDir(path.join(MODELS_BASE_DIR, "embedding"));
+ensureDir(path.join(MODELS_BASE_DIR, "llm"));
+
 export function getModelFilePath(modelId: string): string | null {
-  const meta = DEFINED_MODELS[modelId];
+  let targetId = modelId;
+  if (!DEFINED_MODELS[targetId]) {
+    if (modelId === "qwen" || modelId === "embedding") targetId = "embedding_qwen";
+    else if (modelId === "gemma" || modelId === "llm") targetId = "llm_gemma";
+  }
+
+  const meta = DEFINED_MODELS[targetId];
   if (!meta) return null;
   const subDir = meta.type === "embedding" ? "embedding" : "llm";
   return path.join(MODELS_BASE_DIR, subDir, meta.filename);
@@ -99,7 +134,7 @@ export function getAllModelStatuses(): ModelMeta[] {
     results.push({
       ...def,
       isDownloaded: downloaded,
-      isDownloading: !!active && (active.progress < 100 && !active.error),
+      isDownloading: !!active?.isDownloading && !active?.error,
       progress: active ? active.progress : downloaded ? 100 : 0,
       speed: active ? active.speed : "",
       downloadedBytes: active ? active.downloadedBytes : downloaded ? def.approxBytes : 0,
@@ -112,16 +147,24 @@ export function getAllModelStatuses(): ModelMeta[] {
 }
 
 export async function startModelDownload(modelId: string): Promise<{ success: boolean; message: string }> {
-  const meta = DEFINED_MODELS[modelId];
+  // Alias mapping
+  let targetId = modelId;
+  if (!DEFINED_MODELS[targetId]) {
+    if (modelId === "qwen" || modelId === "embedding") targetId = "embedding_qwen";
+    else if (modelId === "gemma" || modelId === "llm") targetId = "llm_gemma";
+  }
+
+  const meta = DEFINED_MODELS[targetId];
   if (!meta) {
     return { success: false, message: `未知模型: ${modelId}` };
   }
 
-  if (isModelDownloaded(modelId)) {
+  if (isModelDownloaded(targetId)) {
     return { success: true, message: "模型已安装" };
   }
 
-  if (activeDownloads.has(modelId) && activeDownloads.get(modelId)?.progress! < 100) {
+  const currentActive = activeDownloads.get(targetId);
+  if (currentActive?.isDownloading && currentActive.progress < 100 && !currentActive.error) {
     return { success: true, message: "模型正在下载中" };
   }
 
@@ -132,37 +175,53 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
   const destPath = path.join(targetDir, meta.filename);
   const tempPath = destPath + ".tmp";
 
+  // Clean up any stale temp file
+  try {
+    if (fs.existsSync(tempPath)) {
+      fs.unlinkSync(tempPath);
+    }
+  } catch {}
+
   const abortController = new AbortController();
-  activeDownloads.set(modelId, {
+  activeDownloads.set(targetId, {
+    isDownloading: true,
     progress: 1,
-    speed: "0 MB/s",
+    speed: "连接中...",
     downloadedBytes: 0,
     totalBytes: meta.approxBytes,
     abortController,
+    error: undefined,
   });
 
-  logger.info(`[ModelManager] Starting real download for ${meta.name} -> ${destPath}`);
+  logger.info(`[ModelManager] Starting download for ${meta.name} -> ${destPath}`);
 
   // Background download runner
   (async () => {
-    let lastTime = Date.now();
-    let lastBytes = 0;
     let success = false;
 
     for (const url of meta.downloadUrls) {
-      if (success) break;
+      if (success || abortController.signal.aborted) break;
       try {
-        logger.info(`[ModelManager] Attempting download from: ${url}`);
+        logger.info(`[ModelManager] Attempting download from mirror: ${url}`);
+        
+        let lastTime = Date.now();
+        let lastBytes = 0;
+
         const response = await axios({
           method: "GET",
           url,
           responseType: "stream",
           signal: abortController.signal,
-          timeout: 30000,
-          maxRedirects: 5,
+          timeout: 25000,
+          maxRedirects: 10,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ArcRift-ModelManager/1.0",
+            "Accept-Encoding": "identity",
+          },
         });
 
-        const totalBytes = parseInt(response.headers["content-length"] || String(meta.approxBytes), 10);
+        const headerLength = parseInt(response.headers["content-length"] || "0", 10);
+        const totalBytes = headerLength > 0 ? headerLength : meta.approxBytes;
         let downloaded = 0;
 
         const writer = fs.createWriteStream(tempPath);
@@ -172,13 +231,14 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
           const now = Date.now();
           const timeDiff = (now - lastTime) / 1000;
 
-          if (timeDiff >= 0.5) {
+          if (timeDiff >= 0.4) {
             const bytesDiff = downloaded - lastBytes;
             const speedMbps = (bytesDiff / (1024 * 1024) / timeDiff).toFixed(1);
             const pct = Math.min(99, Math.round((downloaded / totalBytes) * 100));
 
-            activeDownloads.set(modelId, {
-              progress: pct,
+            activeDownloads.set(targetId, {
+              isDownloading: true,
+              progress: Math.max(1, pct),
               speed: `${speedMbps} MB/s`,
               downloadedBytes: downloaded,
               totalBytes,
@@ -193,9 +253,37 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
         response.data.pipe(writer);
 
         await new Promise<void>((resolve, reject) => {
+          let finished = false;
+
+          const cleanupAndReject = (err: any) => {
+            if (finished) return;
+            finished = true;
+            try { writer.close(); } catch {}
+            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+            reject(err);
+          };
+
           writer.on("finish", () => {
-            fs.renameSync(tempPath, destPath);
-            activeDownloads.set(modelId, {
+            if (finished) return;
+            finished = true;
+
+            try {
+              if (fs.existsSync(destPath)) {
+                fs.unlinkSync(destPath);
+              }
+              fs.renameSync(tempPath, destPath);
+            } catch (moveErr) {
+              try {
+                fs.copyFileSync(tempPath, destPath);
+                fs.unlinkSync(tempPath);
+              } catch (copyErr) {
+                cleanupAndReject(copyErr);
+                return;
+              }
+            }
+
+            activeDownloads.set(targetId, {
+              isDownloading: false,
               progress: 100,
               speed: "完成",
               downloadedBytes: totalBytes,
@@ -205,24 +293,32 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
             success = true;
             resolve();
           });
-          writer.on("error", (err) => {
-            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
-            reject(err);
+
+          writer.on("error", cleanupAndReject);
+          response.data.on("error", cleanupAndReject);
+
+          abortController.signal.addEventListener("abort", () => {
+            cleanupAndReject(new Error("Download aborted by user"));
           });
         });
       } catch (err: any) {
+        if (abortController.signal.aborted) {
+          logger.info(`[ModelManager] Download aborted for ${meta.name}`);
+          break;
+        }
         logger.warn(`[ModelManager] Download from ${url} failed: ${err.message}`);
         try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
       }
     }
 
-    if (!success) {
-      activeDownloads.set(modelId, {
+    if (!success && !abortController.signal.aborted) {
+      activeDownloads.set(targetId, {
+        isDownloading: false,
         progress: 0,
         speed: "",
         downloadedBytes: 0,
         totalBytes: meta.approxBytes,
-        error: "所有镜像下载尝试均失败，请检查网络连接",
+        error: "所有镜像源连接失败，请检查网络或点击重试",
       });
       logger.error(`[ModelManager] All mirrors failed for ${meta.name}`);
     }
@@ -232,17 +328,35 @@ export async function startModelDownload(modelId: string): Promise<{ success: bo
 }
 
 export function deleteModel(modelId: string): { success: boolean; message: string } {
-  const filePath = getModelFilePath(modelId);
-  if (!filePath || !fs.existsSync(filePath)) {
-    return { success: false, message: "模型文件不存在" };
+  let targetId = modelId;
+  if (!DEFINED_MODELS[targetId]) {
+    if (modelId === "qwen" || modelId === "embedding") targetId = "embedding_qwen";
+    else if (modelId === "gemma" || modelId === "llm") targetId = "llm_gemma";
+  }
+
+  const active = activeDownloads.get(targetId);
+  if (active?.abortController) {
+    active.abortController.abort();
+  }
+  activeDownloads.delete(targetId);
+
+  const filePath = getModelFilePath(targetId);
+  if (!filePath) {
+    return { success: false, message: "未知模型" };
   }
 
   try {
-    fs.unlinkSync(filePath);
-    activeDownloads.delete(modelId);
-    logger.info(`[ModelManager] Deleted model ${modelId}`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    if (fs.existsSync(filePath + ".tmp")) {
+      fs.unlinkSync(filePath + ".tmp");
+    }
+    logger.info(`[ModelManager] Deleted model ${targetId}`);
     return { success: true, message: "模型已删除" };
   } catch (err: any) {
+    logger.error(`[ModelManager] Failed to delete model ${targetId}:`, err);
     return { success: false, message: err.message };
   }
 }
+
