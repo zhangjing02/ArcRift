@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { scanAgentSessions, importAgentSessions, importMarkdownSession } from "../../api/ArcRift";
+import { extractErrorMessage } from "../../api/client";
 
 interface SessionImporterModalProps {
   isOpen: boolean;
@@ -16,6 +18,12 @@ interface DiscoveredAgentSession {
   snippet?: string;
 }
 
+interface ImportProgress {
+  current: number;
+  total: number;
+  percent: number;
+}
+
 export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
   isOpen,
   onClose,
@@ -26,27 +34,32 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isImporting, setIsImporting] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<"info" | "success" | "error">("info");
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
 
   if (!isOpen) return null;
 
   const handleScanAgents = async () => {
     setIsScanning(true);
+    setStatusType("info");
     setStatusText("正在扫描本机 AI 助手会话 (Antigravity, Codex, Claude Code, Cursor)...");
     try {
-      const res = await fetch("http://localhost:3001/api/session/scan-agents");
-      const data = await res.json();
-      if (data.success && Array.isArray(data.sessions)) {
+      const data = await scanAgentSessions();
+      if (data && data.success && Array.isArray(data.sessions)) {
         setDiscoveredSessions(data.sessions);
         // Select all by default
         const allIds = new Set<string>(data.sessions.map((s: DiscoveredAgentSession) => s.id));
         setSelectedIds(allIds);
+        setStatusType("info");
         setStatusText(`扫描完成！发现 ${data.sessions.length} 个智能体会话。`);
       } else {
+        setStatusType("info");
         setStatusText("未发现新的本地 AI 会话记录。");
       }
     } catch (err: any) {
       console.error("Failed to scan agent sessions:", err);
-      setStatusText("扫描过程发生错误，请确认后端服务正常运行。");
+      setStatusType("error");
+      setStatusText("扫描过程发生错误：" + extractErrorMessage(err));
     } finally {
       setIsScanning(false);
     }
@@ -61,27 +74,63 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
 
   const handleImportSelected = async () => {
     if (selectedIds.size === 0 || isImporting) return;
+    const toImport = discoveredSessions.filter((s) => selectedIds.has(s.id));
+    const total = toImport.length;
+    if (total === 0) return;
+
     setIsImporting(true);
-    setStatusText(`正在导入选中的 ${selectedIds.size} 个会话...`);
+    setStatusType("info");
+    setProgress({ current: 0, total, percent: 0 });
+    setStatusText(`准备导入选中的 ${total} 个会话...`);
+
     try {
-      const toImport = discoveredSessions.filter((s) => selectedIds.has(s.id));
-      const res = await fetch("http://localhost:3001/api/session/import-agent-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessions: toImport }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStatusText(`成功导入 ${data.importedCount} 个会话！`);
+      const BATCH_SIZE = 10;
+      let totalImported = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = toImport.slice(i, i + BATCH_SIZE);
+        const currentBatchEnd = Math.min(i + batch.length, total);
+        const percent = Math.round((currentBatchEnd / total) * 100);
+
+        setProgress({ current: currentBatchEnd, total, percent });
+        setStatusText(`正在导入 ${currentBatchEnd}/${total} 个会话 (${percent}%)...`);
+
+        try {
+          const res = await importAgentSessions(batch);
+          if (res && res.success) {
+            totalImported += res.importedCount;
+            if (res.errors && res.errors.length > 0) {
+              errors.push(...res.errors);
+            }
+          } else {
+            errors.push("分批导入响应未成功");
+          }
+        } catch (batchErr: any) {
+          console.error(`Batch import error [${i}..${currentBatchEnd}]:`, batchErr);
+          errors.push(extractErrorMessage(batchErr));
+        }
+      }
+
+      if (totalImported > 0) {
+        setStatusType(errors.length > 0 ? "info" : "success");
+        setStatusText(
+          errors.length > 0
+            ? `导入完成：成功 ${totalImported}/${total} 个会话，部分失败。`
+            : `成功导入全部 ${totalImported} 个会话！`
+        );
         setTimeout(() => {
           onImportSuccess?.();
           onClose();
-        }, 1200);
+        }, 1500);
       } else {
-        setStatusText("导入失败：" + (data.error || "未知错误"));
+        setStatusType("error");
+        setStatusText("导入失败：" + (errors.join("; ") || "未知错误"));
       }
     } catch (err: any) {
-      setStatusText("导入发生异常：" + err.message);
+      console.error("Import agent sessions failed:", err);
+      setStatusType("error");
+      setStatusText("导入发生异常：" + extractErrorMessage(err));
     } finally {
       setIsImporting(false);
     }
@@ -90,35 +139,38 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "single" | "batch") => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    const totalFiles = files.length;
     setIsImporting(true);
-    setStatusText(`正在读取并解析上传的 ${files.length} 个文件...`);
+    setStatusType("info");
+    setProgress({ current: 0, total: totalFiles, percent: 0 });
+    setStatusText(`正在读取并解析上传的 ${totalFiles} 个文件...`);
 
     try {
-      for (let i = 0; i < files.length; i++) {
+      let importedCount = 0;
+      for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
+        const percent = Math.round(((i + 1) / totalFiles) * 100);
+        setProgress({ current: i + 1, total: totalFiles, percent });
+        setStatusText(`正在导入第 ${i + 1}/${totalFiles} 个文件: ${file.name}...`);
+
         const text = await file.text();
         const projectName = file.name.replace(/\.[^/.]+$/, "");
 
-        // Save session
-        const sessRes = await fetch("http://localhost:3001/api/session/import-markdown", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectName,
-            platform: type === "single" ? "markdown" : "batch_import",
-            rawText: text,
-          }),
-        });
-        await sessRes.json();
+        const platform = type === "single" ? "markdown" : "batch_import";
+        await importMarkdownSession(projectName, platform, text);
+        importedCount++;
       }
 
-      setStatusText(`文件导入完成！`);
+      setStatusType("success");
+      setStatusText(`成功导入 ${importedCount} 个文件！`);
       setTimeout(() => {
         onImportSuccess?.();
         onClose();
       }, 1200);
     } catch (err: any) {
-      setStatusText("文件导入失败：" + err.message);
+      console.error("File import failed:", err);
+      setStatusType("error");
+      setStatusText("文件导入失败：" + extractErrorMessage(err));
     } finally {
       setIsImporting(false);
     }
@@ -323,18 +375,29 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
               style={{
                 width: "100%",
                 marginTop: "10px",
-                padding: "8px",
+                padding: "10px",
                 borderRadius: "6px",
                 backgroundColor: "#6366f1",
                 color: "#fff",
                 border: "none",
                 fontSize: "13px",
                 fontWeight: 500,
-                cursor: "pointer",
+                cursor: isImporting || selectedIds.size === 0 ? "not-allowed" : "pointer",
                 opacity: isImporting || selectedIds.size === 0 ? 0.6 : 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
               }}
             >
-              {isImporting ? "导入中..." : `导入选中的 ${selectedIds.size} 个会话`}
+              {isImporting ? (
+                <>
+                  <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
+                  <span>正在导入 ({progress?.current || 0}/{progress?.total || selectedIds.size})...</span>
+                </>
+              ) : (
+                `导入选中的 ${selectedIds.size} 个会话`
+              )}
             </button>
           </div>
         )}
@@ -352,18 +415,20 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
                 border: "1px solid rgba(255, 255, 255, 0.08)",
                 borderRadius: "10px",
                 padding: "16px",
-                cursor: "pointer",
+                cursor: isImporting ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
                 transition: "all 0.2s",
+                opacity: isImporting ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)")}
+              onMouseEnter={(e) => !isImporting && (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)")}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)")}
             >
               <input
                 type="file"
                 accept=".md,.markdown"
+                disabled={isImporting}
                 style={{ display: "none" }}
                 onChange={(e) => handleFileUpload(e, "single")}
               />
@@ -381,19 +446,21 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
                 border: "1px solid rgba(255, 255, 255, 0.08)",
                 borderRadius: "10px",
                 padding: "16px",
-                cursor: "pointer",
+                cursor: isImporting ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
                 transition: "all 0.2s",
+                opacity: isImporting ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)")}
+              onMouseEnter={(e) => !isImporting && (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)")}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)")}
             >
               <input
                 type="file"
                 accept=".json,.zip,.md"
                 multiple
+                disabled={isImporting}
                 style={{ display: "none" }}
                 onChange={(e) => handleFileUpload(e, "batch")}
               />
@@ -444,9 +511,52 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
           </a>
         </div>
 
+        {/* Progress bar if active */}
+        {progress && (
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#94a3b8", marginBottom: "5px" }}>
+              <span>导入进度: {progress.current} / {progress.total}</span>
+              <span>{progress.percent}%</span>
+            </div>
+            <div style={{ width: "100%", height: "6px", backgroundColor: "rgba(255, 255, 255, 0.1)", borderRadius: "3px", overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${progress.percent}%`,
+                  height: "100%",
+                  backgroundColor: statusType === "error" ? "#ef4444" : "#6366f1",
+                  borderRadius: "3px",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Status text if any */}
         {statusText && (
-          <div style={{ fontSize: "12px", color: "#38bdf8", textAlign: "center", marginBottom: "12px" }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: statusType === "error" ? "#f87171" : statusType === "success" ? "#34d399" : "#38bdf8",
+              textAlign: "center",
+              marginBottom: "12px",
+              padding: "8px 12px",
+              borderRadius: "6px",
+              backgroundColor:
+                statusType === "error"
+                  ? "rgba(239, 68, 68, 0.12)"
+                  : statusType === "success"
+                  ? "rgba(52, 211, 153, 0.12)"
+                  : "rgba(56, 189, 248, 0.12)",
+              border: `1px solid ${
+                statusType === "error"
+                  ? "rgba(239, 68, 68, 0.3)"
+                  : statusType === "success"
+                  ? "rgba(52, 211, 153, 0.3)"
+                  : "rgba(56, 189, 248, 0.3)"
+              }`,
+            }}
+          >
             {statusText}
           </div>
         )}

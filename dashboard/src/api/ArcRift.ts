@@ -108,7 +108,12 @@ export async function scanAgentSessions() {
 
 export async function importAgentSessions(sessions: any[]) {
   const res = await apiClient.post("/api/session/import-agent-session", { sessions });
-  return res.data as { success: boolean; importedCount: number };
+  return res.data as { success: boolean; importedCount: number; errors?: string[] };
+}
+
+export async function importMarkdownSession(projectName: string, platform: string, rawText: string) {
+  const res = await apiClient.post("/api/session/import-markdown", { projectName, platform, rawText });
+  return res.data as { success: boolean; sessionId: string };
 }
 
 export async function searchGlobal(prompt: string) {

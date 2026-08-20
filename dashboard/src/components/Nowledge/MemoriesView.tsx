@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Session, Memory, ImportanceLevel, MemoryCategory, UnitType } from "../../types";
 import { getMemories, createMemory, deleteMemory, updateMemory } from "../../api/ArcRift";
+import { apiClient } from "../../api/client";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import {
   IconBack,
@@ -203,22 +204,20 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     if (selectedIds.size === 0 || isBatchOperating) return;
     setIsBatchOperating(true);
     try {
-      const res = await fetch("http://localhost:3001/api/memories/reindex", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      const res = await apiClient.post("/api/memories/reindex", {
+        ids: Array.from(selectedIds),
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = res.data;
+      if (data && data.success) {
         showToast(`已成功重建 ${data.count} 条记忆全文与向量索引！`, "success");
         setIsSelectMode(false);
         setSelectedIds(new Set());
         await loadData();
       } else {
-        showToast("重建索引失败：" + (data.error || "未知错误"), "error");
+        showToast("重建索引失败：" + (data?.error || "未知错误"), "error");
       }
     } catch (err: any) {
-      showToast("重建索引发生异常", "error");
+      showToast("重建索引发生异常：" + (err?.response?.data?.error || err.message), "error");
     } finally {
       setIsBatchOperating(false);
     }
@@ -229,13 +228,11 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
     if (!window.confirm(`确定要永久删除选中的 ${selectedIds.size} 条记忆吗？`)) return;
     setIsBatchOperating(true);
     try {
-      const res = await fetch("http://localhost:3001/api/memories/batch-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      const res = await apiClient.post("/api/memories/batch-delete", {
+        ids: Array.from(selectedIds),
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = res.data;
+      if (data && data.success) {
         showToast(`已成功删除 ${data.deletedCount} 条记忆！`, "success");
         setIsSelectMode(false);
         setSelectedIds(new Set());
@@ -245,7 +242,7 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
         showToast("批量删除失败", "error");
       }
     } catch (err: any) {
-      showToast("批量删除发生异常", "error");
+      showToast("批量删除发生异常：" + (err?.response?.data?.error || err.message), "error");
     } finally {
       setIsBatchOperating(false);
     }

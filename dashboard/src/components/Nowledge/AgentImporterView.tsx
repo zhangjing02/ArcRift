@@ -118,12 +118,23 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
 
   const handleImport = async (andView = false) => {
     const targetSessions = allSessions.filter((s) => selectedIds.has(s.id));
-    if (targetSessions.length === 0) return;
+    const total = targetSessions.length;
+    if (total === 0) return;
 
     setIsImporting(true);
     try {
-      const res = await importAgentSessions(targetSessions);
-      if (res && res.success) {
+      const BATCH_SIZE = 10;
+      let totalImported = 0;
+
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = targetSessions.slice(i, i + BATCH_SIZE);
+        const res = await importAgentSessions(batch);
+        if (res && res.success) {
+          totalImported += res.importedCount;
+        }
+      }
+
+      if (totalImported > 0) {
         // Mark imported in local state
         setAllSessions((prev) =>
           prev.map((s) => (selectedIds.has(s.id) ? { ...s, imported: true } : s))
@@ -136,7 +147,7 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
           }))
         );
 
-        setToastMessage(`成功导入 ${res.importedCount} 个会话`);
+        setToastMessage(`成功导入 ${totalImported} 个会话`);
         setTimeout(() => setToastMessage(null), 4000);
 
         if (andView && activePreview) {
@@ -153,6 +164,8 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
       }
     } catch (err) {
       console.error("Import failed:", err);
+      setToastMessage("导入失败：" + (err instanceof Error ? err.message : String(err)));
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
       setIsImporting(false);
     }

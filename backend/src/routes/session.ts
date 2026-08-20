@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { sessionStore, vectorStore, graphStore } from "../services/storage";
+import { sessionStore, vectorStore, graphStore, memoryStore } from "../services/storage";
 import { logger } from "../utils/logger";
 import { isValidSessionId } from "../utils/validators";
 import path from "path";
@@ -230,41 +230,53 @@ router.post("/import-agent-session", async (req: Request, res: Response) => {
 
   try {
     let importedCount = 0;
+    const errors: string[] = [];
+
     for (const s of sessions) {
-      const projectName = s.title || "Agent 对话记录";
-      const platform = (s.platform || "gemini").toLowerCase().replace(/\s+/g, "_");
-      const rawText = s.rawText || `## User\n${s.title}\n\n### Assistant\n已通过智能体连接器同步。`;
-      const messageCount = s.messageCount || 6;
+      try {
+        const projectName = s.title || s.projectName || "Agent 对话记录";
+        const platform = (s.platform || "gemini").toLowerCase().replace(/\s+/g, "_");
+        const rawText = s.rawText || `## User\n${projectName}\n\n### Assistant\n已通过智能体连接器同步。`;
+        const messageCount = s.messageCount || (Array.isArray(s.messages) ? s.messages.length : 6);
 
-      const created = await sessionStore.createSession(projectName, platform);
-      if (created && created._id) {
-        await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
-        
-        // Auto-distill memory entry into memories table
-        try {
-          await memoryStore.createMemory({
-            sessionId: created._id,
-            title: projectName.slice(0, 50),
-            content: rawText.slice(0, 800),
-            importance: 0.55,
-            category: "Note",
-            unitType: "context",
-            tags: [s.platform || "Antigravity", "Imported"],
-            source: "agent_import",
-          });
-        } catch (mErr) {
-          logger.warn("Auto-memory create warning:", mErr);
+        const created = await sessionStore.createSession(projectName, platform);
+        if (created && created._id) {
+          await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
+          
+          // Auto-distill memory entry into memories table
+          try {
+            await memoryStore.createMemory({
+              sessionId: created._id,
+              title: projectName.slice(0, 50),
+              content: rawText.slice(0, 800),
+              importance: 0.55,
+              category: "Note",
+              unitType: "context",
+              tags: [s.platform || "Antigravity", "Imported"],
+              source: "agent_import",
+            });
+          } catch (mErr: any) {
+            logger.warn(`[Session] Auto-memory create warning for "${projectName}":`, mErr?.message || mErr);
+          }
+
+          importedCount++;
         }
-
-        importedCount++;
+      } catch (itemErr: any) {
+        logger.warn(`[Session] Failed to import session "${s?.title}":`, itemErr?.message || itemErr);
+        errors.push(itemErr?.message || "Unknown item error");
       }
     }
 
-    logger.success(`[Session] Successfully imported ${importedCount} agent session(s)`);
-    res.json({ success: true, importedCount });
+    logger.success(`[Session] Successfully imported ${importedCount}/${sessions.length} agent session(s)`);
+    res.json({
+      success: true,
+      importedCount,
+      totalRequested: sessions.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   } catch (err: any) {
-    logger.error("Import agent sessions error:", err?.message);
-    res.status(500).json({ error: "Failed to import agent sessions" });
+    logger.error("Import agent sessions error:", err?.message || err);
+    res.status(500).json({ error: "Failed to import agent sessions: " + (err?.message || "Unknown error") });
   }
 });
 
@@ -283,12 +295,28 @@ router.post("/import-markdown", async (req: Request, res: Response) => {
     const created = await sessionStore.createSession(projectName, platform);
     if (created && created._id) {
       await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
+
+      // Auto-distill memory entry into memories table
+      try {
+        await memoryStore.createMemory({
+          sessionId: created._id,
+          title: projectName.slice(0, 50),
+          content: rawText.slice(0, 800),
+          importance: 0.55,
+          category: "Note",
+          unitType: "context",
+          tags: ["Markdown", "Imported"],
+          source: "markdown_import",
+        });
+      } catch (mErr: any) {
+        logger.warn(`[Session] Auto-memory create warning for markdown "${projectName}":`, mErr?.message || mErr);
+      }
     }
 
     res.json({ success: true, sessionId: created._id });
   } catch (err: any) {
-    logger.error("Import markdown error:", err?.message);
-    res.status(500).json({ error: "Failed to import markdown" });
+    logger.error("Import markdown error:", err?.message || err);
+    res.status(500).json({ error: "Failed to import markdown: " + (err?.message || "Unknown error") });
   }
 });
 

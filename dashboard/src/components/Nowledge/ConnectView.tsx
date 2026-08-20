@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { apiClient } from "../../api/client";
 
 interface AiToolItem {
   id: string;
@@ -21,13 +22,14 @@ export const ConnectView: React.FC = () => {
   );
 
   useEffect(() => {
-    fetch("/api/settings/connect-info")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.mcpJson) {
+    apiClient
+      .get("/api/settings/connect-info")
+      .then((res) => {
+        const data = res.data;
+        if (data?.mcpJson) {
           setMcpConfig(data.mcpJson);
         }
-        if (data.prompt) {
+        if (data?.prompt) {
           setPromptText(data.prompt);
         }
       })

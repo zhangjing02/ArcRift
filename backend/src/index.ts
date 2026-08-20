@@ -42,26 +42,28 @@ validateEnv();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Body parser — MUST be before routes. Raised limit for large chat saves.
-app.use(express.json({ limit: "5mb" }));
 // Issue #3 Fix: Restrict CORS to trusted origins only
-// v1.4.7: Added localhost:3001 — dashboard is now served from the same port as the API
+// MUST be the very first middleware so errors and preflights always have CORS headers
 const ALLOWED_ORIGINS = [
   `http://localhost:${PORT}`, // Dashboard (production build — v1.4.7)
+  `http://127.0.0.1:${PORT}`,
   "http://localhost:3001",   // Default port fallback
+  "http://127.0.0.1:3001",
   "http://localhost:5173",   // Vite dashboard (dev)
   "http://localhost:5174",   // Vite dashboard (dev alt)
   "http://localhost:4173",   // Vite dashboard (preview)
   "http://tauri.localhost",
+  "tauri://localhost",
+  "app://.",
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (chrome-extension, Postman, curl)
+    // Allow requests with no origin (chrome-extension, Electron file://, Postman, curl)
     if (!origin) return callback(null, true);
     // Allow chrome-extension:// and moz-extension:// schemes
     if (origin.startsWith("chrome-extension://") || origin.startsWith("moz-extension://")) return callback(null, true);
-    // Allow any localhost origin (with or without port)
+    // Allow any localhost / 127.0.0.1 origin (with any port)
     if (origin.includes("://localhost") || origin.includes("://127.0.0.1")) return callback(null, true);
 
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
@@ -69,7 +71,12 @@ app.use(cors({
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-ArcRift-Secret"],
+  credentials: true,
 }));
+
+// Body parser — Support large batch session & chat imports (up to 100MB)
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 // Issue #13 Fix: Rate limiting to prevent abuse of the expensive LLM pipeline
 // Global limiter: 200 requests per minute per IP across all endpoints
 const globalLimiter = rateLimit({
@@ -128,6 +135,19 @@ app.get("/health", (_req, res) => {
       port: PORT,
     },
   });
+});
+
+// API Error Handler (e.g. body-parser errors, unexpected errors)
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+  logger.error("[ArcRift] API Error Handler:", err?.message || err);
+  if (err?.type === "entity.too.large" || err?.status === 413) {
+    res.status(413).json({ error: "Payload too large. Please import in smaller batches." });
+    return;
+  }
+  res.status(err?.status || 500).json({ error: err?.message || "Internal server error" });
 });
 
 // ── Serve production dashboard build via express.static ─────────────
