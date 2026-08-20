@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
-import { sessionStore, vectorStore, graphStore, memoryStore } from "../services/storage";
+import { sessionStore, graphStore } from "../services/storage";
+import { getSqlite } from "../services/sqlite";
 import { logger } from "../utils/logger";
 import { isValidSessionId } from "../utils/validators";
 import path from "path";
@@ -63,6 +64,7 @@ function formatSessionTime(date: Date): { formatted: string; relative: string; t
 // Helper to convert Antigravity transcript.jsonl into clean readable Markdown and turns
 function parseAntigravityTranscript(content: string, convId: string, mtime: Date): {
   id: string;
+  externalChatId: string;
   projectName: string;
   platform: string;
   title: string;
@@ -136,9 +138,11 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
 
   const markdown = messages.map(m => `## ${m.role}\n${m.text}`).join("\n\n");
   const timeInfo = formatSessionTime(mtime || new Date());
+  const externalChatId = `antigravity_${convId}`;
 
   return {
-    id: `antigravity_${convId}`,
+    id: externalChatId,
+    externalChatId,
     projectName,
     platform: "Antigravity",
     title: title || `Antigravity 对话 (${convId.slice(0, 8)})`,
@@ -156,10 +160,31 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
   try {
     const userHome = os.homedir();
     const discovered: any[] = [];
-    const existingSessions = await sessionStore.getSessions();
-    const existingNames = new Set(existingSessions.map(s => s.projectName));
+    const db = getSqlite();
 
-    // 1. Scan Nowledge Mem / Antigravity unsynced queue
+    // 1. Fetch current database sessions and full chat stats for accurate status matching
+    const existingSessions = await sessionStore.getSessions();
+    const fullChatRows = db.prepare("SELECT sessionId, messageCount, LENGTH(rawText) as textLen FROM full_chats").all() as any[];
+    const chatStatsMap = new Map<string, { messageCount: number; textLen: number }>();
+    for (const fc of fullChatRows) {
+      chatStatsMap.set(fc.sessionId, fc);
+    }
+
+    const sessionByExtId = new Map<string, any>();
+    const sessionById = new Map<string, any>();
+    const sessionByName = new Map<string, any>();
+
+    for (const s of existingSessions) {
+      if (s.externalChatId) {
+        sessionByExtId.set(s.externalChatId.toLowerCase(), s);
+      }
+      sessionById.set(s._id, s);
+      if (s.projectName) {
+        sessionByName.set(s.projectName.trim().toLowerCase(), s);
+      }
+    }
+
+    // 2. Scan Nowledge Mem / Antigravity unsynced queue
     const unsyncedPath = path.join(userHome, ".nowledge-mem", "plugins", "antigravity", "unsynced.json");
     if (fs.existsSync(unsyncedPath)) {
       try {
@@ -168,12 +193,16 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
         for (const [id, item] of Object.entries<any>(unsyncedMap)) {
           const itemTitle = item.title || item.summary || "Antigravity Session";
           const timeInfo = formatSessionTime(new Date());
+          const extId = `antigravity_${id}`;
+          const msgCount = Array.isArray(item.messages) ? item.messages.length : (item.messageCount || 10);
+
           discovered.push({
-            id: `antigravity_${id}`,
+            id: extId,
+            externalChatId: extId,
             platform: "Antigravity",
             projectName: "Antigravity",
             title: itemTitle,
-            messageCount: Array.isArray(item.messages) ? item.messages.length : (item.messageCount || 10),
+            messageCount: msgCount,
             updatedAt: timeInfo.formatted,
             relativeTime: timeInfo.relative,
             timestamp: timeInfo.timestamp,
@@ -184,7 +213,6 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
               ? item.messages.map((m: any) => ({ role: m.role === "assistant" ? "Assistant" : "User", text: m.content || "" }))
               : [{ role: "User", text: item.content || "" }],
             sourcePath: unsyncedPath,
-            imported: existingNames.has(itemTitle),
           });
         }
       } catch (err) {
@@ -192,7 +220,7 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
       }
     }
 
-    // 2. Scan Google Antigravity Brain logs directory
+    // 3. Scan Google Antigravity Brain logs directory
     const brainDir = path.join(userHome, ".gemini", "antigravity", "brain");
     if (fs.existsSync(brainDir)) {
       try {
@@ -210,6 +238,7 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
 
               discovered.push({
                 id: parsed.id,
+                externalChatId: parsed.externalChatId,
                 platform: parsed.platform,
                 projectName: parsed.projectName,
                 title: parsed.title,
@@ -220,7 +249,6 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
                 sourcePath: transcriptPath,
                 rawText: parsed.markdown,
                 messages: parsed.messages,
-                imported: existingNames.has(parsed.title),
               });
             } catch {}
           }
@@ -230,18 +258,20 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
       }
     }
 
-    // 3. Scan Claude Code / Codex if present
+    // 4. Scan Codex / Claude Code if present
     const codexDir = path.join(userHome, ".codex", "sessions");
     if (fs.existsSync(codexDir)) {
       try {
         const files = fs.readdirSync(codexDir).filter(f => f.endsWith(".json") || f.endsWith(".md"));
-        for (const f of files.slice(0, 15)) {
+        for (const f of files.slice(0, 20)) {
           const fp = path.join(codexDir, f);
           const stat = fs.statSync(fp);
           const fTitle = f.replace(/\.[^.]+$/, "");
           const timeInfo = formatSessionTime(stat.mtime);
+          const extId = `codex_${f}`;
           discovered.push({
-            id: `codex_${f}`,
+            id: extId,
+            externalChatId: extId,
             platform: "Codex",
             projectName: "CodexBridge",
             title: fTitle,
@@ -252,10 +282,33 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
             sourcePath: fp,
             rawText: fs.readFileSync(fp, "utf-8"),
             messages: [{ role: "User", text: fs.readFileSync(fp, "utf-8") }],
-            imported: existingNames.has(fTitle),
           });
         }
       } catch {}
+    }
+
+    // 5. Match discovered items with database sessions to accurately flag imported & update states
+    for (const s of discovered) {
+      const extId = (s.externalChatId || s.id || "").toLowerCase();
+      const matched =
+        sessionByExtId.get(extId) ||
+        sessionById.get(s.id) ||
+        sessionByExtId.get(s.id.toLowerCase()) ||
+        sessionByName.get((s.title || "").trim().toLowerCase()) ||
+        sessionByName.get((s.projectName || "").trim().toLowerCase());
+
+      if (matched) {
+        const fc = chatStatsMap.get(matched._id);
+        const dbMsgCount = fc ? fc.messageCount : (matched.topicCount || 0);
+        s.imported = true;
+        s.dbSessionId = matched._id;
+        s.dbMessageCount = dbMsgCount;
+        s.hasNewMessages = s.messageCount > dbMsgCount;
+      } else {
+        s.imported = false;
+        s.dbMessageCount = 0;
+        s.hasNewMessages = false;
+      }
     }
 
     // Sort discovered sessions by timestamp descending (newest first)
@@ -272,6 +325,7 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
           totalMessages: 0,
           sessions: [],
           importedCount: 0,
+          hasNewMessagesCount: 0,
           latestUpdate: s.updatedAt,
           latestTimestamp: s.timestamp || 0,
         });
@@ -280,6 +334,7 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
       g.sessions.push(s);
       g.totalMessages += s.messageCount;
       if (s.imported) g.importedCount++;
+      if (s.hasNewMessages) g.hasNewMessagesCount = (g.hasNewMessagesCount || 0) + 1;
       if ((s.timestamp || 0) > (g.latestTimestamp || 0)) {
         g.latestTimestamp = s.timestamp || 0;
         g.latestUpdate = s.updatedAt;
@@ -312,47 +367,104 @@ router.post("/import-agent-session", async (req: Request, res: Response) => {
   }
 
   try {
-    let importedCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
     const errors: string[] = [];
 
     for (const s of sessions) {
       try {
-        const projectName = s.title || s.projectName || "Agent 对话记录";
-        const platform = (s.platform || "gemini").toLowerCase().replace(/\s+/g, "_");
-        const rawText = s.rawText || `## User\n${projectName}\n\n### Assistant\n已通过智能体连接器同步。`;
-        const messageCount = s.messageCount || (Array.isArray(s.messages) ? s.messages.length : 6);
+        const externalChatId = s.externalChatId || s.id;
+        const projectName = (s.projectName || s.title || "Agent 对话记录").trim();
+        const title = (s.title || projectName).trim();
+        const platform = (s.platform || "Antigravity").toLowerCase().replace(/\s+/g, "_");
+        const rawText = s.rawText || (Array.isArray(s.messages)
+          ? s.messages.map((m: any) => `## ${m.role || "User"}\n${m.text || m.content || ""}`).join("\n\n")
+          : `## User\n${title}\n\n### Assistant\n已通过智能体连接器同步。`);
+        const messageCount = s.messageCount || (Array.isArray(s.messages) ? s.messages.length : 2);
 
-        const created = await sessionStore.createSession(projectName, platform);
-        if (created && created._id) {
-          await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
-          
-          // Auto-distill memory entry into memories table
-          try {
-            await memoryStore.createMemory({
-              sessionId: created._id,
-              title: projectName.slice(0, 50),
-              content: rawText.slice(0, 800),
-              importance: 0.55,
-              category: "Note",
-              unitType: "context",
-              tags: [s.platform || "Antigravity", "Imported"],
-              source: "agent_import",
+        // 1. Multi-dimensional lookup for existing session
+        let existing = externalChatId ? await sessionStore.getSessionByExternalId(externalChatId) : null;
+        if (!existing && s.id) {
+          existing = await sessionStore.getSession(s.id);
+        }
+        if (!existing && externalChatId) {
+          existing = await sessionStore.getSession(externalChatId);
+        }
+        if (!existing && projectName) {
+          existing = await sessionStore.getSessionByName(projectName);
+        }
+        if (!existing && title && title !== projectName) {
+          existing = await sessionStore.getSessionByName(title);
+        }
+
+        if (existing) {
+          const existingFullChat = await sessionStore.getFullChat(existing._id);
+          if (existingFullChat) {
+            const isIdentical =
+              existingFullChat.rawText.trim() === rawText.trim() ||
+              (existingFullChat.messageCount >= messageCount && existingFullChat.rawText.length >= rawText.length);
+
+            if (isIdentical) {
+              // Ensure externalChatId is backfilled if not set
+              if (!existing.externalChatId && externalChatId) {
+                await sessionStore.updateSession(existing._id, { externalChatId });
+              }
+              skippedCount++;
+            } else {
+              // Incremental merge update with new messages
+              await sessionStore.updateFullChat(existing._id, {
+                rawText,
+                messageCount,
+                platform,
+              });
+              await sessionStore.updateSession(existing._id, {
+                hasFullChat: true,
+                topicCount: messageCount,
+                updatedAt: new Date(),
+                ...(externalChatId && !existing.externalChatId ? { externalChatId } : {}),
+              });
+              updatedCount++;
+            }
+          } else {
+            // Existing session without fullChat record
+            await sessionStore.saveFullChat(existing._id, rawText, messageCount, platform);
+            await sessionStore.updateSession(existing._id, {
+              hasFullChat: true,
+              topicCount: messageCount,
+              updatedAt: new Date(),
+              ...(externalChatId && !existing.externalChatId ? { externalChatId } : {}),
             });
-          } catch (mErr: any) {
-            logger.warn(`[Session] Auto-memory create warning for "${projectName}":`, mErr?.message || mErr);
+            updatedCount++;
           }
-
-          importedCount++;
+        } else {
+          // Create brand new session
+          const created = await sessionStore.createSession(projectName, platform, externalChatId, s.id);
+          if (created && created._id) {
+            await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
+            await sessionStore.updateSession(created._id, {
+              hasFullChat: true,
+              topicCount: messageCount,
+            });
+            createdCount++;
+          }
         }
       } catch (itemErr: any) {
-        logger.warn(`[Session] Failed to import session "${s?.title}":`, itemErr?.message || itemErr);
+        logger.warn(`[Session] Failed to process session "${s?.title}":`, itemErr?.message || itemErr);
         errors.push(itemErr?.message || "Unknown item error");
       }
     }
 
-    logger.success(`[Session] Successfully imported ${importedCount}/${sessions.length} agent session(s)`);
+    const importedCount = createdCount + updatedCount;
+    logger.success(
+      `[Session] Agent sessions processed: ${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped (${sessions.length} total)`
+    );
+
     res.json({
       success: true,
+      createdCount,
+      updatedCount,
+      skippedCount,
       importedCount,
       totalRequested: sessions.length,
       errors: errors.length > 0 ? errors : undefined,
@@ -365,7 +477,7 @@ router.post("/import-agent-session", async (req: Request, res: Response) => {
 
 // POST /api/session/import-markdown
 router.post("/import-markdown", async (req: Request, res: Response) => {
-  const { projectName, platform = "markdown", rawText } = req.body;
+  const { projectName, platform = "markdown", rawText, externalChatId } = req.body;
   if (!projectName || !rawText) {
     res.status(400).json({ error: "projectName and rawText are required" });
     return;
@@ -373,30 +485,94 @@ router.post("/import-markdown", async (req: Request, res: Response) => {
 
   try {
     const lines = rawText.split("\n");
-    const messageCount = (rawText.match(/##\s+(User|Assistant|Human|AI)/gi) || []).length || Math.max(2, Math.round(lines.length / 10));
+    const messageCount =
+      (rawText.match(/##\s+(User|Assistant|Human|AI)/gi) || []).length ||
+      Math.max(2, Math.round(lines.length / 10));
 
-    const created = await sessionStore.createSession(projectName, platform);
-    if (created && created._id) {
-      await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
-
-      // Auto-distill memory entry into memories table
-      try {
-        await memoryStore.createMemory({
-          sessionId: created._id,
-          title: projectName.slice(0, 50),
-          content: rawText.slice(0, 800),
-          importance: 0.55,
-          category: "Note",
-          unitType: "context",
-          tags: ["Markdown", "Imported"],
-          source: "markdown_import",
-        });
-      } catch (mErr: any) {
-        logger.warn(`[Session] Auto-memory create warning for markdown "${projectName}":`, mErr?.message || mErr);
-      }
+    // Check if session already exists
+    let existing = externalChatId ? await sessionStore.getSessionByExternalId(externalChatId) : null;
+    if (!existing) {
+      existing = await sessionStore.getSessionByName(projectName);
     }
 
-    res.json({ success: true, sessionId: created._id });
+    if (existing) {
+      const existingFullChat = await sessionStore.getFullChat(existing._id);
+      if (existingFullChat) {
+        const isIdentical =
+          existingFullChat.rawText.trim() === rawText.trim() ||
+          (existingFullChat.messageCount >= messageCount && existingFullChat.rawText.length >= rawText.length);
+
+        if (isIdentical) {
+          if (!existing.externalChatId && externalChatId) {
+            await sessionStore.updateSession(existing._id, { externalChatId });
+          }
+          res.json({
+            success: true,
+            sessionId: existing._id,
+            action: "skipped",
+            skipped: true,
+            message: "会话已存在且无更新，自动跳过",
+          });
+          return;
+        }
+
+        // Incremental update
+        await sessionStore.updateFullChat(existing._id, {
+          rawText,
+          messageCount,
+          platform,
+        });
+        await sessionStore.updateSession(existing._id, {
+          hasFullChat: true,
+          topicCount: messageCount,
+          updatedAt: new Date(),
+          ...(externalChatId && !existing.externalChatId ? { externalChatId } : {}),
+        });
+
+        res.json({
+          success: true,
+          sessionId: existing._id,
+          action: "updated",
+          updated: true,
+          message: "增量更新成功",
+        });
+        return;
+      }
+
+      await sessionStore.saveFullChat(existing._id, rawText, messageCount, platform);
+      await sessionStore.updateSession(existing._id, {
+        hasFullChat: true,
+        topicCount: messageCount,
+        updatedAt: new Date(),
+      });
+
+      res.json({
+        success: true,
+        sessionId: existing._id,
+        action: "updated",
+        updated: true,
+        message: "增量更新成功",
+      });
+      return;
+    }
+
+    // Create new session
+    const created = await sessionStore.createSession(projectName, platform, externalChatId);
+    if (created && created._id) {
+      await sessionStore.saveFullChat(created._id, rawText, messageCount, platform);
+      await sessionStore.updateSession(created._id, {
+        hasFullChat: true,
+        topicCount: messageCount,
+      });
+    }
+
+    res.json({
+      success: true,
+      sessionId: created._id,
+      action: "created",
+      created: true,
+      message: "新会话创建成功",
+    });
   } catch (err: any) {
     logger.error("Import markdown error:", err?.message || err);
     res.status(500).json({ error: "Failed to import markdown: " + (err?.message || "Unknown error") });
@@ -429,7 +605,7 @@ router.get("/export/:id", async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
       session,
       fullChat,
-      facts
+      facts,
     };
 
     const safeName = (session.projectName || "session")
@@ -458,12 +634,26 @@ router.post("/import", async (req: Request, res: Response) => {
 
   try {
     const { session, fullChat, facts } = data;
+    const pName = session.projectName || "session";
+    let targetSession = session.externalChatId
+      ? await sessionStore.getSessionByExternalId(session.externalChatId)
+      : null;
+    if (!targetSession) {
+      targetSession = await sessionStore.getSessionByName(pName);
+    }
 
-    const newSession = await sessionStore.createSession(session.projectName, session.platform);
-    const newId = newSession._id;
-
-    if (fullChat) {
-      await sessionStore.saveFullChat(newId, fullChat.rawText, fullChat.messageCount, fullChat.platform);
+    let targetId: string;
+    if (targetSession) {
+      targetId = targetSession._id;
+      if (fullChat) {
+        await sessionStore.saveFullChat(targetId, fullChat.rawText, fullChat.messageCount, fullChat.platform);
+      }
+    } else {
+      const newSession = await sessionStore.createSession(pName, session.platform, session.externalChatId);
+      targetId = newSession._id;
+      if (fullChat) {
+        await sessionStore.saveFullChat(targetId, fullChat.rawText, fullChat.messageCount, fullChat.platform);
+      }
     }
 
     if (facts && Array.isArray(facts)) {
@@ -474,14 +664,14 @@ router.post("/import", async (req: Request, res: Response) => {
           relation: f.relation,
           object: f.object,
           objectType: f.objectType || "Entity",
-          sessionId: newId,
-          timestamp: f.timestamp || new Date().toISOString()
+          sessionId: targetId,
+          timestamp: f.timestamp || new Date().toISOString(),
         });
       }
     }
 
-    logger.success(`Imported session: ${session.projectName} (New ID: ${newId})`);
-    res.json({ success: true, sessionId: newId });
+    logger.success(`Imported session: ${pName} (ID: ${targetId})`);
+    res.json({ success: true, sessionId: targetId });
   } catch (err) {
     logger.error("Import error:", err);
     res.status(500).json({ error: "Failed to import session" });
@@ -489,3 +679,4 @@ router.post("/import", async (req: Request, res: Response) => {
 });
 
 export default router;
+

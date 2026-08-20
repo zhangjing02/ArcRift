@@ -87,6 +87,9 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
 
     try {
       const BATCH_SIZE = 10;
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
       let totalImported = 0;
       const errors: string[] = [];
 
@@ -101,7 +104,10 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
         try {
           const res = await importAgentSessions(batch);
           if (res && res.success) {
-            totalImported += res.importedCount;
+            totalCreated += (res.createdCount ?? res.importedCount ?? 0);
+            totalUpdated += (res.updatedCount ?? 0);
+            totalSkipped += (res.skippedCount ?? 0);
+            totalImported += (res.importedCount ?? 0);
             if (res.errors && res.errors.length > 0) {
               errors.push(...res.errors);
             }
@@ -114,17 +120,20 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
         }
       }
 
-      if (totalImported > 0) {
+      if (totalImported > 0 || totalSkipped > 0) {
+        let msg = "";
+        if (totalCreated > 0 || totalUpdated > 0) {
+          msg = `导入完成：新增 ${totalCreated} 个，更新 ${totalUpdated} 个${totalSkipped > 0 ? `，跳过 ${totalSkipped} 个已存在会话` : ""}`;
+        } else {
+          msg = `所有会话均为最新版本：已自动跳过 ${totalSkipped} 个重复会话`;
+        }
+
         setStatusType(errors.length > 0 ? "info" : "success");
-        setStatusText(
-          errors.length > 0
-            ? `导入完成：成功 ${totalImported}/${total} 个会话，部分失败。`
-            : `成功导入全部 ${totalImported} 个会话！`
-        );
+        setStatusText(msg);
         setTimeout(() => {
           onImportSuccess?.();
           onClose();
-        }, 1500);
+        }, 1800);
       } else {
         setStatusType("error");
         setStatusText("导入失败：" + (errors.join("; ") || "未知错误"));
@@ -148,7 +157,10 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
     setStatusText(`正在读取并解析上传的 ${totalFiles} 个文件...`);
 
     try {
-      let importedCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+
       for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
         const percent = Math.round(((i + 1) / totalFiles) * 100);
@@ -159,16 +171,29 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
         const projectName = file.name.replace(/\.[^/.]+$/, "");
 
         const platform = type === "single" ? "markdown" : "batch_import";
-        await importMarkdownSession(projectName, platform, text);
-        importedCount++;
+        const res = await importMarkdownSession(projectName, platform, text);
+        if (res.action === "skipped" || (res as any).skipped) {
+          skippedCount++;
+        } else if (res.action === "updated" || (res as any).updated) {
+          updatedCount++;
+        } else {
+          createdCount++;
+        }
+      }
+
+      let msg = "";
+      if (createdCount > 0 || updatedCount > 0) {
+        msg = `导入完成：新增 ${createdCount} 个，更新 ${updatedCount} 个${skippedCount > 0 ? `，跳过 ${skippedCount} 个已存在文件` : ""}`;
+      } else {
+        msg = `文件内容无变化：已跳过 ${skippedCount} 个重复文件`;
       }
 
       setStatusType("success");
-      setStatusText(`成功导入 ${importedCount} 个文件！`);
+      setStatusText(msg);
       setTimeout(() => {
         onImportSuccess?.();
         onClose();
-      }, 1200);
+      }, 1500);
     } catch (err: any) {
       console.error("File import failed:", err);
       setStatusType("error");

@@ -4,6 +4,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface DiscoveredSession {
   id: string;
+  externalChatId?: string;
   platform: string;
   projectName: string;
   title: string;
@@ -14,6 +15,8 @@ interface DiscoveredSession {
   rawText: string;
   messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
   imported?: boolean;
+  hasNewMessages?: boolean;
+  dbMessageCount?: number;
 }
 
 interface ProjectGroup {
@@ -21,6 +24,7 @@ interface ProjectGroup {
   platform: string;
   totalMessages: number;
   importedCount: number;
+  hasNewMessagesCount?: number;
   latestUpdate?: string;
   latestTimestamp?: number;
   sessions: DiscoveredSession[];
@@ -64,9 +68,13 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
         const exp = new Set<string>(rawGroups.map((g) => g.projectName));
         setExpandedProjects(exp);
 
-        // Select all by default
-        const allIds = new Set<string>(rawSessions.map((s) => s.id));
-        setSelectedIds(allIds);
+        // Select un-imported sessions or sessions with new messages by default
+        const needSyncIds = new Set<string>(
+          rawSessions
+            .filter((s) => !s.imported || s.hasNewMessages)
+            .map((s) => s.id)
+        );
+        setSelectedIds(needSyncIds.size > 0 ? needSyncIds : new Set(rawSessions.map((s) => s.id)));
 
         // Set first session as active preview
         if (rawSessions.length > 0) {
@@ -155,43 +163,58 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
     setIsImporting(true);
     try {
       const BATCH_SIZE = 10;
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
       let totalImported = 0;
 
       for (let i = 0; i < total; i += BATCH_SIZE) {
         const batch = targetSessions.slice(i, i + BATCH_SIZE);
         const res = await importAgentSessions(batch);
         if (res && res.success) {
-          totalImported += res.importedCount;
+          totalCreated += (res.createdCount ?? res.importedCount ?? 0);
+          totalUpdated += (res.updatedCount ?? 0);
+          totalSkipped += (res.skippedCount ?? 0);
+          totalImported += (res.importedCount ?? 0);
         }
       }
 
-      if (totalImported > 0) {
-        // Mark imported in local state
-        setAllSessions((prev) =>
-          prev.map((s) => (selectedIds.has(s.id) ? { ...s, imported: true } : s))
-        );
-        setGroups((prev) =>
-          prev.map((g) => ({
-            ...g,
-            importedCount: g.sessions.filter((s) => selectedIds.has(s.id) || s.imported).length,
-            sessions: g.sessions.map((s) => (selectedIds.has(s.id) ? { ...s, imported: true } : s)),
-          }))
-        );
+      // Mark imported and clear new messages flag in local state
+      setAllSessions((prev) =>
+        prev.map((s) => (selectedIds.has(s.id) ? { ...s, imported: true, hasNewMessages: false } : s))
+      );
+      setGroups((prev) =>
+        prev.map((g) => ({
+          ...g,
+          importedCount: g.sessions.filter((s) => selectedIds.has(s.id) || s.imported).length,
+          hasNewMessagesCount: g.sessions.filter((s) => !selectedIds.has(s.id) && s.hasNewMessages).length,
+          sessions: g.sessions.map((s) => (selectedIds.has(s.id) ? { ...s, imported: true, hasNewMessages: false } : s)),
+        }))
+      );
 
-        setToastMessage(`成功导入 ${totalImported} 个会话`);
-        setTimeout(() => setToastMessage(null), 4000);
+      // Informative status toast
+      let msg = "";
+      if (totalCreated > 0 || totalUpdated > 0) {
+        msg = `导入完成：新增 ${totalCreated} 个，更新 ${totalUpdated} 个${totalSkipped > 0 ? `，跳过 ${totalSkipped} 个已存在会话` : ""}`;
+      } else if (totalSkipped > 0) {
+        msg = `所选会话已是最新版本：自动跳过 ${totalSkipped} 个重复会话`;
+      } else {
+        msg = `成功同步 ${totalImported} 个会话`;
+      }
 
-        if (andView && activePreview) {
-          onViewSession?.({
-            _id: activePreview.id,
-            projectName: activePreview.title || activePreview.projectName,
-            platform: activePreview.platform,
-            topicCount: activePreview.messageCount,
-            summary: activePreview.rawText,
-          });
-        } else {
-          onImportSuccess?.();
-        }
+      setToastMessage(msg);
+      setTimeout(() => setToastMessage(null), 4500);
+
+      if (andView && activePreview) {
+        onViewSession?.({
+          _id: activePreview.id,
+          projectName: activePreview.title || activePreview.projectName,
+          platform: activePreview.platform,
+          topicCount: activePreview.messageCount,
+          summary: activePreview.rawText,
+        });
+      } else {
+        onImportSuccess?.();
       }
     } catch (err) {
       console.error("Import failed:", err);
@@ -410,7 +433,53 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
                               <div className="nl-agent-child-meta">
                                 <span className="nl-agent-msg-count">💬 {s.messageCount}</span>
                                 <span className="nl-agent-child-date">{s.updatedAt}</span>
-                                {s.imported && <span className="nl-child-imported-tag" title="已导入">✓</span>}
+                                {s.imported ? (
+                                  s.hasNewMessages ? (
+                                    <span
+                                      className="nl-child-updated-tag"
+                                      style={{
+                                        color: "#38bdf8",
+                                        backgroundColor: "rgba(56, 189, 248, 0.15)",
+                                        padding: "1px 6px",
+                                        borderRadius: "10px",
+                                        fontSize: "11px",
+                                        fontWeight: 500,
+                                      }}
+                                      title={`数据库已存 ${s.dbMessageCount || 0} 条，发现新消息`}
+                                    >
+                                      +新消息
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="nl-child-imported-tag"
+                                      style={{
+                                        color: "#34d399",
+                                        backgroundColor: "rgba(52, 211, 153, 0.15)",
+                                        padding: "1px 6px",
+                                        borderRadius: "10px",
+                                        fontSize: "11px",
+                                        fontWeight: 500,
+                                      }}
+                                      title="已同步到知识库"
+                                    >
+                                      ✓ 已同步
+                                    </span>
+                                  )
+                                ) : (
+                                  <span
+                                    className="nl-child-new-tag"
+                                    style={{
+                                      color: "#a78bfa",
+                                      backgroundColor: "rgba(167, 139, 250, 0.12)",
+                                      padding: "1px 6px",
+                                      borderRadius: "10px",
+                                      fontSize: "11px",
+                                    }}
+                                    title="尚未导入"
+                                  >
+                                    未导入
+                                  </span>
+                                )}
                               </div>
                             </div>
                           );
@@ -446,7 +515,20 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
                   <span className="nl-path-arrow">&gt;</span>
                   <span className="nl-path-name">{activePreview.projectName || activePreview.platform}</span>
                   {activePreview.imported && (
-                    <span className="nl-prev-imported-badge">✓ 已导入</span>
+                    <span
+                      className="nl-prev-imported-badge"
+                      style={{
+                        color: activePreview.hasNewMessages ? "#38bdf8" : "#34d399",
+                        backgroundColor: activePreview.hasNewMessages ? "rgba(56, 189, 248, 0.15)" : "rgba(52, 211, 153, 0.15)",
+                        border: `1px solid ${activePreview.hasNewMessages ? "rgba(56, 189, 248, 0.3)" : "rgba(52, 211, 153, 0.3)"}`,
+                        borderRadius: "12px",
+                        padding: "2px 8px",
+                        fontSize: "12px",
+                        marginLeft: "8px",
+                      }}
+                    >
+                      {activePreview.hasNewMessages ? "⟳ 发现新消息待同步" : "✓ 已同步"}
+                    </span>
                   )}
                 </div>
                 <h2 className="nl-agent-prev-title">{activePreview.projectName || activePreview.title}</h2>

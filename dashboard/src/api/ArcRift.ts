@@ -80,40 +80,69 @@ export async function scanAgentSessions() {
       platform: string;
       totalMessages: number;
       importedCount: number;
+      hasNewMessagesCount?: number;
+      latestUpdate?: string;
+      latestTimestamp?: number;
       sessions: Array<{
         id: string;
+        externalChatId?: string;
         platform: string;
         projectName: string;
         title: string;
         messageCount: number;
         updatedAt: string;
+        relativeTime?: string;
+        timestamp?: number;
         rawText: string;
         messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
         imported?: boolean;
+        hasNewMessages?: boolean;
+        dbMessageCount?: number;
       }>;
     }>;
     sessions: Array<{
       id: string;
+      externalChatId?: string;
       platform: string;
       projectName: string;
       title: string;
       messageCount: number;
       updatedAt: string;
+      relativeTime?: string;
+      timestamp?: number;
       rawText: string;
       messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
       imported?: boolean;
+      hasNewMessages?: boolean;
+      dbMessageCount?: number;
     }>;
   };
 }
 
 export async function importAgentSessions(sessions: any[]) {
   const res = await apiClient.post("/api/session/import-agent-session", { sessions });
-  return res.data as { success: boolean; importedCount: number; errors?: string[] };
+  return res.data as {
+    success: boolean;
+    importedCount: number;
+    createdCount: number;
+    updatedCount: number;
+    skippedCount: number;
+    totalRequested: number;
+    errors?: string[];
+  };
 }
 
-export async function importMarkdownSession(projectName: string, platform: string, rawText: string) {
-  const res = await apiClient.post("/api/session/import-markdown", { projectName, platform, rawText });
-  return res.data as { success: boolean; sessionId: string };
+export async function importMarkdownSession(projectName: string, platform: string, rawText: string, externalChatId?: string) {
+  const res = await apiClient.post("/api/session/import-markdown", { projectName, platform, rawText, externalChatId });
+  return res.data as {
+    success: boolean;
+    sessionId: string;
+    action?: "created" | "updated" | "skipped";
+    created?: boolean;
+    updated?: boolean;
+    skipped?: boolean;
+    message?: string;
+  };
 }
 
 export async function searchGlobal(prompt: string) {
