@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { scanAgentSessions, importAgentSessions } from "../../api/ArcRift";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface DiscoveredSession {
   id: string;
@@ -8,6 +9,8 @@ interface DiscoveredSession {
   title: string;
   messageCount: number;
   updatedAt: string;
+  relativeTime?: string;
+  timestamp?: number;
   rawText: string;
   messages: Array<{ role: "User" | "Assistant"; text: string; time?: string }>;
   imported?: boolean;
@@ -18,6 +21,8 @@ interface ProjectGroup {
   platform: string;
   totalMessages: number;
   importedCount: number;
+  latestUpdate?: string;
+  latestTimestamp?: number;
   sessions: DiscoveredSession[];
 }
 
@@ -42,26 +47,30 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
   const [isAutoSync, setIsAutoSync] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showAllMessages, setShowAllMessages] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const res = await scanAgentSessions();
       if (res && res.success) {
-        setGroups(res.groups || []);
-        setAllSessions(res.sessions || []);
+        const rawGroups: ProjectGroup[] = res.groups || [];
+        const rawSessions: DiscoveredSession[] = res.sessions || [];
+
+        setGroups(rawGroups);
+        setAllSessions(rawSessions);
 
         // Expand all projects by default
-        const exp = new Set<string>((res.groups || []).map((g) => g.projectName));
+        const exp = new Set<string>(rawGroups.map((g) => g.projectName));
         setExpandedProjects(exp);
 
         // Select all by default
-        const allIds = new Set<string>((res.sessions || []).map((s) => s.id));
+        const allIds = new Set<string>(rawSessions.map((s) => s.id));
         setSelectedIds(allIds);
 
         // Set first session as active preview
-        if (res.sessions && res.sessions.length > 0) {
-          setActivePreview(res.sessions[0]);
+        if (rawSessions.length > 0) {
+          setActivePreview(rawSessions[0]);
         }
       }
     } catch (err) {
@@ -74,6 +83,11 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
   useEffect(() => {
     loadData();
   }, []);
+
+  // Reset showAllMessages when activePreview changes
+  useEffect(() => {
+    setShowAllMessages(false);
+  }, [activePreview?.id]);
 
   const toggleProjectExpand = (projectName: string) => {
     setExpandedProjects((prev) => {
@@ -109,11 +123,28 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.size === allSessions.length) {
+    if (selectedIds.size === allSessions.length && allSessions.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(allSessions.map((s) => s.id)));
     }
+  };
+
+  const handleExport = () => {
+    const targetSessions = allSessions.filter((s) => selectedIds.has(s.id));
+    const toExport = targetSessions.length > 0 ? targetSessions : activePreview ? [activePreview] : [];
+    if (toExport.length === 0) return;
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(toExport, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `agent_sessions_export_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    setToastMessage(`已成功导出 ${toExport.length} 个会话数据`);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleImport = async (andView = false) => {
@@ -153,7 +184,7 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
         if (andView && activePreview) {
           onViewSession?.({
             _id: activePreview.id,
-            projectName: activePreview.title,
+            projectName: activePreview.title || activePreview.projectName,
             platform: activePreview.platform,
             topicCount: activePreview.messageCount,
             summary: activePreview.rawText,
@@ -171,15 +202,30 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
     }
   };
 
+  const getPlatformIcon = (platform?: string) => {
+    const p = (platform || "").toLowerCase();
+    if (p.includes("antigravity")) return "⚛️";
+    if (p.includes("claude") || p.includes("codex")) return "✳️";
+    if (p.includes("cursor")) return "▲";
+    if (p.includes("opencode")) return "📱";
+    return "🤖";
+  };
+
   // Filter groups according to search
   const filteredGroups = groups
     .map((g) => {
-      const filtered = g.sessions.filter((s) =>
-        s.title.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = g.sessions.filter(
+        (s) =>
+          s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.projectName.toLowerCase().includes(searchQuery.toLowerCase())
       );
       return { ...g, sessions: filtered };
     })
-    .filter((g) => g.sessions.length > 0 || g.projectName.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(
+      (g) =>
+        g.sessions.length > 0 ||
+        g.projectName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   return (
     <div className="nl-agent-importer-view">
@@ -188,7 +234,7 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
         <div className="nl-import-toast">
           <div className="nl-toast-icon">🔔</div>
           <div className="nl-toast-content">
-            <div className="nl-toast-title">会话已导入</div>
+            <div className="nl-toast-title">提示</div>
             <div className="nl-toast-desc">{toastMessage}</div>
           </div>
         </div>
@@ -198,7 +244,10 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
       <div className="nl-agent-header">
         <div className="nl-agent-header-left">
           <button className="nl-agent-back-btn" onClick={onBack} title="返回会话记录">
-            ←
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
           </button>
           <div className="nl-agent-title-group">
             <h1 className="nl-agent-title">智能体会话</h1>
@@ -209,8 +258,11 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
           <button
             className={`nl-agent-sync-toggle ${isAutoSync ? "active" : ""}`}
             onClick={() => setIsAutoSync(!isAutoSync)}
+            title={isAutoSync ? "自动同步已开启" : "自动同步已关闭"}
           >
-            ⚙️ 自动同步
+            <span className="nl-sync-icon">⚙️</span>
+            <span>自动同步</span>
+            <span className={`nl-sync-indicator ${isAutoSync ? "on" : "off"}`} />
           </button>
         </div>
       </div>
@@ -222,45 +274,77 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
           <div className="nl-agent-tree-header">
             <div className="nl-agent-tree-title">会话</div>
             <div className="nl-agent-tree-count">
-              {allSessions.length} 个会话, {groups.length} 个项目
+              {loading ? "扫描中..." : `${allSessions.length} 个会话, ${groups.length} 个项目`}
             </div>
           </div>
 
           <div className="nl-agent-tree-search-wrap">
-            <input
-              type="text"
-              placeholder="搜索会话..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="nl-agent-tree-search-input"
-            />
+            <div className="nl-tree-search-box">
+              <span className="nl-tree-search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="搜索会话..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="nl-agent-tree-search-input"
+              />
+              {searchQuery && (
+                <button
+                  className="nl-tree-search-clear"
+                  onClick={() => setSearchQuery("")}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="nl-agent-tree-ctrl-bar">
-            <button className="nl-agent-tree-ctrl-btn" onClick={loadData}>
-              🔄 刷新
+            <button className="nl-agent-tree-ctrl-btn" onClick={loadData} disabled={loading}>
+              <span className={`nl-ctrl-btn-icon ${loading ? "spinning" : ""}`}>🔄</span> 刷新
             </button>
-            <button className="nl-agent-tree-ctrl-btn" onClick={() => setSelectedIds(new Set())}>
-              ✕ 取消
+            <button
+              className={`nl-agent-tree-ctrl-btn ${selectedIds.size === allSessions.length && allSessions.length > 0 ? "active" : ""}`}
+              onClick={handleSelectAll}
+            >
+              ☑️ 选择
             </button>
             <span className="nl-agent-selected-hint">已选择 {selectedIds.size} 个会话</span>
           </div>
 
-          {/* Group Tree List */}
+          {/* Group Tree List or Loading State */}
           <div className="nl-agent-tree-list">
             {loading ? (
-              <div className="nl-agent-loading-state">
-                <span className="nl-spinner">🔄</span> 正在扫描本地 AI 会话...
+              /* Screenshot 3: Left Centered Loading Animation */
+              <div className="nl-agent-loading-card">
+                <div className="nl-agent-radar-anim">
+                  <div className="nl-radar-ring ring1" />
+                  <div className="nl-radar-ring ring2" />
+                  <div className="nl-radar-ring ring3" />
+                  <div className="nl-radar-center">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2">
+                      <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)" />
+                      <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-45 12 12)" />
+                      <circle cx="12" cy="12" r="2" fill="#818cf8" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="nl-agent-loading-title">正在扫描会话...</div>
+                <div className="nl-agent-loading-subtitle">
+                  正在检查 Claude Code, Codex, Cursor 和 OpenCode, Google Antigravity
+                </div>
               </div>
             ) : filteredGroups.length === 0 ? (
-              <div className="nl-agent-empty-tree">未发现匹配会话</div>
+              <div className="nl-agent-empty-tree">
+                <span>💬</span>
+                <p>未发现匹配的智能体会话</p>
+              </div>
             ) : (
               filteredGroups.map((g) => {
                 const isExpanded = expandedProjects.has(g.projectName);
                 const groupIds = g.sessions.map((s) => s.id);
                 const isGroupSelected = groupIds.length > 0 && groupIds.every((id) => selectedIds.has(id));
-                const isGroupIndeterminate =
-                  !isGroupSelected && groupIds.some((id) => selectedIds.has(id));
+                const isGroupIndeterminate = !isGroupSelected && groupIds.some((id) => selectedIds.has(id));
 
                 return (
                   <div key={g.projectName} className="nl-agent-group-block">
@@ -276,25 +360,20 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
                           toggleSelectGroup(g);
                         }}
                       >
-                        {isGroupSelected ? "☑️" : isGroupIndeterminate ? "➖" : "🔘"}
+                        {isGroupSelected ? (
+                          <span className="nl-custom-check checked">✓</span>
+                        ) : isGroupIndeterminate ? (
+                          <span className="nl-custom-check indeterminate">−</span>
+                        ) : (
+                          <span className="nl-custom-check" />
+                        )}
                       </button>
                       <span className="nl-agent-group-arrow">{isExpanded ? "▾" : "▸"}</span>
-                      <span className="nl-agent-group-icon">
-                        {g.platform?.toLowerCase().includes("antigravity")
-                          ? "⚛️"
-                          : g.platform?.toLowerCase().includes("claude")
-                          ? "✳️"
-                          : "🤖"}
-                      </span>
-                      <span className="nl-agent-group-name">{g.projectName}</span>
+                      <span className="nl-agent-group-icon">{getPlatformIcon(g.platform)}</span>
+                      <span className="nl-agent-group-name" title={g.projectName}>{g.projectName}</span>
                       <div className="nl-agent-group-meta">
-                        <span className="nl-agent-group-time">{g.sessions[0]?.updatedAt || "01:06"}</span>
+                        <span className="nl-agent-group-time">{g.latestUpdate || g.sessions[0]?.updatedAt || "08:39"}</span>
                         <span className="nl-agent-group-count">{g.sessions.length}</span>
-                        {g.importedCount > 0 && (
-                          <span className="nl-agent-group-imported-tag">
-                            {g.importedCount}/
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -318,15 +397,20 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
                                   toggleSelectSession(s.id);
                                 }}
                               >
-                                {isSelected ? "☑️" : "🔘"}
+                                {isSelected ? (
+                                  <span className="nl-custom-check checked">✓</span>
+                                ) : (
+                                  <span className="nl-custom-check" />
+                                )}
                               </button>
-                              <span className="nl-agent-child-icon">💬</span>
+                              <span className="nl-agent-child-expand-icon">&gt;</span>
                               <span className="nl-agent-child-title" title={s.title}>
-                                {s.title}
+                                {s.title || "还没有预览"}
                               </span>
                               <div className="nl-agent-child-meta">
-                                {s.imported && <span className="nl-child-imported-dot">✓</span>}
+                                <span className="nl-agent-msg-count">💬 {s.messageCount}</span>
                                 <span className="nl-agent-child-date">{s.updatedAt}</span>
+                                {s.imported && <span className="nl-child-imported-tag" title="已导入">✓</span>}
                               </div>
                             </div>
                           );
@@ -342,33 +426,52 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
 
         {/* Right Preview Column */}
         <div className="nl-agent-preview-col">
-          {activePreview ? (
+          {loading ? (
+            /* Screenshot 3: Right Centered Empty/Prompt State */
+            <div className="nl-agent-preview-placeholder">
+              <div className="nl-empty-chat-icon">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <h3 className="nl-empty-title">选择会话</h3>
+              <p className="nl-empty-subtitle">从列表中选择一个会话，预览后再导入</p>
+            </div>
+          ) : activePreview ? (
+            /* Screenshot 4: Right Active Session Preview */
             <div className="nl-agent-preview-content">
               {/* Preview Header */}
               <div className="nl-agent-prev-header">
                 <div className="nl-agent-prev-path">
-                  <span>&gt;_ {activePreview.projectName}</span>
+                  <span className="nl-path-arrow">&gt;</span>
+                  <span className="nl-path-name">{activePreview.projectName || activePreview.platform}</span>
                   {activePreview.imported && (
                     <span className="nl-prev-imported-badge">✓ 已导入</span>
                   )}
                 </div>
-                <h2 className="nl-agent-prev-title">{activePreview.title}</h2>
+                <h2 className="nl-agent-prev-title">{activePreview.projectName || activePreview.title}</h2>
                 <div className="nl-agent-prev-meta">
-                  💬 {activePreview.messageCount} 条消息 · {activePreview.updatedAt}
+                  💬 {activePreview.messageCount} 条消息 · {activePreview.relativeTime || activePreview.updatedAt}
                 </div>
               </div>
 
               {/* Preview Chat Message Stream */}
               <div className="nl-agent-prev-stream">
                 {activePreview.messages && activePreview.messages.length > 0 ? (
-                  activePreview.messages.slice(0, 4).map((m, idx) => (
+                  (showAllMessages ? activePreview.messages : activePreview.messages.slice(0, 4)).map((m, idx) => (
                     <div key={idx} className={`nl-agent-prev-bubble-row ${m.role.toLowerCase()}`}>
                       <div className="nl-agent-prev-bubble-avatar">
                         {m.role === "User" ? "👤" : "🤖"}
                       </div>
                       <div className="nl-agent-prev-bubble-box">
                         <div className="nl-agent-prev-bubble-role">{m.role}</div>
-                        <div className="nl-agent-prev-bubble-text">{m.text}</div>
+                        <div className="nl-agent-prev-bubble-text">
+                          <MarkdownRenderer
+                            content={m.text}
+                            showSummaryCard={false}
+                            className="nl-bubble-md-renderer"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))
@@ -377,58 +480,77 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
                     <div className="nl-agent-prev-bubble-avatar">👤</div>
                     <div className="nl-agent-prev-bubble-box">
                       <div className="nl-agent-prev-bubble-role">User</div>
-                      <div className="nl-agent-prev-bubble-text">{activePreview.rawText}</div>
+                      <div className="nl-agent-prev-bubble-text">
+                        <MarkdownRenderer
+                          content={activePreview.rawText}
+                          showSummaryCard={false}
+                          className="nl-bubble-md-renderer"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {activePreview.messageCount > 4 && (
-                  <div className="nl-agent-prev-more-hint">
-                    <span>口 还有 {activePreview.messageCount - 4} 条消息</span>
+                {activePreview.messages && activePreview.messages.length > 4 && (
+                  <div
+                    className="nl-agent-prev-more-hint"
+                    onClick={() => setShowAllMessages(!showAllMessages)}
+                  >
+                    <span>
+                      💬 {showAllMessages ? "收起多余消息" : `还有 ${activePreview.messages.length - 4} 条消息`}
+                    </span>
                   </div>
                 )}
               </div>
 
-              {/* Bottom Tip Info Card (1:1 with Screenshot 1) */}
+              {/* Bottom Tip Info Card (1:1 with Screenshot 4) */}
               <div className="nl-agent-prev-tip-card">
                 <div className="nl-tip-card-header">
-                  <span>ℹ️</span>
+                  <span className="nl-tip-icon">ⓘ</span>
                   <strong>导入一次，后面就更省心</strong>
                 </div>
                 <p className="nl-tip-card-text">
-                  Mem 先把你选中的会话存下来。打开自动同步后，它会继续为你这些会话添加新消息；在支持项目识别的应用里，也会把同一项目后续出现的新会话带进来。
+                  Mem 先把这段会话存下来。打开自动同步后，它会继续为这条会话追加新消息；在支持项目识别的应用里，也会把这一项目后续出现的新会话带进来。
                 </p>
               </div>
             </div>
           ) : (
-            <div className="nl-agent-preview-empty">
-              <span>💬</span>
-              <p>请在左侧选择一个会话以预览内容</p>
+            <div className="nl-agent-preview-placeholder">
+              <div className="nl-empty-chat-icon">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="1.5">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <h3 className="nl-empty-title">选择会话</h3>
+              <p className="nl-empty-subtitle">从列表中选择一个会话，预览后再导入</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Sticky Action Bar (1:1 with Screenshot 1) */}
+      {/* Bottom Sticky Action Bar (1:1 with Screenshot 4) */}
       <div className="nl-agent-action-bar">
         <div className="nl-agent-action-left">
           <label className="nl-agent-select-all-label" onClick={handleSelectAll}>
-            <input
-              type="checkbox"
-              checked={selectedIds.size === allSessions.length && allSessions.length > 0}
-              onChange={handleSelectAll}
-            />
+            <span className={`nl-custom-check ${selectedIds.size === allSessions.length && allSessions.length > 0 ? "checked" : ""}`}>
+              {selectedIds.size === allSessions.length && allSessions.length > 0 ? "✓" : ""}
+            </span>
             <span>全选</span>
           </label>
           <span className="nl-agent-selected-counter">
             {selectedIds.size} / {allSessions.length} 已选择
           </span>
+          <button className="nl-btn-export" onClick={handleExport} title="导出为 JSON 文件">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>导出</span>
+          </button>
         </div>
 
         <div className="nl-agent-action-right">
-          <button className="nl-btn-secondary" onClick={() => {}}>
-            导出
-          </button>
           <button
             className="nl-btn-light"
             onClick={() => handleImport(true)}
@@ -451,3 +573,5 @@ export const AgentImporterView: React.FC<AgentImporterViewProps> = ({
     </div>
   );
 };
+
+

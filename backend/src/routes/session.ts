@@ -16,6 +16,50 @@ function safeReadFile(p: string): string | null {
   return null;
 }
 
+// Helper to format date/time into 1:1 screenshot format
+function formatSessionTime(date: Date): { formatted: string; relative: string; timestamp: number } {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  // Relative time
+  let relative = "刚刚";
+  if (diffHour < 1) {
+    relative = diffMin <= 1 ? "刚刚" : `${diffMin} minutes ago`;
+  } else if (diffHour < 24) {
+    relative = diffHour === 1 ? "about 1 hour ago" : `about ${diffHour} hours ago`;
+  } else if (diffDay < 30) {
+    relative = diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
+  } else {
+    relative = `${Math.floor(diffDay / 30)} months ago`;
+  }
+
+  // Formatted date string
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  const isThisWeek = diffDay < 7 && date.getDay() !== now.getDay();
+  const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+  let formatted = `${hours}:${minutes}`;
+  if (!isToday) {
+    if (diffDay < 7) {
+      formatted = `${weekDays[date.getDay()]} ${hours}:${minutes}`;
+    } else {
+      formatted = `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+  }
+
+  return { formatted, relative, timestamp: date.getTime() };
+}
+
 // Helper to convert Antigravity transcript.jsonl into clean readable Markdown and turns
 function parseAntigravityTranscript(content: string, convId: string, mtime: Date): {
   id: string;
@@ -25,6 +69,8 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
   markdown: string;
   messageCount: number;
   updatedAt: string;
+  relativeTime: string;
+  timestamp: number;
   messages: { role: "User" | "Assistant"; text: string; time?: string }[];
 } {
   const lines = content.split("\n").filter(Boolean);
@@ -33,11 +79,16 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
   const messages: { role: "User" | "Assistant"; text: string; time?: string }[] = [];
 
   // Check user_information / workspace
-  const matchWorkspace = content.match(/->\s*([A-Za-z0-9_\-\.\/]+)/) || content.match(/AI-Project\\([A-Za-z0-9_\-]+)/i);
-  if (matchWorkspace) {
-    const rawP = matchWorkspace[1].split(/[\/\\]/).pop() || matchWorkspace[1];
-    if (rawP && rawP.trim() && !rawP.includes("URI")) {
-      projectName = rawP.trim();
+  const userInfMatch = content.match(/<user_information>([\s\S]*?)<\/user_information>/);
+  if (userInfMatch) {
+    const mapMatch = userInfMatch[1].match(/([a-zA-Z]:[^\r\n]+)\s*->\s*([^\r\n]+)/);
+    if (mapMatch) {
+      const folder = mapMatch[1].split(/[\/\\]/).filter(Boolean).pop();
+      const corpus = mapMatch[2].split(/[\/\\]/).filter(Boolean).pop();
+      const pCandidate = folder || corpus;
+      if (pCandidate && !pCandidate.includes("URI") && !pCandidate.includes("CorpusName")) {
+        projectName = pCandidate.trim();
+      }
     }
   }
 
@@ -58,7 +109,8 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
         }
         if (text) {
           if (!title) {
-            title = text.slice(0, 45).replace(/\n/g, " ");
+            const cleanTitle = text.replace(/[#*`_]/g, "").trim().split("\n")[0];
+            title = cleanTitle.slice(0, 60);
           }
           messages.push({ role: "User", text });
         }
@@ -68,12 +120,22 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
         if (text) {
           messages.push({ role: "Assistant", text });
         }
+      } else if (step.type === "CHECKPOINT" && !title && step.content) {
+        const objMatch = step.content.match(/# USER Objective:\s*([^\n]+)/);
+        if (objMatch) {
+          title = objMatch[1].trim();
+        } else {
+          const reqMatch = step.content.match(/# User Requests\s*1\.\s*([^\n]+)/);
+          if (reqMatch) {
+            title = reqMatch[1].trim();
+          }
+        }
       }
     } catch {}
   }
 
   const markdown = messages.map(m => `## ${m.role}\n${m.text}`).join("\n\n");
-  const timeFormatted = mtime ? `${mtime.getMonth() + 1}月${mtime.getDate()}日` : "今天";
+  const timeInfo = formatSessionTime(mtime || new Date());
 
   return {
     id: `antigravity_${convId}`,
@@ -82,7 +144,9 @@ function parseAntigravityTranscript(content: string, convId: string, mtime: Date
     title: title || `Antigravity 对话 (${convId.slice(0, 8)})`,
     markdown: markdown || content.slice(0, 5000),
     messageCount: messages.length || 2,
-    updatedAt: timeFormatted,
+    updatedAt: timeInfo.formatted,
+    relativeTime: timeInfo.relative,
+    timestamp: timeInfo.timestamp,
     messages,
   };
 }
@@ -103,13 +167,16 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
         const unsyncedMap = JSON.parse(raw);
         for (const [id, item] of Object.entries<any>(unsyncedMap)) {
           const itemTitle = item.title || item.summary || "Antigravity Session";
+          const timeInfo = formatSessionTime(new Date());
           discovered.push({
             id: `antigravity_${id}`,
             platform: "Antigravity",
             projectName: "Antigravity",
             title: itemTitle,
             messageCount: Array.isArray(item.messages) ? item.messages.length : (item.messageCount || 10),
-            updatedAt: "今天",
+            updatedAt: timeInfo.formatted,
+            relativeTime: timeInfo.relative,
+            timestamp: timeInfo.timestamp,
             rawText: Array.isArray(item.messages) 
               ? item.messages.map((m: any) => `## ${m.role || 'User'}\n${m.content || ''}`).join("\n\n")
               : (item.content || ""),
@@ -148,6 +215,8 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
                 title: parsed.title,
                 messageCount: parsed.messageCount,
                 updatedAt: parsed.updatedAt,
+                relativeTime: parsed.relativeTime,
+                timestamp: parsed.timestamp,
                 sourcePath: transcriptPath,
                 rawText: parsed.markdown,
                 messages: parsed.messages,
@@ -170,13 +239,16 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
           const fp = path.join(codexDir, f);
           const stat = fs.statSync(fp);
           const fTitle = f.replace(/\.[^.]+$/, "");
+          const timeInfo = formatSessionTime(stat.mtime);
           discovered.push({
             id: `codex_${f}`,
             platform: "Codex",
             projectName: "CodexBridge",
             title: fTitle,
             messageCount: 12,
-            updatedAt: `${stat.mtime.getMonth() + 1}月${stat.mtime.getDate()}日`,
+            updatedAt: timeInfo.formatted,
+            relativeTime: timeInfo.relative,
+            timestamp: timeInfo.timestamp,
             sourcePath: fp,
             rawText: fs.readFileSync(fp, "utf-8"),
             messages: [{ role: "User", text: fs.readFileSync(fp, "utf-8") }],
@@ -185,6 +257,9 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
         }
       } catch {}
     }
+
+    // Sort discovered sessions by timestamp descending (newest first)
+    discovered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     // Group by projectName
     const groupMap = new Map<string, any>();
@@ -197,15 +272,23 @@ router.get("/scan-agents", async (_req: Request, res: Response) => {
           totalMessages: 0,
           sessions: [],
           importedCount: 0,
+          latestUpdate: s.updatedAt,
+          latestTimestamp: s.timestamp || 0,
         });
       }
       const g = groupMap.get(p)!;
       g.sessions.push(s);
       g.totalMessages += s.messageCount;
       if (s.imported) g.importedCount++;
+      if ((s.timestamp || 0) > (g.latestTimestamp || 0)) {
+        g.latestTimestamp = s.timestamp || 0;
+        g.latestUpdate = s.updatedAt;
+      }
     }
 
-    const groups = Array.from(groupMap.values());
+    const groups = Array.from(groupMap.values()).sort(
+      (a, b) => (b.latestTimestamp || 0) - (a.latestTimestamp || 0)
+    );
 
     res.json({
       success: true,

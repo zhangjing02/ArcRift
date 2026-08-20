@@ -6,6 +6,7 @@ interface SessionImporterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportSuccess?: () => void;
+  onOpenAgentImporter?: () => void;
 }
 
 interface DiscoveredAgentSession {
@@ -28,6 +29,7 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
   isOpen,
   onClose,
   onImportSuccess,
+  onOpenAgentImporter,
 }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [discoveredSessions, setDiscoveredSessions] = useState<DiscoveredAgentSession[]>([]);
@@ -240,7 +242,14 @@ export const SessionImporterModal: React.FC<SessionImporterModalProps> = ({
 
         {/* Section 1: Scan AI Agents */}
         <div
-          onClick={handleScanAgents}
+          onClick={() => {
+            if (onOpenAgentImporter) {
+              onClose();
+              onOpenAgentImporter();
+            } else {
+              handleScanAgents();
+            }
+          }}
           style={{
             backgroundColor: "rgba(30, 27, 75, 0.4)",
             border: "1px solid rgba(139, 92, 246, 0.3)",

@@ -190,6 +190,14 @@ async function start() {
   });
 }
 
+process.on("uncaughtException", (err) => {
+  logger.error("[ArcRift] Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error("[ArcRift] Unhandled Promise Rejection:", reason);
+});
+
 start().catch(err => {
   logger.error("Unhandled error during startup:");
   logger.error(err);

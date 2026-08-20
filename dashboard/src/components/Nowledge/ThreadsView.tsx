@@ -849,6 +849,10 @@ export const ThreadsView: React.FC<ThreadsViewProps> = ({
       <SessionImporterModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
+        onOpenAgentImporter={() => {
+          setIsImportModalOpen(false);
+          setViewMode("agent_import");
+        }}
         onImportSuccess={() => window.location.reload()}
       />
 
