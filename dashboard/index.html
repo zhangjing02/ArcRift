@@ -17,7 +17,6 @@
       margin: 0;
       padding: 0;
     }
-
     html,
     body,
     #root {
@@ -26,6 +25,24 @@
       overflow: hidden;
     }
   </style>
+
+  <script>
+    (function() {
+      try {
+        var mode = localStorage.getItem('cm_theme_mode') || 'dark';
+        var theme = mode;
+        if (mode === 'system') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'light') {
+          document.documentElement.classList.add('light-theme');
+        } else {
+          document.documentElement.classList.add('dark-theme');
+        }
+      } catch(e) {}
+    })();
+  </script>
 </head>
 
 <body>

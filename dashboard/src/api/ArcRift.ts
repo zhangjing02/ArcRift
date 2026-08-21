@@ -531,6 +531,13 @@ export async function exportKnowledgeBackup(): Promise<any> {
   return res.data;
 }
 
+export async function exportKnowledgeZip(): Promise<Blob> {
+  const res = await apiClient.get("/api/migration/export/zip", {
+    responseType: "blob",
+  });
+  return res.data;
+}
+
 export async function importSettingsBackup(data: any): Promise<{ success: boolean; message: string }> {
   const res = await apiClient.post("/api/migration/import/settings", data);
   return res.data;
@@ -538,6 +545,15 @@ export async function importSettingsBackup(data: any): Promise<{ success: boolea
 
 export async function importKnowledgeBackup(data: any, mode: "merge" | "skip" | "replace" = "merge"): Promise<{ success: boolean; message: string; result: any }> {
   const res = await apiClient.post("/api/migration/import/knowledge", { data, mode });
+  return res.data;
+}
+
+export async function importKnowledgeZip(zipData: Blob | ArrayBuffer, mode: "merge" | "skip" | "replace" = "merge"): Promise<{ success: boolean; message: string; result: any }> {
+  const res = await apiClient.post(`/api/migration/import/zip?mode=${mode}`, zipData, {
+    headers: {
+      "Content-Type": "application/zip",
+    },
+  });
   return res.data;
 }
 

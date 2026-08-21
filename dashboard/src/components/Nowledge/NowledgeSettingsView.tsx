@@ -19,11 +19,45 @@ import {
   fetchProviderModels,
   exportSettingsBackup,
   exportKnowledgeBackup,
+  exportKnowledgeZip,
   importSettingsBackup,
   importKnowledgeBackup,
+  importKnowledgeZip,
   fetchSessions,
   createSpace,
 } from "../../api/ArcRift";
+import { useTheme } from "../../context/ThemeContext";
+import {
+  IconCpu,
+  IconWand,
+  IconMessageSquare,
+  IconUser,
+  IconDatabase,
+  IconWifi,
+  IconUsers,
+  IconSliders,
+  IconAward,
+  IconInfo,
+  IconDownload,
+  IconUpload,
+  IconBox,
+  IconFileDoc,
+  IconFolder,
+  IconChevronRight,
+  IconSearch,
+  IconSparkles,
+  IconTrash,
+  IconBook,
+  IconGlobe,
+  IconTerminal,
+  IconEye,
+  IconCategory,
+  IconGraph,
+  IconLayers,
+  IconTag,
+  IconRefresh,
+  ProviderGlyph,
+} from "./Icons";
 
 interface ModelItem {
   id: string;
@@ -180,7 +214,7 @@ export const NowledgeSettingsView: React.FC = () => {
   const [remoteToast, setRemoteToast] = useState<string | null>(null);
 
   // ── Preferences (偏好设置) State ────────────────────────────────
-  const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">("dark");
+  const { themeMode, setThemeMode } = useTheme();
   const [uiLanguage, setUiLanguage] = useState<string>("auto");
   const [fontSizeScale, setFontSizeScale] = useState<"small" | "normal" | "medium" | "large">("normal");
   const [launchAtLogin, setLaunchAtLogin] = useState<boolean>(false);
@@ -482,18 +516,30 @@ export const NowledgeSettingsView: React.FC = () => {
   const handleExportKnowledge = async () => {
     setIsExportingKnowledge(true);
     try {
-      const data = await exportKnowledgeBackup();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `nowledge-mem-knowledge-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setMigrationToast("✓ 知识全库备份已成功导出下载！");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      if (migrationCompressZip) {
+        const blob = await exportKnowledgeZip();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nowledge-mem-export-${dateStr}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setMigrationToast("✓ 知识全库 Zip 归档已成功导出下载！");
+      } else {
+        const data = await exportKnowledgeBackup();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nowledge-mem-knowledge-backup-${dateStr}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setMigrationToast("✓ 知识全库 JSON 备份已成功导出下载！");
+      }
       setTimeout(() => setMigrationToast(null), 3500);
     } catch (err: any) {
-      alert("导出知识库失败: " + err.message);
+      alert("导出知识库失败: " + (err.message || String(err)));
     } finally {
       setIsExportingKnowledge(false);
     }
@@ -518,25 +564,33 @@ export const NowledgeSettingsView: React.FC = () => {
     e.target.value = "";
   };
 
-  const handleImportKnowledgeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportKnowledgeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsImportingKnowledge(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
+    try {
+      if (file.name.endsWith(".zip") || file.type.includes("zip")) {
+        const res = await importKnowledgeZip(file, migrationConflictMode);
+        const r = res.result || {};
+        setMigrationToast(
+          `✓ 知识库恢复成功！已导入 ${r.importedMemories || 0} 条记忆、${r.importedThreads || 0} 个会话、${r.importedMessages || 0} 条对话明细、${r.importedFacts || 0} 条图谱事实、${r.importedSkills || 0} 个技能`
+        );
+      } else {
+        const text = await file.text();
+        const json = JSON.parse(text);
         const res = await importKnowledgeBackup(json, migrationConflictMode);
-        setMigrationToast(`✓ 知识库恢复成功！已导入 ${res.result?.importedMemories || 0} 条记忆、${res.result?.importedFacts || 0} 条关系`);
-        setTimeout(() => setMigrationToast(null), 4000);
-      } catch (err: any) {
-        alert("导入知识库失败: " + err.message);
-      } finally {
-        setIsImportingKnowledge(false);
+        const r = res.result || {};
+        setMigrationToast(
+          `✓ 知识库恢复成功！已导入 ${r.importedMemories || 0} 条记忆、${r.importedFacts || 0} 条事实关系`
+        );
       }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
+      setTimeout(() => setMigrationToast(null), 5000);
+    } catch (err: any) {
+      alert("导入知识库失败: " + (err.message || String(err)));
+    } finally {
+      setIsImportingKnowledge(false);
+      e.target.value = "";
+    }
   };
 
   const handleRotateRemoteApiKey = async () => {
@@ -860,70 +914,70 @@ export const NowledgeSettingsView: React.FC = () => {
             className={`nl-set-nav-item ${activeSubTab === "models" ? "active" : ""}`}
             onClick={() => setActiveSubTab("models")}
           >
-            <span>⚙️</span>
+            <IconCpu size={16} />
             <span>模型</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "smart-processing" ? "active" : ""}`}
             onClick={() => setActiveSubTab("smart-processing")}
           >
-            <span>❇️</span>
+            <IconWand size={16} />
             <span>智能处理</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "providers" ? "active" : ""}`}
             onClick={() => setActiveSubTab("providers")}
           >
-            <span>🌐</span>
+            <IconMessageSquare size={16} />
             <span>服务商</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "profile" ? "active" : ""}`}
             onClick={() => setActiveSubTab("profile")}
           >
-            <span>👤</span>
+            <IconUser size={16} />
             <span>个人资料</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "migration" ? "active" : ""}`}
             onClick={() => setActiveSubTab("migration")}
           >
-            <span>💾</span>
+            <IconDatabase size={16} />
             <span>数据迁移</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "remote" ? "active" : ""}`}
             onClick={() => setActiveSubTab("remote")}
           >
-            <span>💎</span>
+            <IconWifi size={16} />
             <span>随处访问</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "team" ? "active" : ""}`}
             onClick={() => setActiveSubTab("team")}
           >
-            <span>👥</span>
+            <IconUsers size={16} />
             <span>团队</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "preferences" ? "active" : ""}`}
             onClick={() => setActiveSubTab("preferences")}
           >
-            <span>🎨</span>
+            <IconSliders size={16} />
             <span>偏好设置</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "license" ? "active" : ""}`}
             onClick={() => setActiveSubTab("license")}
           >
-            <span>📜</span>
+            <IconAward size={16} />
             <span>授权许可</span>
           </button>
           <button
             className={`nl-set-nav-item ${activeSubTab === "about" ? "active" : ""}`}
             onClick={() => setActiveSubTab("about")}
           >
-            <span>ℹ️</span>
+            <IconInfo size={16} />
             <span>关于</span>
           </button>
         </div>
@@ -973,11 +1027,11 @@ export const NowledgeSettingsView: React.FC = () => {
 
             {/* Model Cards Grid */}
             <div className="nl-model-cards-grid">
-              {/* Card 1: 索引模型 (方案 A: 真实轻量本地嵌入) */}
+              {/* Card 1: 索引模型 */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
-                    <span className="nl-model-icon">🔍</span>
+                    <span className="nl-model-icon"><IconSearch size={16} /></span>
                     <h3>索引模型</h3>
                   </div>
                   <div className="nl-model-status-pills">
@@ -1010,7 +1064,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 {/* Error message banner */}
                 {qwenModel.error && !qwenModel.isDownloading && !qwenModel.isDownloaded && (
                   <div style={{ marginTop: 8, padding: "6px 10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 6, fontSize: 11, color: "#f87171" }}>
-                    ⚠️ {qwenModel.error}
+                    {qwenModel.error}
                   </div>
                 )}
 
@@ -1030,36 +1084,37 @@ export const NowledgeSettingsView: React.FC = () => {
                 <div className="nl-model-box-footer">
                   {qwenModel.isDownloaded ? (
                     <div style={{ display: "flex", width: "100%", gap: 8 }}>
-                      <button className="nl-btn-downloaded" style={{ flex: 1 }}>
+                      <button className="nl-btn-downloaded" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                         ✓ 已下载
                       </button>
                       <button
                         className="nl-btn-secondary"
-                        style={{ padding: "0 10px", fontSize: 12 }}
+                        style={{ padding: "0 10px", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
                         title="删除模型文件"
                         onClick={() => handleDeleteModel("embedding_qwen")}
                       >
-                        🗑️
+                        <IconTrash size={13} />
                       </button>
                     </div>
                   ) : (
                     <button
                       className="nl-btn-secondary"
-                      style={{ width: "100%", justifyContent: "center" }}
+                      style={{ width: "100%", justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}
                       onClick={() => handleDownload("embedding_qwen")}
                       disabled={qwenModel.isDownloading}
                     >
-                      {qwenModel.isDownloading ? `⏬ 下载中 (${qwenModel.progress}%)` : qwenModel.error ? `🔄 重试下载 (${qwenModel.sizeText})` : `⬇ 下载 (${qwenModel.sizeText})`}
+                      <IconDownload size={13} />
+                      {qwenModel.isDownloading ? `下载中 (${qwenModel.progress}%)` : qwenModel.error ? `重试下载 (${qwenModel.sizeText})` : `下载 (${qwenModel.sizeText})`}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Card 2: 本地 LLM (方案 B: 真实本地 LLM 下载) */}
+              {/* Card 2: 本地 LLM */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
-                    <span className="nl-model-icon">🤖</span>
+                    <span className="nl-model-icon"><IconCpu size={16} /></span>
                     <h3>本地 LLM</h3>
                   </div>
                   <div className="nl-model-status-pills">
@@ -1092,7 +1147,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 {/* Error message banner */}
                 {gemmaModel.error && !gemmaModel.isDownloading && !gemmaModel.isDownloaded && (
                   <div style={{ marginTop: 8, padding: "6px 10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 6, fontSize: 11, color: "#f87171" }}>
-                    ⚠️ {gemmaModel.error}
+                    {gemmaModel.error}
                   </div>
                 )}
 
@@ -1112,36 +1167,37 @@ export const NowledgeSettingsView: React.FC = () => {
                 <div className="nl-model-box-footer">
                   {gemmaModel.isDownloaded ? (
                     <div style={{ display: "flex", width: "100%", gap: 8 }}>
-                      <button className="nl-btn-downloaded" style={{ flex: 1 }}>
+                      <button className="nl-btn-downloaded" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                         ✓ 已下载
                       </button>
                       <button
                         className="nl-btn-secondary"
-                        style={{ padding: "0 10px", fontSize: 12 }}
+                        style={{ padding: "0 10px", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
                         title="删除模型文件"
                         onClick={() => handleDeleteModel("llm_gemma")}
                       >
-                        🗑️
+                        <IconTrash size={13} />
                       </button>
                     </div>
                   ) : (
                     <button
                       className="nl-btn-secondary"
-                      style={{ width: "100%", justifyContent: "center" }}
+                      style={{ width: "100%", justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}
                       onClick={() => handleDownload("llm_gemma")}
                       disabled={gemmaModel.isDownloading}
                     >
-                      {gemmaModel.isDownloading ? `⏬ 下载中 (${gemmaModel.progress}%)` : gemmaModel.error ? `🔄 重试下载 (${gemmaModel.sizeText})` : `⬇ 下载 (${gemmaModel.sizeText})`}
+                      <IconDownload size={13} />
+                      {gemmaModel.isDownloading ? `下载中 (${gemmaModel.progress}%)` : gemmaModel.error ? `重试下载 (${gemmaModel.sizeText})` : `下载 (${gemmaModel.sizeText})`}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Card 3: 索引模型服务商 (本地 vs 云端 切换) */}
+              {/* Card 3: 索引模型服务商 */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
-                    <span className="nl-model-icon">🌐</span>
+                    <span className="nl-model-icon"><IconDatabase size={16} /></span>
                     <h3>索引模型服务商</h3>
                   </div>
                   <button className="nl-btn-link" onClick={() => setActiveSubTab("providers")}>
@@ -1172,11 +1228,11 @@ export const NowledgeSettingsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 4: LLM 服务商 (本地 vs 云端 切换) */}
+              {/* Card 4: LLM 服务商 */}
               <div className="nl-model-box">
                 <div className="nl-model-box-header">
                   <div className="nl-model-title-wrap">
-                    <span className="nl-model-icon">☁️</span>
+                    <span className="nl-model-icon"><IconMessageSquare size={16} /></span>
                     <h3>LLM 服务商</h3>
                   </div>
                   <button className="nl-btn-link" onClick={() => setActiveSubTab("providers")}>
@@ -1212,9 +1268,9 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ marginTop: 16 }}>
               <div className="nl-gpu-header">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>⚙️</span>
+                  <span style={{ color: "#94a3b8" }}><IconCpu size={18} /></span>
                   <div>
-                    <h3 style={{ fontSize: 14 }}>GPU 加速</h3>
+                    <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: "#f8fafc" }}>GPU 加速</h3>
                     <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
                       使用 GPU 加速设备嵌入和本地模型运行。如果 GPU 无法使用，将自动回退到 CPU。
                     </p>
@@ -1248,10 +1304,10 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>🔍</span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconSearch size={18} /></span>
                   <div>
-                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>搜索</h3>
-                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>让每一条记忆都能被找到</p>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", margin: 0 }}>搜索</h3>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>让每一条记忆都能被找到</p>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1265,7 +1321,7 @@ export const NowledgeSettingsView: React.FC = () => {
                     onClick={handleRebuildIndex}
                     disabled={isReindexing}
                   >
-                    <span>🔄</span> {isReindexing ? "正在重建..." : "重建索引"}
+                    <IconRefresh size={12} /> {isReindexing ? "正在重建..." : "重建索引"}
                   </button>
                 </div>
               </div>
@@ -1277,29 +1333,29 @@ export const NowledgeSettingsView: React.FC = () => {
                 </div>
                 <button
                   className="nl-btn-secondary"
-                  style={{ fontSize: 12, padding: "3px 8px" }}
+                  style={{ fontSize: 12, padding: "3px 8px", display: "flex", alignItems: "center", gap: 4 }}
                   onClick={handleOptimizeDb}
                   disabled={isOptimizing}
                 >
-                  ⚡ {isOptimizing ? "优化中..." : "优化"}
+                  <IconSparkles size={12} /> {isOptimizing ? "优化中..." : "优化"}
                 </button>
               </div>
 
               {/* 会话存储子项 */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                 <div>
-                  <h4 style={{ fontSize: 13, color: "#f1f5f9", marginBottom: 2 }}>会话存储</h4>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
+                  <h4 style={{ fontSize: 13, color: "#f1f5f9", margin: "0 0 2px 0" }}>会话存储</h4>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0 }}>
                     检查且整理入库下的空白/重复记录，有会话内容或记忆遗漏的记录不会被丢弃。
                   </p>
                 </div>
                 <button
                   className="nl-btn-secondary"
-                  style={{ fontSize: 12, padding: "4px 10px" }}
+                  style={{ fontSize: 12, padding: "4px 10px", display: "flex", alignItems: "center", gap: 4 }}
                   onClick={handleCleanSessions}
                   disabled={isCleaning}
                 >
-                  🔍 {isCleaning ? "检查中..." : "检查"}
+                  <IconSearch size={12} /> {isCleaning ? "检查中..." : "检查"}
                 </button>
               </div>
 
@@ -1359,11 +1415,14 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 2. 记忆策略 */}
             <div className="nl-card" style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", marginBottom: 2 }}>⚙️ 记忆策略</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>决定 Mem 何时对选定内容长久记住，应该留什么。</p>
-                  <div style={{ fontSize: 12, color: "#818cf8", marginTop: 6 }}>
-                    {memoryPolicy.scope || "所有空间"} · 最多 {memoryPolicy.maxMemoriesPerSession || 3} 条记忆 · {memoryPolicy.visibility === "full" ? "可见细节" : "极简摘要"}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ color: "#94a3b8", display: "flex", marginTop: 2 }}><IconSliders size={18} /></span>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", margin: "0 0 2px 0" }}>记忆策略</h3>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0 }}>决定 Mem 何时对选定内容长久记住，应该留什么。</p>
+                    <div style={{ fontSize: 12, color: "#818cf8", marginTop: 6 }}>
+                      {memoryPolicy.scope || "所有空间"} · 最多 {memoryPolicy.maxMemoriesPerSession || 3} 条记忆 · {memoryPolicy.visibility === "full" ? "可见细节" : "极简摘要"}
+                    </div>
                   </div>
                 </div>
                 <button
@@ -1379,13 +1438,16 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 3. 本体 (Ontology) */}
             <div className="nl-card" style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", marginBottom: 2 }}>🧩 本体 (Ontology)</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>
-                    告诉 Mem 你世界里有哪些公理——组织架构、实体、客户——让知识按你的话归类，而不是通用模型。
-                  </p>
-                  <div style={{ fontSize: 12, color: "#10b981", marginTop: 6 }}>
-                    ● 已配置 ({ontologyList.length} 种领域概念本体)
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ color: "#94a3b8", display: "flex", marginTop: 2 }}><IconGraph size={18} /></span>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", margin: "0 0 2px 0" }}>本体 (Ontology)</h3>
+                    <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0 }}>
+                      告诉 Mem 你世界里有哪些公理——组织架构、实体、客户——让知识按你的话归类，而不是通用模型。
+                    </p>
+                    <div style={{ fontSize: 12, color: "#10b981", marginTop: 6 }}>
+                      ● 已配置 ({ontologyList.length} 种领域概念本体)
+                    </div>
                   </div>
                 </div>
                 <button
@@ -1397,7 +1459,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: "#64748b", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 8 }}>
-                💡 关联长在顶层上，你能亲眼看到它们对应的节点颜色。AI 发现新概念/实体类型时：按需归入本体，这与模型配置一致。
+                关联长在顶层上，你能亲眼看到它们对应的节点颜色。AI 发现新概念/实体类型时：按需归入本体，这与模型配置一致。
               </div>
             </div>
 
@@ -1405,9 +1467,9 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ marginBottom: 16 }}>
               <div className="nl-smart-header-card" style={{ background: "transparent", padding: 0, marginBottom: 12 }}>
                 <div className="nl-smart-title-wrap">
-                  <span style={{ fontSize: 20 }}>⚡</span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconWand size={20} /></span>
                   <div>
-                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>后台任务</h3>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", margin: 0 }}>后台任务</h3>
                     <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
                       允许 Mem 自动进行简报、分类、去重、联想建议和记忆演化等 AI 任务
                     </p>
@@ -1500,10 +1562,10 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 顶部 LLM 服务商模式切换 Banner */}
             <div className="nl-card" style={{ marginBottom: 16, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 20 }}>⚡</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconMessageSquare size={18} /></span>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>LLM 服务商</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>LLM 服务商</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>
                     时间线、AI Now 和后台智能需要远程服务商
                   </p>
                 </div>
@@ -1536,13 +1598,15 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-providers-master-detail">
               {/* 左侧栏：服务商筛选与列表 */}
               <div className="nl-providers-sidebar-col">
-                <div className="nl-provider-search-box">
+                <div className="nl-provider-search-box" style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <span style={{ position: "absolute", left: 10, color: "#64748b", display: "flex" }}><IconSearch size={13} /></span>
                   <input
                     type="text"
-                    placeholder="🔍 筛选..."
+                    placeholder="筛选..."
                     value={providerSearch}
                     onChange={(e) => setProviderSearch(e.target.value)}
                     className="nl-provider-search-input"
+                    style={{ paddingLeft: 30 }}
                   />
                 </div>
                 <div className="nl-providers-scroll-list">
@@ -1560,8 +1624,10 @@ export const NowledgeSettingsView: React.FC = () => {
                         className={`nl-provider-list-item ${isSelected ? "active" : ""}`}
                         onClick={() => handleSelectProvider(p.id)}
                       >
-                        <div className="nl-provider-item-left">
-                          <span className="nl-provider-item-icon">{p.icon}</span>
+                        <div className="nl-provider-item-left" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 28, height: 28, minWidth: 28, borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+                            <ProviderGlyph providerId={p.id} size={15} />
+                          </div>
                           <span className="nl-provider-item-name">{p.name}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1589,11 +1655,13 @@ export const NowledgeSettingsView: React.FC = () => {
                   <div className="nl-provider-detail-card">
                     {/* Header */}
                     <div className="nl-provider-detail-header">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 22 }}>{curMeta.icon}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#cbd5e1" }}>
+                          <ProviderGlyph providerId={curMeta.id} size={19} />
+                        </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>{curMeta.name}</h3>
+                            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>{curMeta.name}</h3>
                             <span style={{ fontSize: 11, color: isCurConfigured ? "#10b981" : "#64748b", background: isCurConfigured ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 4 }}>
                               {isCurConfigured ? "已配置 ●" : "未配置"}
                             </span>
@@ -1786,7 +1854,7 @@ export const NowledgeSettingsView: React.FC = () => {
               {/* 卡片 1: 身份 */}
               <div className="nl-card" style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 15 }}>👤</span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconUser size={16} /></span>
                   <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>身份</span>
                 </div>
                 <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 12 }}>
@@ -1822,7 +1890,7 @@ export const NowledgeSettingsView: React.FC = () => {
               {/* 卡片 2: 语言 */}
               <div className="nl-card" style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 15 }}>🌐</span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconGlobe size={16} /></span>
                   <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>语言</span>
                 </div>
                 <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 12 }}>
@@ -1852,7 +1920,7 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* Banner: Agent 设置已移到上下文 */}
             <div className="nl-card" style={{ padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 16 }}>✨</span>
+                <span style={{ color: "#818cf8", display: "flex" }}><IconSparkles size={16} /></span>
                 <div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>Agent 设置已移到上下文</span>
                   <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
@@ -1870,7 +1938,7 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 4: 关于你 */}
             <div className="nl-card" style={{ padding: 16, marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 15 }}>📝</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconFileDoc size={16} /></span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>关于你</span>
               </div>
               <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 10 }}>
@@ -1895,7 +1963,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 </span>
                 {showAboutExample && (
                   <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(0,0,0,0.3)", borderRadius: 6, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
-                    💡 示例: 我是一名资深全栈工程师，主要技术栈为 TypeScript、React、Go 和 Python。我正在开发 AI 辅助编程与知识图谱系统，注重代码架构优雅与零依赖轻量化设计。
+                    示例: 我是一名资深全栈工程师，主要技术栈为 TypeScript、React、Go 和 Python。我正在开发 AI 辅助编程与知识图谱系统，注重代码架构优雅与零依赖轻量化设计。
                   </div>
                 )}
               </div>
@@ -1904,7 +1972,7 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 5: 个人资料说明 */}
             <div className="nl-card" style={{ padding: 16, marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 15 }}>🗂️</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconBook size={16} /></span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>个人资料说明</span>
               </div>
               <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 10 }}>
@@ -1929,7 +1997,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 </span>
                 {showProfileExample && (
                   <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(0,0,0,0.3)", borderRadius: 6, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
-                    💡 示例: 在生成代码时严格遵循 TypeScript Strict 规范，优先提供直接可用的完整模块而不是残缺代码片段；中文交互请保持简洁专业。
+                    示例: 在生成代码时严格遵循 TypeScript Strict 规范，优先提供直接可用的完整模块而不是残缺代码片段；中文交互请保持简洁专业。
                   </div>
                 )}
               </div>
@@ -1949,13 +2017,13 @@ export const NowledgeSettingsView: React.FC = () => {
           </div>
         )}
 
-        {/* 5. 数据迁移 (Data Migration) Tab (Screenshot 2) */}
+        {/* 5. 数据迁移 (Data Migration) Tab (1:1 with Original NowledgeMem UI) */}
         {activeSubTab === "migration" && (
           <div className="nl-set-panel" style={{ maxWidth: 860, animation: "fadeIn 0.2s ease" }}>
             {/* Header */}
             <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc" }}>数据迁移</h2>
-              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 2 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc", margin: 0 }}>数据迁移</h2>
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", marginTop: 4 }}>
                 在不同安装之间迁移应用设置或知识库。
               </p>
             </div>
@@ -1967,104 +2035,199 @@ export const NowledgeSettingsView: React.FC = () => {
             )}
 
             {/* 卡片 1: 设备备份 */}
-            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <span style={{ fontSize: 20, marginTop: 2 }}>🔄</span>
+            <div className="nl-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+                  <IconSliders size={18} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>设备备份</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>设备备份</h3>
+                  <p style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: "4px 0 0 0" }}>
                     迁移个人资料、空间、后台智能偏好和服务商配置。API 密钥与登录状态仍只保留在各自设备上。
                   </p>
                 </div>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                 <button
-                  className="nl-btn-secondary"
-                  style={{ fontSize: 12, padding: "5px 12px", display: "flex", alignItems: "center", gap: 4 }}
                   onClick={handleExportSettings}
                   disabled={isExportingSettings}
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 14px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 6,
+                    color: "#f8fafc",
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
                 >
-                  <span>📥</span> 备份
+                  <IconDownload size={13} /> 备份
                 </button>
-                <label className="nl-btn-secondary" style={{ fontSize: 12, padding: "5px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                  <span>🔄</span> 恢复
+                <label
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 14px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 6,
+                    color: "#f8fafc",
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <IconUpload size={13} /> 恢复
                   <input type="file" accept=".json" onChange={handleImportSettingsFile} style={{ display: "none" }} />
                 </label>
               </div>
             </div>
 
             {/* 卡片 2: 知识数据 */}
-            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <span style={{ fontSize: 20, marginTop: 2 }}>🗄️</span>
+            <div className="nl-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+                  <IconBox size={18} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>知识数据</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
-                    在不同安装之间迁移记忆、对话、信源、技能与图谱关系。
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>知识数据</h3>
+                  <p style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: "4px 0 0 0" }}>
+                    在不同安装之间迁移记忆、对话、资料、技能与图谱关系。
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-                    <input
-                      type="checkbox"
-                      checked={migrationCompressZip}
-                      onChange={(e) => setMigrationCompressZip(e.target.checked)}
-                      className="nl-checkbox-toggle"
-                    />
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>压缩为 .zip</span>
-                  </div>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", userSelect: "none" }}>
+                    <div
+                      onClick={() => setMigrationCompressZip(!migrationCompressZip)}
+                      style={{
+                        width: 36,
+                        height: 20,
+                        borderRadius: 10,
+                        background: migrationCompressZip ? "#ffffff" : "rgba(255,255,255,0.15)",
+                        position: "relative",
+                        transition: "background 0.2s",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          background: migrationCompressZip ? "#000000" : "#ffffff",
+                          position: "absolute",
+                          top: 3,
+                          left: migrationCompressZip ? 19 : 3,
+                          transition: "all 0.2s",
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 12, color: "#cbd5e1" }}>压缩为 .zip</span>
+                  </label>
                 </div>
               </div>
 
               <button
-                className="nl-btn-primary"
-                style={{ fontSize: 12, padding: "6px 16px", display: "flex", alignItems: "center", gap: 6 }}
                 onClick={handleExportKnowledge}
                 disabled={isExportingKnowledge}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "7px 18px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "#ffffff",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#000000",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  opacity: isExportingKnowledge ? 0.7 : 1,
+                  transition: "opacity 0.15s",
+                }}
               >
-                <span>📥</span> {isExportingKnowledge ? "导出中..." : "备份"}
+                <IconDownload size={14} color="#000000" /> {isExportingKnowledge ? "正在导出..." : "备份"}
               </button>
             </div>
 
             {/* 卡片 3: 恢复知识 */}
-            <div className="nl-card" style={{ padding: "16px 20px", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <span style={{ fontSize: 18 }}>📄</span>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>恢复知识</h3>
+            <div className="nl-card" style={{ padding: "18px 20px", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
+                <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: 8, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+                  <IconFileDoc size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>恢复知识</h3>
+                  <p style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5, margin: "4px 0 0 0" }}>
+                    将之前的备份恢复到当前安装。
+                  </p>
+                </div>
               </div>
-              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 16 }}>
-                将之前的备份恢复到当前安装。
-              </p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                 {/* 遇到已有内容时 */}
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 8 }}>遇到已有内容时</label>
-                  <div className="nl-mode-switch" style={{ width: "100%", display: "flex" }}>
+                  <div style={{ display: "flex", background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: 3 }}>
                     <button
-                      className={`nl-mode-btn ${migrationConflictMode === "merge" ? "active" : ""}`}
-                      style={{ flex: 1 }}
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        padding: "5px 0",
+                        textAlign: "center",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        background: migrationConflictMode === "merge" ? "rgba(255,255,255,0.12)" : "transparent",
+                        color: migrationConflictMode === "merge" ? "#ffffff" : "#94a3b8",
+                        fontWeight: migrationConflictMode === "merge" ? 500 : 400,
+                      }}
                       onClick={() => setMigrationConflictMode("merge")}
                     >
                       合并
                     </button>
                     <button
-                      className={`nl-mode-btn ${migrationConflictMode === "skip" ? "active" : ""}`}
-                      style={{ flex: 1 }}
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        padding: "5px 0",
+                        textAlign: "center",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        background: migrationConflictMode === "skip" ? "rgba(255,255,255,0.12)" : "transparent",
+                        color: migrationConflictMode === "skip" ? "#ffffff" : "#94a3b8",
+                        fontWeight: migrationConflictMode === "skip" ? 500 : 400,
+                      }}
                       onClick={() => setMigrationConflictMode("skip")}
                     >
-                      跳过
+                      保留
                     </button>
                     <button
-                      className={`nl-mode-btn ${migrationConflictMode === "replace" ? "active" : ""}`}
-                      style={{ flex: 1 }}
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        padding: "5px 0",
+                        textAlign: "center",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        background: migrationConflictMode === "replace" ? "rgba(255,255,255,0.12)" : "transparent",
+                        color: migrationConflictMode === "replace" ? "#ffffff" : "#94a3b8",
+                        fontWeight: migrationConflictMode === "replace" ? 500 : 400,
+                      }}
                       onClick={() => setMigrationConflictMode("replace")}
                     >
                       替换
                     </button>
                   </div>
-                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 6 }}>
-                    {migrationConflictMode === "merge" && "更稳定，只补齐缺失字段，不覆盖已有内容。"}
-                    {migrationConflictMode === "skip" && "如已有同 ID 记忆或实体，则跳过不导入。"}
+                  <p style={{ fontSize: 11, color: "#64748b", margin: "8px 0 0 0", lineHeight: 1.4 }}>
+                    {migrationConflictMode === "merge" && "更稳妥。只补齐缺失字段，不替换已有内容。"}
+                    {migrationConflictMode === "skip" && "跳过已有相同 ID 的记忆与实体，保留本地版本。"}
                     {migrationConflictMode === "replace" && "⚠️ 清空当前数据库并完全替换为备份内容。"}
                   </p>
                 </div>
@@ -2073,28 +2236,66 @@ export const NowledgeSettingsView: React.FC = () => {
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 8 }}>导入来源</label>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <label className="nl-btn-secondary" style={{ flex: 1, padding: "8px 12px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}>
-                      <span>📄</span> 选择 Zip / JSON
-                      <input type="file" accept=".json,.zip" onChange={handleImportKnowledgeFile} style={{ display: "none" }} />
+                    <label
+                      style={{
+                        flex: 1,
+                        padding: "7px 12px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(255,255,255,0.02)",
+                        borderRadius: 6,
+                        color: "#f8fafc",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <IconFileDoc size={13} /> 选择 Zip
+                      <input type="file" accept=".zip,.json" onChange={handleImportKnowledgeFile} style={{ display: "none" }} />
                     </label>
-                    <label className="nl-btn-secondary" style={{ flex: 1, padding: "8px 12px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}>
-                      <span>📁</span> 选择文件夹
+                    <label
+                      style={{
+                        flex: 1,
+                        padding: "7px 12px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(255,255,255,0.02)",
+                        borderRadius: 6,
+                        color: "#f8fafc",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <IconFolder size={13} /> 选择文件夹
                       <input type="file" {...({ webkitdirectory: "", directory: "" } as any)} onChange={handleImportKnowledgeFile} style={{ display: "none" }} />
                     </label>
                   </div>
                   {isImportingKnowledge && (
-                    <p style={{ fontSize: 11, color: "#818cf8", marginTop: 6 }}>正在解析并恢复知识库数据，请稍候...</p>
+                    <p style={{ fontSize: 11, color: "#818cf8", margin: "6px 0 0 0" }}>正在解析并恢复知识库数据，请稍候...</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* 折叠 1: 包含的数据 */}
-            <details style={{ marginBottom: 12, padding: "10px 14px", background: "var(--nl-bg-card)", border: "1px solid var(--nl-border)", borderRadius: 8 }}>
-              <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer", fontWeight: 500 }}>
-                ▶ 包含的数据
+            <details style={{ marginBottom: 12, padding: "12px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+              <summary style={{ fontSize: 13, color: "#f1f5f9", cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div>包含的数据</div>
+                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 400, marginTop: 2 }}>选择备份和恢复时要迁移的内容。</div>
+                </div>
+                <IconChevronRight size={14} style={{ color: "#64748b" }} />
               </summary>
-              <div style={{ marginTop: 10, fontSize: 12, color: "#cbd5e1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ marginTop: 12, fontSize: 12, color: "#94a3b8", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                 <div>• 记忆条目 (Memories & Versions)</div>
                 <div>• 知识图谱事实三元组 (Facts & Triples)</div>
                 <div>• 信源文档与分片 (Sources & Chunks)</div>
@@ -2105,18 +2306,44 @@ export const NowledgeSettingsView: React.FC = () => {
             </details>
 
             {/* 折叠 2: 存储维护 */}
-            <details style={{ padding: "10px 14px", background: "var(--nl-bg-card)", border: "1px solid var(--nl-border)", borderRadius: 8 }}>
-              <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer", fontWeight: 500 }}>
-                ▶ 存储维护
+            <details style={{ padding: "12px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+              <summary style={{ fontSize: 13, color: "#f1f5f9", cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div>存储维护</div>
+                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 400, marginTop: 2 }}>当前安装的本地数据库高级工具。</div>
+                </div>
+                <IconChevronRight size={14} style={{ color: "#64748b" }} />
               </summary>
-              <div style={{ marginTop: 10, fontSize: 12, color: "var(--nl-text-muted)" }}>
-                <p>当前数据库引擎: SQLite + sqlite-vec (零 Docker 独立进程)</p>
-                <p style={{ marginTop: 4 }}>数据文件路径: <code>{intelStats.dbPath || "data/NowledgeMem.db"}</code></p>
+              <div style={{ marginTop: 12, fontSize: 12, color: "#94a3b8", paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <p style={{ margin: 0 }}>当前数据库引擎: SQLite + sqlite-vec (零 Docker 独立进程)</p>
+                <p style={{ margin: "4px 0 0 0" }}>数据文件路径: <code style={{ color: "#cbd5e1" }}>{intelStats.dbPath || "data/NowledgeMem.db"}</code></p>
                 <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-                  <button className="nl-btn-secondary" style={{ fontSize: 11 }} onClick={handleOptimizeDb}>
+                  <button
+                    onClick={handleOptimizeDb}
+                    style={{
+                      fontSize: 11,
+                      padding: "6px 12px",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.03)",
+                      borderRadius: 6,
+                      color: "#e2e8f0",
+                      cursor: "pointer",
+                    }}
+                  >
                     整理数据库碎片 (VACUUM)
                   </button>
-                  <button className="nl-btn-secondary" style={{ fontSize: 11 }} onClick={handleRebuildIndex}>
+                  <button
+                    onClick={handleRebuildIndex}
+                    style={{
+                      fontSize: 11,
+                      padding: "6px 12px",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.03)",
+                      borderRadius: 6,
+                      color: "#e2e8f0",
+                      cursor: "pointer",
+                    }}
+                  >
                     全量重建检索索引
                   </button>
                 </div>
@@ -2145,10 +2372,10 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 1: Plus 已包含 随处访问 */}
             <div className="nl-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 18 }}>💎</span>
+                <span style={{ color: "#818cf8", display: "flex" }}><IconAward size={18} /></span>
                 <div>
-                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>Plus 已包含 随处访问</h3>
-                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc", margin: 0 }}>Plus 已包含 随处访问</h3>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>
                     多设备访问仍可使用。Plus 会从另一个账号提供 1 个独立的 Nowledge Link 主机、Nowledge AI 额度和用量整理。
                   </p>
                 </div>
@@ -2162,8 +2389,8 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>允许同一 Wi-Fi 下的设备访问</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 3 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>允许同一 Wi-Fi 下的设备访问</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "3px 0 0 0" }}>
                     让附近设备可直接访问这台电脑。局域网连接需要 API 密钥。会自动显示一次后端。
                   </p>
                 </div>
@@ -2175,11 +2402,11 @@ export const NowledgeSettingsView: React.FC = () => {
                 />
               </div>
 
-              {/* 开启后的黄色警告 Banner (Screenshot 4 像素级还原) */}
+              {/* 开启后的黄色警告 Banner */}
               {allowLan && (
                 <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#fbbf24" }}>
-                    <span>⚠️ 当前监听:</span>
+                    <span>当前监听:</span>
                     <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 4, color: "#fef3c7" }}>0.0.0.0:14242</code>
                   </div>
                   <p style={{ fontSize: 11, color: "#d97706", marginTop: 4 }}>
@@ -2205,19 +2432,19 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 3: API 密钥 */}
             <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>API 密钥</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>API 密钥</h3>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={handleRotateRemoteApiKey}>
-                    🔄 轮换
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8", display: "inline-flex", alignItems: "center", gap: 4 }} onClick={handleRotateRemoteApiKey}>
+                    <IconRefresh size={12} /> 轮换
                   </button>
-                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => { navigator.clipboard.writeText(remoteApiKey); setRemoteToast("API 密钥已复制到剪贴板"); }}>
-                    📋 复制
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8", display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => { navigator.clipboard.writeText(remoteApiKey); setRemoteToast("API 密钥已复制到剪贴板"); }}>
+                    <IconTag size={12} /> 复制
                   </button>
-                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => alert(`Web 客户端配置：\n\nURL: http://127.0.0.1:14242\nAPI Key: ${remoteApiKey}`)}>
-                    📄 生成网页配置
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8", display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => alert(`Web 客户端配置：\n\nURL: http://127.0.0.1:14242\nAPI Key: ${remoteApiKey}`)}>
+                    <IconFileDoc size={12} /> 生成网页配置
                   </button>
-                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8" }} onClick={() => alert(`API 密钥凭证:\n${remoteApiKey}`)}>
-                    📱 二维码
+                  <button className="nl-btn-link" style={{ fontSize: 11, color: "#818cf8", display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => alert(`API 密钥凭证:\n${remoteApiKey}`)}>
+                    <IconTerminal size={12} /> 二维码
                   </button>
                 </div>
               </div>
@@ -2246,8 +2473,8 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 4: 本地访问也需要 API 密钥 */}
             <div className="nl-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>本地访问也需要 API 密钥</h3>
-                <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc", margin: 0 }}>本地访问也需要 API 密钥</h3>
+                <p style={{ fontSize: 11, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>
                   开启后，本机基本请求也需要 API 密钥。
                 </p>
               </div>
@@ -2266,8 +2493,8 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ padding: 18, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>随处访问</h3>
-                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>通过互联网在任何地方访问你的 Mem</p>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>随处访问</h3>
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>通过互联网在任何地方访问你的 Mem</p>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 12, color: tunnelStatus === "running" ? "#10b981" : "#64748b" }}>
@@ -2323,10 +2550,10 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 6: 连接到远程 Nowledge Mem */}
             <div className="nl-card" style={{ padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 18 }}>🖥️</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconWifi size={18} /></span>
                 <div>
-                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>连接到远程 Nowledge Mem</h3>
-                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", marginTop: 2 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc", margin: 0 }}>连接到远程 Nowledge Mem</h3>
+                  <p style={{ fontSize: 11, color: "var(--nl-text-muted)", margin: "2px 0 0 0" }}>
                     访问另一台设备上运行的 Nowledge Mem。
                   </p>
                 </div>
@@ -2372,14 +2599,14 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 1: 外观 (Appearance) */}
             <div className="nl-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                <span style={{ fontSize: 18 }}>🔆</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconEye size={18} /></span>
                 <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>外观</span>
               </div>
 
               {/* 1. 主题 */}
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>主题</div>
-                <div className="nl-theme-segmented" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, background: "rgba(255,255,255,0.04)", padding: 3, borderRadius: 8, border: "1px solid var(--nl-border)" }}>
+                <div className="nl-theme-segmented" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, background: "rgba(255,255,255,0.04)", padding: 3, borderRadius: 8, border: "1px solid var(--nl-border)" }}>
                   <button
                     type="button"
                     className={`nl-seg-btn ${themeMode === "light" ? "active" : ""}`}
@@ -2392,17 +2619,16 @@ export const NowledgeSettingsView: React.FC = () => {
                       borderRadius: 6,
                       fontSize: 13,
                       border: "none",
-                      background: themeMode === "light" ? "var(--nl-card-bg)" : "transparent",
-                      color: themeMode === "light" ? "#f8fafc" : "var(--nl-text-muted)",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 6,
+                      fontWeight: themeMode === "light" ? 600 : 400,
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <span>☀️</span> 浅色
+                    浅色
                   </button>
                   <button
                     type="button"
@@ -2416,18 +2642,16 @@ export const NowledgeSettingsView: React.FC = () => {
                       borderRadius: 6,
                       fontSize: 13,
                       border: "none",
-                      background: themeMode === "dark" ? "rgba(255,255,255,0.08)" : "transparent",
-                      color: themeMode === "dark" ? "#f8fafc" : "var(--nl-text-muted)",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 6,
-                      boxShadow: themeMode === "dark" ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+                      fontWeight: themeMode === "dark" ? 600 : 400,
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <span>🌙</span> 深色
+                    深色
                   </button>
                   <button
                     type="button"
@@ -2441,13 +2665,12 @@ export const NowledgeSettingsView: React.FC = () => {
                       borderRadius: 6,
                       fontSize: 13,
                       border: "none",
-                      background: themeMode === "system" ? "rgba(255,255,255,0.08)" : "transparent",
-                      color: themeMode === "system" ? "#f8fafc" : "var(--nl-text-muted)",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 6,
+                      fontWeight: themeMode === "system" ? 600 : 400,
                       transition: "all 0.15s ease",
                     }}
                   >
@@ -2523,7 +2746,7 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <span style={{ fontSize: 18, marginTop: 2 }}>🖥️</span>
+                  <span style={{ color: "#94a3b8", display: "flex", marginTop: 2 }}><IconCpu size={18} /></span>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--nl-text-primary)" }}>登录时自动启动</div>
                     <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 2 }}>
@@ -2549,7 +2772,7 @@ export const NowledgeSettingsView: React.FC = () => {
             <div className="nl-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>🗂️</span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconCategory size={18} /></span>
                   <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>记忆空间</span>
                 </div>
                 <label className="nl-switch">
@@ -2586,7 +2809,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--nl-text-primary)", marginBottom: 4 }}>
-                  <span>💡</span> 这些设置是如何生效的
+                  这些设置是如何生效的
                 </div>
                 <div>• 默认约束决定了哪些空间开始隔离，第一步自动归类会优先落到更大范围。</div>
                 <div>• 共享上下文的愿景以让“过去连起空间”，它不会偷看隐私记录，也不会把不同空间合并。</div>
@@ -2608,7 +2831,7 @@ export const NowledgeSettingsView: React.FC = () => {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 14 }}>🔘</span>
+                          <IconLayers size={14} style={{ color: "#94a3b8" }} />
                           <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>{sp.projectName || "Default"}</span>
                           <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
                             {sp._id === "default" || sp.projectName === "default" ? "共享" : "独立空间"}
@@ -2640,7 +2863,7 @@ export const NowledgeSettingsView: React.FC = () => {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 14 }}>🔘</span>
+                        <IconLayers size={14} style={{ color: "#94a3b8" }} />
                         <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>Default</span>
                         <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
                           共享
@@ -2680,7 +2903,7 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 4: 全局热键 (Global Shortcuts) */}
             <div className="nl-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 18 }}>⌨️</span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconTerminal size={18} /></span>
                 <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>全局热键</span>
               </div>
               <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "0 0 16px 0" }}>
@@ -2830,7 +3053,7 @@ export const NowledgeSettingsView: React.FC = () => {
                   gap: 8,
                 }}
               >
-                <span>💡</span> 开启快捷键提示，按住 Ctrl 预览快捷键
+                开启快捷键提示，按住 Ctrl 预览快捷键
               </div>
             </div>
 
@@ -2878,7 +3101,7 @@ export const NowledgeSettingsView: React.FC = () => {
                 <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--nl-border)", borderRadius: 8, padding: "12px 14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 16 }}>🌐</span>
+                      <span style={{ color: "#94a3b8", display: "flex" }}><IconGlobe size={16} /></span>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>Browse Now</div>
                         <div style={{ fontSize: 12, color: "var(--nl-text-muted)" }}>面向 AI 智能体的浏览器自动化 CLI</div>

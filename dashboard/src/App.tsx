@@ -20,6 +20,7 @@ import type { Session, Memory } from "./types";
 import { useSessions } from "./hooks/useSessions";
 import { apiClient, extractErrorMessage, getMemories } from "./api/ArcRift";
 import { LocaleProvider } from "./context/LocaleContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { NowledgeTopHeader } from "./components/Nowledge/NowledgeTopHeader";
 
 const AppContent: React.FC = () => {
@@ -209,9 +210,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <LocaleProvider>
-      <AppContent />
-    </LocaleProvider>
+    <ThemeProvider>
+      <LocaleProvider>
+        <AppContent />
+      </LocaleProvider>
+    </ThemeProvider>
   );
 };
 

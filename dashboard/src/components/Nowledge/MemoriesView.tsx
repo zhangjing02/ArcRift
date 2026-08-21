@@ -7,6 +7,7 @@ import {
   IconBack,
   IconEdit,
   IconPin,
+  IconArchive,
   IconGraph,
   IconExport,
   IconTrash,
@@ -655,50 +656,24 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                 <span>知识图谱</span>
               </button>
 
-              {/* Export, Archive, Favorite & Delete Actions */}
+              {/* Export, Archive, Favorite & Delete Actions (Icon-only) */}
               <div className="nl-sidebar-actions-row">
                 <button
                   className={`nl-sidebar-action-btn ${selectedMemory.isPinned ? "active" : ""}`}
                   onClick={(e) => handleTogglePin(e, selectedMemory)}
                   style={{ color: selectedMemory.isPinned ? "#818cf8" : undefined }}
                   title={selectedMemory.isPinned ? "取消收藏" : "收藏记忆"}
+                  aria-label={selectedMemory.isPinned ? "取消收藏" : "收藏记忆"}
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill={selectedMemory.isPinned ? "currentColor" : "none"}
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ marginRight: 4 }}
-                  >
-                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-                  </svg>
-                  <span>{selectedMemory.isPinned ? "已收藏" : "收藏"}</span>
+                  <IconPin size={15} filled={selectedMemory.isPinned} />
                 </button>
                 <button
                   className="nl-sidebar-action-btn"
                   onClick={(e) => handleToggleArchive(e, selectedMemory)}
                   title={selectedMemory.claimStatus === "archived" || selectedMemory.claimStatus === "superseded" ? "恢复至活跃" : "归档记忆"}
+                  aria-label={selectedMemory.claimStatus === "archived" || selectedMemory.claimStatus === "superseded" ? "恢复至活跃" : "归档记忆"}
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ marginRight: 4 }}
-                  >
-                    <rect width="20" height="5" x="2" y="3" rx="1" />
-                    <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-                    <path d="M10 12h4" />
-                  </svg>
-                  <span>{selectedMemory.claimStatus === "archived" || selectedMemory.claimStatus === "superseded" ? "恢复" : "归档"}</span>
+                  <IconArchive size={15} />
                 </button>
                 <button
                   className="nl-sidebar-action-btn"
@@ -710,16 +685,18 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
                     a.download = `${selectedMemory.title}.md`;
                     a.click();
                   }}
+                  title="导出为 Markdown"
+                  aria-label="导出为 Markdown"
                 >
-                  <IconExport size={13} style={{ marginRight: 4 }} />
-                  <span>导出</span>
+                  <IconExport size={15} />
                 </button>
                 <button
                   className="nl-sidebar-action-btn danger"
                   onClick={(e) => handleDelete(e, selectedMemory.id)}
+                  title="删除记忆"
+                  aria-label="删除记忆"
                 >
-                  <IconTrash size={13} style={{ marginRight: 4 }} />
-                  <span>删除</span>
+                  <IconTrash size={15} />
                 </button>
               </div>
 
