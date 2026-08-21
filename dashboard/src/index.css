@@ -241,22 +241,193 @@
   color: #0f172a;
 }
 
+/* ── Segmented Control & Preferences UI (Dark Theme Default) ── */
+.nl-theme-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2px;
+  background: #141417 !important;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.nl-seg-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: none;
+  background: transparent !important;
+  color: #a1a1aa !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 400;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.nl-seg-btn:hover:not(.active) {
+  color: #f4f4f5 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.nl-seg-btn.active {
+  background: #27272a !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  font-weight: 500;
+}
+
+.nl-font-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 2px;
+  background: #141417;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nl-font-btn {
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nl-font-btn:hover:not(.active) {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nl-font-btn.active {
+  background: #27272a;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ── iOS-Style Toggle Switch ── */
+.nl-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.nl-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.nl-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #27272a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 24px;
+}
+
+.nl-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+input:checked + .nl-slider {
+  background-color: #0096c7;
+  border-color: #0096c7;
+}
+
+input:checked + .nl-slider:before {
+  transform: translateX(20px);
+}
+
+/* Light Theme Overrides */
 [data-theme="light"] .nl-theme-segmented,
 .light-theme .nl-theme-segmented {
-  background-color: #f1f5f9 !important;
+  background: #f1f5f9 !important;
   border-color: #e2e8f0 !important;
 }
 
 [data-theme="light"] .nl-seg-btn,
 .light-theme .nl-seg-btn {
   color: #64748b !important;
+  background: transparent !important;
+}
+
+[data-theme="light"] .nl-seg-btn:hover:not(.active),
+.light-theme .nl-seg-btn:hover:not(.active) {
+  color: #0f172a !important;
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 
 [data-theme="light"] .nl-seg-btn.active,
 .light-theme .nl-seg-btn.active {
-  background-color: #ffffff !important;
+  background: #ffffff !important;
   color: #0f172a !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-theme="light"] .nl-font-segmented,
+.light-theme .nl-font-segmented {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .nl-font-btn,
+.light-theme .nl-font-btn {
+  color: #64748b;
+  background: transparent;
+}
+
+[data-theme="light"] .nl-font-btn:hover:not(.active),
+.light-theme .nl-font-btn:hover:not(.active) {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .nl-font-btn.active,
+.light-theme .nl-font-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .nl-slider,
+.light-theme .nl-slider {
+  background-color: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] input:checked + .nl-slider,
+.light-theme input:checked + .nl-slider {
+  background-color: #0284c7;
+  border-color: #0284c7;
 }
 
 

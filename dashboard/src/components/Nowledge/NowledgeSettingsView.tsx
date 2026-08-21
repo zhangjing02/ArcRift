@@ -50,12 +50,13 @@ import {
   IconBook,
   IconGlobe,
   IconTerminal,
-  IconEye,
-  IconCategory,
   IconGraph,
   IconLayers,
   IconTag,
   IconRefresh,
+  IconSun,
+  IconMoon,
+  IconMonitor,
   ProviderGlyph,
 } from "./Icons";
 
@@ -2599,14 +2600,14 @@ export const NowledgeSettingsView: React.FC = () => {
             {/* 卡片 1: 外观 (Appearance) */}
             <div className="nl-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                <span style={{ color: "#94a3b8", display: "flex" }}><IconEye size={18} /></span>
+                <span style={{ color: "#94a3b8", display: "flex" }}><IconSun size={18} /></span>
                 <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>外观</span>
               </div>
 
               {/* 1. 主题 */}
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>主题</div>
-                <div className="nl-theme-segmented" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, background: "rgba(255,255,255,0.04)", padding: 3, borderRadius: 8, border: "1px solid var(--nl-border)" }}>
+                <div className="nl-theme-segmented">
                   <button
                     type="button"
                     className={`nl-seg-btn ${themeMode === "light" ? "active" : ""}`}
@@ -2614,21 +2615,9 @@ export const NowledgeSettingsView: React.FC = () => {
                       setThemeMode("light");
                       handleSavePreferences({ themeMode: "light" });
                     }}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      fontWeight: themeMode === "light" ? 600 : 400,
-                      transition: "all 0.15s ease",
-                    }}
                   >
-                    浅色
+                    <IconSun size={15} />
+                    <span>浅色</span>
                   </button>
                   <button
                     type="button"
@@ -2637,21 +2626,9 @@ export const NowledgeSettingsView: React.FC = () => {
                       setThemeMode("dark");
                       handleSavePreferences({ themeMode: "dark" });
                     }}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      fontWeight: themeMode === "dark" ? 600 : 400,
-                      transition: "all 0.15s ease",
-                    }}
                   >
-                    深色
+                    <IconMoon size={15} />
+                    <span>深色</span>
                   </button>
                   <button
                     type="button"
@@ -2660,21 +2637,9 @@ export const NowledgeSettingsView: React.FC = () => {
                       setThemeMode("system");
                       handleSavePreferences({ themeMode: "system" });
                     }}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      fontWeight: themeMode === "system" ? 600 : 400,
-                      transition: "all 0.15s ease",
-                    }}
                   >
-                    跟随系统
+                    <IconMonitor size={15} />
+                    <span>跟随系统</span>
                   </button>
                 </div>
               </div>
@@ -2690,7 +2655,6 @@ export const NowledgeSettingsView: React.FC = () => {
                       setUiLanguage(e.target.value);
                       handleSavePreferences({ uiLanguage: e.target.value });
                     }}
-                    style={{ width: "100%", padding: "9px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--nl-border)", borderRadius: 8, color: "#f8fafc" }}
                   >
                     <option value="auto">跟随系统 (当前使用: 简体中文)</option>
                     <option value="zh-CN">简体中文 (Simplified Chinese)</option>
@@ -2699,40 +2663,28 @@ export const NowledgeSettingsView: React.FC = () => {
                     <option value="ja-JP">日本語 (Japanese)</option>
                   </select>
                 </div>
-                <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 6 }}>
+                <p style={{ fontSize: 12, color: "var(--nl-text-muted)", marginTop: 6, lineHeight: 1.5 }}>
                   总以此设定显示界面。AI 回复语言请到 个人资料 里的 输出语言 设定。
                 </p>
               </div>
 
-              {/* 3. 字号尺寸 */}
+              {/* 3. 字体尺寸 */}
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>字号尺寸</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--nl-text-secondary)", marginBottom: 8 }}>字体尺寸</div>
+                <div className="nl-font-segmented">
                   {[
-                    { id: "small", label: "A", size: 12, title: "小" },
-                    { id: "normal", label: "A", size: 14, title: "标准" },
-                    { id: "medium", label: "A", size: 16, title: "中" },
-                    { id: "large", label: "A", size: 18, title: "大" },
+                    { id: "small", label: "A", size: 11 },
+                    { id: "normal", label: "A", size: 13 },
+                    { id: "medium", label: "A", size: 15 },
+                    { id: "large", label: "A", size: 17 },
                   ].map((f) => (
                     <button
                       key={f.id}
                       type="button"
+                      className={`nl-font-btn ${fontSizeScale === f.id ? "active" : ""}`}
                       onClick={() => {
                         setFontSizeScale(f.id as any);
                         handleSavePreferences({ fontSizeScale: f.id });
-                      }}
-                      style={{
-                        padding: "10px 0",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 2,
-                        background: fontSizeScale === f.id ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                        border: fontSizeScale === f.id ? "1px solid rgba(255,255,255,0.2)" : "1px solid var(--nl-border)",
-                        borderRadius: 8,
-                        color: fontSizeScale === f.id ? "#f8fafc" : "var(--nl-text-muted)",
-                        cursor: "pointer",
                       }}
                     >
                       <span style={{ fontSize: f.size, fontWeight: 600 }}>{f.label}</span>
@@ -2770,9 +2722,9 @@ export const NowledgeSettingsView: React.FC = () => {
 
             {/* 卡片 3: 记忆空间 (Memory Spaces) */}
             <div className="nl-card" style={{ marginBottom: 20 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ color: "#94a3b8", display: "flex" }}><IconCategory size={18} /></span>
+                  <span style={{ color: "#94a3b8", display: "flex" }}><IconFolder size={18} /></span>
                   <span style={{ fontSize: 15, fontWeight: 600, color: "var(--nl-text-primary)" }}>记忆空间</span>
                 </div>
                 <label className="nl-switch">
@@ -2788,116 +2740,121 @@ export const NowledgeSettingsView: React.FC = () => {
                 </label>
               </div>
 
-              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", lineHeight: 1.6, margin: "0 0 8px 0" }}>
-                只在空间内部查找和消费记忆。时间线、记忆、对话、信源和工作记忆都会跟随当前空间；附随默认仍然是全局的，除非你主动隐藏。
+              <p style={{ fontSize: 13, color: "var(--nl-text-secondary)", lineHeight: 1.6, margin: "0 0 6px 0" }}>
+                只在你真的需要隔离记忆时隔离记忆。时间线、记忆、对话、资料库和工作记忆都会跟随当前空间；而团队默认是全局的，除非你主动隐藏。
               </p>
-              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: "0 0 16px 0" }}>
-                你现在仍然只有一个共享空间。只有在需要独立记忆隔离时，再创建新的空间。
+              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: enableMultiSpaces ? "0 0 16px 0" : "0", lineHeight: 1.5 }}>
+                空间默认关闭。这样大多数人完全不用管它。只有在你想把工作、生活、团队或项目分开时，再打开它。
               </p>
 
-              {/* 生效原理说明 Callout */}
-              <div
-                style={{
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid var(--nl-border)",
-                  borderRadius: 8,
-                  padding: "12px 14px",
-                  marginBottom: 16,
-                  fontSize: 12,
-                  color: "var(--nl-text-secondary)",
-                  lineHeight: 1.7,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--nl-text-primary)", marginBottom: 4 }}>
-                  这些设置是如何生效的
-                </div>
-                <div>• 默认约束决定了哪些空间开始隔离，第一步自动归类会优先落到更大范围。</div>
-                <div>• 共享上下文的愿景以让“过去连起空间”，它不会偷看隐私记录，也不会把不同空间合并。</div>
-                <div>• 空间规则是 AI Now、Feed 和后台任务在这个空间的本地工作规则。</div>
-              </div>
-
-              {/* 空间列表卡片 */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-                {spacesList.length > 0 ? (
-                  spacesList.map((sp) => (
-                    <div
-                      key={sp._id}
-                      style={{
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid var(--nl-border)",
-                        borderRadius: 8,
-                        padding: "14px 16px",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <IconLayers size={14} style={{ color: "#94a3b8" }} />
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>{sp.projectName || "Default"}</span>
-                          <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
-                            {sp._id === "default" || sp.projectName === "default" ? "共享" : "独立空间"}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
-                          当前
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
-                        {sp.tripleCount || 0} 条事实 · {sp.topicCount || 1} 个对话 · 0 个信源
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
-                        General memory space for everything not explicitly separated yet.
-                      </div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                        只能在这个空间 · 没有共享空间
-                      </div>
-                    </div>
-                  ))
-                ) : (
+              {/* 仅在打开多空间时展开空间列表与管理 */}
+              {enableMultiSpaces && (
+                <div style={{ marginTop: 16 }}>
+                  {/* 生效原理说明 Callout */}
                   <div
                     style={{
-                      background: "rgba(255,255,255,0.03)",
+                      background: "rgba(255, 255, 255, 0.02)",
                       border: "1px solid var(--nl-border)",
                       borderRadius: 8,
-                      padding: "14px 16px",
+                      padding: "12px 14px",
+                      marginBottom: 16,
+                      fontSize: 12,
+                      color: "var(--nl-text-secondary)",
+                      lineHeight: 1.7,
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <IconLayers size={14} style={{ color: "#94a3b8" }} />
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>Default</span>
-                        <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
-                          共享
-                        </span>
-                      </div>
-                      <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
-                        当前
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: "var(--nl-text-primary)", marginBottom: 4 }}>
+                      这些设置是如何生效的
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
-                      24 条记忆 · 1 个对话 · 0 个信源
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
-                      General memory space for everything not explicitly separated yet.
-                    </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                      只能在这个空间 · 没有共享空间
-                    </div>
+                    <div>• 默认约束决定了哪些空间开始隔离，第一步自动归类会优先落到更大范围。</div>
+                    <div>• 共享上下文的愿景以让“过去连起空间”，它不会偷看隐私记录，也不会把不同空间合并。</div>
+                    <div>• 空间规则是 AI Now、Feed 和后台任务在这个空间的本地工作规则。</div>
                   </div>
-                )}
-              </div>
 
-              <button
-                type="button"
-                className="nl-btn-secondary"
-                onClick={() => setShowCreateSpaceModal(true)}
-                style={{ width: "100%", padding: "10px", borderRadius: 8, fontSize: 13, fontWeight: 500, marginBottom: 12 }}
-              >
-                + 创建新的空间
-              </button>
+                  {/* 空间列表卡片 */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                    {spacesList.length > 0 ? (
+                      spacesList.map((sp) => (
+                        <div
+                          key={sp._id}
+                          style={{
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid var(--nl-border)",
+                            borderRadius: 8,
+                            padding: "14px 16px",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <IconLayers size={14} style={{ color: "#94a3b8" }} />
+                              <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>{sp.projectName || "Default"}</span>
+                              <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
+                                {sp._id === "default" || sp.projectName === "default" ? "共享" : "独立空间"}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
+                              当前
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
+                            {sp.tripleCount || 0} 条事实 · {sp.topicCount || 1} 个对话 · 0 个信源
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
+                            General memory space for everything not explicitly separated yet.
+                          </div>
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                            只能在这个空间 · 没有共享空间
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid var(--nl-border)",
+                          borderRadius: 8,
+                          padding: "14px 16px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <IconLayers size={14} style={{ color: "#94a3b8" }} />
+                            <span style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc" }}>Default</span>
+                            <span style={{ fontSize: 11, background: "rgba(255,255,255,0.08)", color: "var(--nl-text-muted)", padding: "1px 6px", borderRadius: 4 }}>
+                              共享
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, color: "var(--nl-text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 8px", borderRadius: 10 }}>
+                            当前
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--nl-text-secondary)", marginBottom: 4 }}>
+                          24 条记忆 · 1 个对话 · 0 个信源
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--nl-text-muted)", marginBottom: 8 }}>
+                          General memory space for everything not explicitly separated yet.
+                        </div>
+                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                          只能在这个空间 · 没有共享空间
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-              <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0, textAlign: "center" }}>
-                只要最后只剩共享的 Default 空间，你之后随时都可以再把它关掉。
-              </p>
+                  <button
+                    type="button"
+                    className="nl-btn-secondary"
+                    onClick={() => setShowCreateSpaceModal(true)}
+                    style={{ width: "100%", padding: "10px", borderRadius: 8, fontSize: 13, fontWeight: 500, marginBottom: 12 }}
+                  >
+                    + 创建新的空间
+                  </button>
+
+                  <p style={{ fontSize: 12, color: "var(--nl-text-muted)", margin: 0, textAlign: "center" }}>
+                    只要最后只剩共享的 Default 空间，你之后随时都可以再把它关掉。
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 卡片 4: 全局热键 (Global Shortcuts) */}
