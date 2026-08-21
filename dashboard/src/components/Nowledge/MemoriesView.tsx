@@ -75,6 +75,9 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchOperating, setIsBatchOperating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   const showToast = (text: string, type: "success" | "error" | "info" = "success") => {
@@ -87,22 +90,32 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
   }, [activeSession?._id, statusFilter]);
 
   const loadData = async () => {
+    setIsLoading(true);
+    setIsError(false);
+    setErrorMessage(null);
     try {
       const targetSessionId = (activeSession?._id && activeSession._id !== "all") ? activeSession._id : undefined;
       const res = await getMemories({
         sessionId: targetSessionId,
         query: searchQuery || undefined,
       });
-      if (res.success) {
-        setMemories(res.memories);
+      if (res && res.success) {
+        setMemories(res.memories || []);
         // If an active memory is selected, refresh it
         if (selectedMemory) {
-          const updated = res.memories.find((m: Memory) => m.id === selectedMemory.id);
+          const updated = (res.memories || []).find((m: Memory) => m.id === selectedMemory.id);
           if (updated) setSelectedMemory(updated);
         }
+      } else {
+        setIsError(true);
+        setErrorMessage("获取记忆列表失败");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load memories", err);
+      setIsError(true);
+      setErrorMessage(err?.response?.data?.error || err?.message || "无法连接到后端服务 (Network Error)");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -987,7 +1000,71 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
       </div>
 
       {/* Memory Horizontal List Stream (Matching Screenshot 1 & 2) */}
-      {filteredMemories.length === 0 ? (
+      {isError ? (
+        <div
+          className="nl-empty-state-card"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 20px",
+            textAlign: "center",
+            border: "1px dashed rgba(239, 68, 68, 0.4)",
+            borderRadius: "12px",
+            background: "rgba(239, 68, 68, 0.05)",
+          }}
+        >
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              backgroundColor: "rgba(239, 68, 68, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "26px",
+              marginBottom: "16px",
+              color: "#f87171",
+            }}
+          >
+            ⚠️
+          </div>
+          <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f87171", margin: "0 0 6px 0" }}>
+            无法连接到后端知识库服务
+          </h2>
+          <p style={{ fontSize: "13px", color: "#94a3b8", margin: "0 0 20px 0", maxWidth: "450px" }}>
+            {errorMessage || "服务可能正在启动或离线，记忆数据仍安全保存在本地数据库中。"}
+          </p>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              className="nl-btn-primary"
+              style={{ padding: "8px 20px", fontSize: "13px", borderRadius: "8px" }}
+              onClick={loadData}
+            >
+              🔄 重新连接
+            </button>
+          </div>
+        </div>
+      ) : isLoading && memories.length === 0 ? (
+        <div
+          className="nl-empty-state-card"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 20px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "12px" }}>
+            ⏳
+          </div>
+          <p style={{ fontSize: "14px", color: "#94a3b8" }}>正在加载知识库记忆...</p>
+        </div>
+      ) : filteredMemories.length === 0 ? (
         <div
           className="nl-empty-state-card"
           style={{
@@ -1015,28 +1092,85 @@ export const MemoriesView: React.FC<MemoriesViewProps> = ({
           >
             💡
           </div>
-          <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
-            还没有记忆
-          </h2>
-          <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
-            从导入会话或连接笔记开始。
-          </p>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              className="nl-btn-primary"
-              style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
-              onClick={() => setIsImportModalOpen(true)}
-            >
-              导入会话
-            </button>
-            <button
-              className="nl-btn-secondary"
-              style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
-              onClick={() => onNavigateTab?.("settings")}
-            >
-              连接笔记
-            </button>
-          </div>
+          {searchQuery ? (
+            <>
+              <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
+                未找到匹配的记忆
+              </h2>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
+                没有找到与 "{searchQuery}" 相关的记录。
+              </p>
+              <button
+                className="nl-btn-secondary"
+                style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+                onClick={() => {
+                  setSearchQuery("");
+                  setTimeout(() => loadData(), 0);
+                }}
+              >
+                清除搜索条件
+              </button>
+            </>
+          ) : activeSession && activeSession._id !== "all" ? (
+            <>
+              <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
+                空间「{activeSession.projectName}」暂无记忆
+              </h2>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
+                该空间下还没有独立记忆条目。你可以创建新记忆，或在上方切换回「全部空间」。
+              </p>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  className="nl-btn-primary"
+                  style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  + 在此空间创建记忆
+                </button>
+              </div>
+            </>
+          ) : statusFilter === "archived" ? (
+            <>
+              <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
+                暂无已归档记忆
+              </h2>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
+                所有当前记忆均为活跃状态。
+              </p>
+              <button
+                className="nl-btn-secondary"
+                style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+                onClick={() => setStatusFilter("active")}
+              >
+                查看活跃记忆
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontSize: "17px", fontWeight: 600, color: "#f8fafc", margin: "0 0 6px 0" }}>
+                还没有记忆
+              </h2>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
+                从导入会话或连接笔记开始。
+              </p>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  className="nl-btn-primary"
+                  style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+                  onClick={() => setIsImportModalOpen(true)}
+                >
+                  导入会话
+                </button>
+                <button
+                  className="nl-btn-secondary"
+                  style={{ padding: "8px 18px", fontSize: "13px", borderRadius: "8px" }}
+                  onClick={() => onNavigateTab?.("settings")}
+                >
+                  连接笔记
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="nl-memory-list-stream">

@@ -14,8 +14,10 @@ dist
 **/dist
 extension/popup/popup.js
 
-# npm logs
+# Logs
 npm-debug.log*
+*.log
+**/*.log
 
 # SQLite & Storage
 *.db

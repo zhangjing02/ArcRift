@@ -362,6 +362,24 @@ if (!gotTheLock) {
     log("app.whenReady catch error: " + err);
   });
 
+  // Background Health Watchdog: Continuously check backend health every 4 seconds
+  const watchdogTimer = setInterval(() => {
+    if (isQuitting) return;
+    const checkReq = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
+      // Backend is healthy, nothing to do
+    });
+    checkReq.on("error", () => {
+      if (!isQuitting) {
+        log("[Watchdog] Backend unreachable on port 3001! Auto-healing backend process...");
+        startBackend();
+      }
+    });
+    checkReq.setTimeout(2500, () => {
+      checkReq.destroy();
+    });
+    checkReq.end();
+  }, 4000);
+
   process.on("uncaughtException", (err) => {
     log("process uncaughtException: " + (err?.stack || err?.message || String(err)));
   });
@@ -372,6 +390,7 @@ if (!gotTheLock) {
 
   app.on("before-quit", () => {
     isQuitting = true;
+    clearInterval(watchdogTimer);
     stopBackend();
   });
 

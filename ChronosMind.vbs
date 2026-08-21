@@ -1,6 +1,6 @@
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "d:\Devs\ArcRift\backend"
-WshShell.Run "cmd /c set ""SQLITE_DB_PATH=d:\Devs\ArcRift\backend\ArcRift.db"" && node dist/index.js", 0, False
+WshShell.Run "cmd /c set ""SQLITE_DB_PATH=d:\Devs\ArcRift\backend\ChronosMind.db"" && node dist/index.js", 0, False
 
 WScript.Sleep 800
 
