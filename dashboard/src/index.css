@@ -241,6 +241,385 @@
   color: #0f172a;
 }
 
+/* ── Light Theme: View Header & Titles (Images 3 & 4) ── */
+[data-theme="light"] .nl-view-title,
+.light-theme .nl-view-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-view-subtitle,
+.light-theme .nl-view-subtitle {
+  color: #64748b !important;
+}
+
+/* ── Light Theme: Search Bars & Filters (Images 3 & 4) ── */
+[data-theme="light"] .nl-mem-search-input-wrap,
+.light-theme .nl-mem-search-input-wrap,
+[data-theme="light"] .nl-threads-search-input-wrap,
+.light-theme .nl-threads-search-input-wrap {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .nl-mem-search-input,
+.light-theme .nl-mem-search-input,
+[data-theme="light"] .nl-threads-search-input,
+.light-theme .nl-threads-search-input {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-mem-search-input::placeholder,
+.light-theme .nl-mem-search-input::placeholder,
+[data-theme="light"] .nl-threads-search-input::placeholder,
+.light-theme .nl-threads-search-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+[data-theme="light"] .nl-search-mode-toggle,
+.light-theme .nl-search-mode-toggle {
+  background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] .nl-search-mode-toggle .nl-mode-btn,
+.light-theme .nl-search-mode-toggle .nl-mode-btn {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-search-mode-toggle .nl-mode-btn.active,
+.light-theme .nl-search-mode-toggle .nl-mode-btn.active {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .nl-mem-search-submit,
+.light-theme .nl-mem-search-submit {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+  border-color: #27272a !important;
+}
+
+[data-theme="light"] .nl-status-pill-group,
+.light-theme .nl-status-pill-group {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-status-pill,
+.light-theme .nl-status-pill {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-status-pill.active,
+.light-theme .nl-status-pill.active {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .nl-btn-secondary,
+.light-theme .nl-btn-secondary {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .nl-btn-secondary:hover,
+.light-theme .nl-btn-secondary:hover {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .nl-btn-primary,
+.light-theme .nl-btn-primary {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .nl-platform-dropdown-btn,
+.light-theme .nl-platform-dropdown-btn {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-platform-dropdown-menu,
+.light-theme .nl-platform-dropdown-menu {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .nl-platform-dropdown-item,
+.light-theme .nl-platform-dropdown-item {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-platform-dropdown-item:hover,
+.light-theme .nl-platform-dropdown-item:hover {
+  background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] .nl-btn-agent-threads,
+.light-theme .nl-btn-agent-threads {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-btn-import-thread,
+.light-theme .nl-btn-import-thread {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ── Light Theme: Memory Row Cards (Image 3) ── */
+[data-theme="light"] .nl-memory-row-card,
+.light-theme .nl-memory-row-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .nl-memory-row-card:hover,
+.light-theme .nl-memory-row-card:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .nl-mem-row-title,
+.light-theme .nl-mem-row-title,
+[data-theme="light"] .nl-memory-row-title,
+.light-theme .nl-memory-row-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-memory-row-snippet,
+.light-theme .nl-memory-row-snippet,
+[data-theme="light"] .nl-memory-row-content-snippet,
+.light-theme .nl-memory-row-content-snippet {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .nl-row-badge-type,
+.light-theme .nl-row-badge-type {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] .nl-row-badge-source,
+.light-theme .nl-row-badge-source {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-row-tag-chip,
+.light-theme .nl-row-tag-chip,
+[data-theme="light"] .nl-memory-row-tag,
+.light-theme .nl-memory-row-tag {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-row-tag-chip:hover,
+.light-theme .nl-row-tag-chip:hover,
+[data-theme="light"] .nl-memory-row-tag:hover,
+.light-theme .nl-memory-row-tag:hover {
+  background-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-row-icon-btn,
+.light-theme .nl-row-icon-btn,
+[data-theme="light"] .nl-memory-row-actions button,
+.light-theme .nl-memory-row-actions button {
+  color: #94a3b8 !important;
+}
+
+[data-theme="light"] .nl-row-icon-btn:hover,
+.light-theme .nl-row-icon-btn:hover,
+[data-theme="light"] .nl-memory-row-actions button:hover,
+.light-theme .nl-memory-row-actions button:hover {
+  color: #0f172a !important;
+}
+
+/* ── Light Theme: Thread Row Cards (Image 2) ── */
+[data-theme="light"] .nl-thread-row-card,
+.light-theme .nl-thread-row-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .nl-thread-row-card:hover,
+.light-theme .nl-thread-row-card:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .nl-thread-row-title,
+.light-theme .nl-thread-row-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-thread-row-meta,
+.light-theme .nl-thread-row-meta {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-thread-row-date,
+.light-theme .nl-thread-row-date {
+  color: #64748b !important;
+}
+
+/* ── Light Theme: Chat & Thread Detail Stream (Image 4) ── */
+[data-theme="light"] .nl-thread-detail-container,
+.light-theme .nl-thread-detail-container,
+[data-theme="light"] .nl-thread-detail-layout,
+.light-theme .nl-thread-detail-layout {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .nl-thread-top-bar,
+.light-theme .nl-thread-top-bar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-thread-back-btn,
+.light-theme .nl-thread-back-btn {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .nl-thread-chat-stream,
+.light-theme .nl-thread-chat-stream {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-chat-msg-pre,
+.light-theme .nl-chat-msg-pre {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+[data-theme="light"] .nl-chat-avatar,
+.light-theme .nl-chat-avatar {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-msg-role-name,
+.light-theme .nl-msg-role-name {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-thread-detail-sidebar,
+.light-theme .nl-thread-detail-sidebar,
+[data-theme="light"] .nl-thread-sidebar,
+.light-theme .nl-thread-sidebar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-thread-sidebar-card,
+.light-theme .nl-thread-sidebar-card,
+[data-theme="light"] .nl-thread-accordion-card,
+.light-theme .nl-thread-accordion-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-thread-accordion-header,
+.light-theme .nl-thread-accordion-header {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-thread-accordion-content,
+.light-theme .nl-thread-accordion-content {
+  color: #475569 !important;
+}
+
+/* ── Light Theme: Memory Detail View ── */
+[data-theme="light"] .nl-memory-detail-layout,
+.light-theme .nl-memory-detail-layout {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .nl-mem-detail-top-bar,
+.light-theme .nl-mem-detail-top-bar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-back-breadcrumb-btn,
+.light-theme .nl-back-breadcrumb-btn {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .nl-memory-detail-main-col,
+.light-theme .nl-memory-detail-main-col {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .nl-memory-detail-card,
+.light-theme .nl-memory-detail-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .nl-mem-detail-title,
+.light-theme .nl-mem-detail-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-mem-detail-body,
+.light-theme .nl-mem-detail-body {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .nl-memory-detail-sidebar,
+.light-theme .nl-memory-detail-sidebar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .nl-sidebar-field-row .nl-field-label,
+.light-theme .nl-sidebar-field-row .nl-field-label {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-sidebar-field-row .nl-field-value,
+.light-theme .nl-sidebar-field-row .nl-field-value {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-sidebar-action-btn,
+.light-theme .nl-sidebar-action-btn {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+[data-theme="light"] .nl-sidebar-action-btn:hover,
+.light-theme .nl-sidebar-action-btn:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .nl-detail-tag-chip,
+.light-theme .nl-detail-tag-chip {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
 /* ── Segmented Control & Preferences UI (Dark Theme Default) ── */
 .nl-theme-segmented {
   display: grid;
